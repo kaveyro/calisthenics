@@ -36,20 +36,20 @@
   <div class="stats" id="stats"></div>
 
   <nav class="tabs" role="tablist" aria-label="Bereiche">
-    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab">Training</button>
-    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab">Verlauf</button>
-    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab">Übungen</button>
-    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab">Plan</button>
-    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab">Ziele</button>
+    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab" aria-selected="true">Training</button>
+    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab" aria-selected="false">Verlauf</button>
+    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab" aria-selected="false">Übungen</button>
+    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab" aria-selected="false">Plan</button>
+    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab" aria-selected="false">Ziele</button>
   </nav>
 
   <!-- ============ TRAINING ============ -->
-  <section id="view-train">
+  <section id="view-train" role="tabpanel">
     <div id="banners"></div>
     <div class="day-select" id="daySelect" role="group" aria-label="Trainingstag wählen"></div>
 
     <details class="acc">
-      <summary>Warm-up (8–10 Min) – vor jeder Einheit</summary>
+      <summary>Warm-up (8–10 Min) – vor jeder Einheit <button class="mini-btn" onclick="event.stopPropagation();addWarmupItem()" title="Eintrag hinzufügen" style="float:right;margin-right:20px">+</button></summary>
       <ul id="warmupList"></ul>
     </details>
 
@@ -57,7 +57,7 @@
   </section>
 
   <!-- ============ VERLAUF ============ -->
-  <section id="view-history" hidden>
+  <section id="view-history" hidden role="tabpanel">
     <div class="section-title">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>
@@ -80,12 +80,18 @@
       <div class="weight-meta" id="weightMeta"></div>
     </div>
 
+    <!-- Measurements container (rendered by JS) -->
+    <div id="measContainer"></div>
+
     <div class="section-title">Letzte Trainings</div>
     <div class="card" id="logList"></div>
+
+    <!-- Calendar container (rendered by JS) -->
+    <div id="calendarView"></div>
   </section>
 
   <!-- ============ ÜBUNGEN ============ -->
-  <section id="view-library" hidden>
+  <section id="view-library" hidden role="tabpanel">
     <div class="section-title">Übungsbibliothek</div>
     <div class="filter-row" id="catFilter"></div>
     <div class="inline-row" style="margin-bottom:12px">
@@ -95,7 +101,7 @@
   </section>
 
   <!-- ============ PLAN ============ -->
-  <section id="view-plan" hidden>
+  <section id="view-plan" hidden role="tabpanel">
     <div class="section-title">Trainingsplan</div>
     <div class="card">
       <div class="set-row" style="border-bottom:none;padding-top:0">
@@ -112,8 +118,11 @@
   </section>
 
   <!-- ============ ZIELE ============ -->
-  <section id="view-milestones" hidden>
+  <section id="view-milestones" hidden role="tabpanel">
     <div class="section-title">Meilensteine</div>
+    <div class="inline-row" style="margin-bottom:10px">
+      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" oninput="renderMilestones()" aria-label="Meilenstein suchen">
+    </div>
     <div class="card" id="msList"></div>
     <p class="muted">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.</p>
 
@@ -122,7 +131,8 @@
   </section>
 
   <footer>
-    Progression · Offline nutzbar · Backup &amp; Einstellungen über ⚙ oben rechts
+    Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts
+    <br><small>Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab</small>
   </footer>
 </div>
 
@@ -202,17 +212,20 @@
       </select>
     </div>
 
-    <div class="section-title">Daten &amp; Backup</div>
+    <div class="section-title">Daten & Backup</div>
     <div class="data-btns">
       <button class="btn" onclick="exportJSON()">Backup herunterladen</button>
       <label class="btn secondary" style="cursor:pointer">Backup importieren
         <input type="file" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
       </label>
     </div>
-    <div class="data-hint">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, deinen Plan und alle Einstellungen. Ideal zum Sichern oder zum Umzug auf ein anderes Gerät.</div>
+    <div class="data-hint">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, Maße, deinen Plan und alle Einstellungen.</div>
     <div class="data-btns">
       <button class="btn secondary" onclick="exportCSV()">Verlauf als CSV</button>
       <button class="btn secondary" onclick="exportText()">Als Text kopieren</button>
+      <label class="btn secondary" style="cursor:pointer">CSV importieren
+        <input type="file" accept=".csv,text/csv" style="display:none" onchange="importCSV(this)">
+      </label>
     </div>
     <div class="data-btns">
       <button class="btn secondary" style="color:var(--warn)" onclick="resetAll()">Alles zurücksetzen</button>
