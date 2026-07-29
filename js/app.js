@@ -1255,7 +1255,17 @@ function today(){
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 function fmtDate(iso){ if(!iso) return ''; const p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
-function esc(s){ return String(s).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#39;'); }
+/* Escaped Text fuer die Einbettung in HTML – auch in Attributwerte.
+   Achtung: & muss zuerst ersetzt werden, sonst werden die eigenen
+   Entities der folgenden Schritte doppelt escaped. */
+function esc(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 let toastTimer = null;
 function toast(msg, big){
