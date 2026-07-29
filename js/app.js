@@ -454,11 +454,11 @@ function removeWarmupItem(i){
   state.warmupCustom.splice(i, 1);
   save(); renderWarmup();
 }
-function addWarmupItem(){
-  const t = prompt('Neuen Warm-up-Eintrag:');
-  if(!t) return;
+async function addWarmupItem(){
+  const t = await askText('Warm-up erweitern', 'Neuer Eintrag', '', 80);
+  if(!t || !t.trim()) return;
   if(!state.warmupCustom) state.warmupCustom = [...WARMUP];
-  state.warmupCustom.push(t);
+  state.warmupCustom.push(t.trim());
   save(); renderWarmup();
 }
 
@@ -509,12 +509,14 @@ function addKeyboardShortcuts(){
     /* Escape zuerst und unabhaengig vom Fokus – schliesst den jeweils
        offenen Dialog, nicht nur die Einstellungen. */
     if(e.key === 'Escape'){
-      if(openDialogEl) closeDialog(openDialogEl);
+      /* Nur die oberste Ebene schliessen. Die askDialog-Overlays behandeln
+         Escape selbst und stoppen die Weitergabe. */
+      if(openDialogEl.current) closeDialog(openDialogEl.current);
       return;
     }
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    /* Bei offenem Einstellungsdialog keine Kuerzel im Hintergrund ausloesen. */
-    if(document.getElementById('settingsOverlay').classList.contains('open')) return;
+    /* Bei offenem Dialog keine Kuerzel im Hintergrund ausloesen. */
+    if(openDialogEl.current) return;
     /* Nur auslosen, wenn kein anderes Bedienelement den Fokus hat – sonst
        schluckt Space die Aktivierung des fokussierten Buttons. */
     if(e.key === ' ' && e.target.closest('button, a, summary, [tabindex]') &&
@@ -699,25 +701,32 @@ function adjustLevel(id, d){
 }
 
 /* ================= Substitute Exercise ================= */
-function substituteExercise(id){
+async function substituteExercise(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
   const sameCat = EXERCISES.filter(e => e.cat === ex.cat && e.id !== id);
   if(!sameCat.length){ toast('Keine Alternative in dieser Kategorie gefunden.'); return; }
-  const names = sameCat.map((e, i) => (i + 1) + '. ' + e.name).join('\n');
-  const choice = prompt('Ersatz für "' + ex.name + '" wählen:\n\n' + names + '\n\nNummer eingeben:');
-  if(!choice) return;
-  const idx = parseInt(choice, 10) - 1;
-  if(isNaN(idx) || idx < 0 || idx >= sameCat.length){ toast('Ungültige Auswahl.'); return; }
+
+  /* Frueher wurde die Liste in ein prompt() gerendert und der Nutzer musste
+     eine Nummer eintippen. Jetzt eine anklickbare Auswahl mit der jeweils
+     aktuellen Stufe als Zusatzinfo. */
+  const gewaehlt = await askChoice('Ersatz für „' + ex.name + '“', sameCat.map(e => ({
+    value: e.id,
+    name: e.name,
+    sub: e.levels[lvlOf(e)].stage + ' · ' + e.levels[lvlOf(e)].target
+  })));
+  if(!gewaehlt) return;
+
   const p = ensureCustom();
   const day = p.days.find(d => d.key === session.dayKey);
   if(!day) return;
   const ei = day.ex.indexOf(id);
-  if(ei >= 0) day.ex[ei] = sameCat[idx].id;
+  if(ei >= 0) day.ex[ei] = gewaehlt;
   save();
   const n = snapshotNotes(); const r = session.reps;
   session.sets = {}; session.top = {};
+  persistSession();
   renderWorkout(); restoreSession(n, r);
-  toast(sameCat[idx].name + ' als Ersatz eingetragen.');
+  toast(EX_BY_ID[gewaehlt].name + ' als Ersatz eingetragen.');
 }
 
 /* ================= Per-Exercise History ================= */
@@ -1352,29 +1361,41 @@ function changePlan(v){
   save(); renderPlanTab(); renderStats(); renderDaySelect();
   toast('Plan gewechselt: ' + getPlan().name);
 }
-function resetPlan(){
-  if(!confirm('Plan auf die gewählte Vorlage zurücksetzen? Deine eigenen Änderungen am Plan gehen verloren (Fortschritt bleibt).')) return;
+async function resetPlan(){
+  const ok = await askConfirm('Plan zurücksetzen',
+    'Der Plan wird auf die gewählte Vorlage zurückgesetzt. Deine eigenen Änderungen am Plan gehen verloren – der Trainingsfortschritt bleibt erhalten.',
+    'Zurücksetzen', true);
+  if(!ok) return;
   state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast('Plan zurückgesetzt.');
 }
-function addPlanDay(){
+async function addPlanDay(){
   const p = ensureCustom();
-  const key = sanitizeDayKey(prompt('Kurzbezeichnung des Tages (z. B. C):', String.fromCharCode(65 + p.days.length)));
+  const key = sanitizeDayKey(await askText('Trainingstag hinzufügen',
+    'Kurzbezeichnung (max. 6 Zeichen, z. B. C)', String.fromCharCode(65 + p.days.length), 6));
   if(!key) return;
-  const title = prompt('Titel des Tages:', __('addDay')) || __('addDay');
+  const title = (await askText('Trainingstag hinzufügen', 'Titel', __('addDay'), 40)) || __('addDay');
   p.days.push({ key, title: title.slice(0, 40), sub: '', ex: [] });
   save(); renderPlanTab(); renderDaySelect();
 }
-function renameDay(di){
+async function renameDay(di){
   const p = ensureCustom(), d = p.days[di];
-  const key = prompt('Kurzbezeichnung:', d.key); if(key === null) return;
-  const title = prompt('Titel:', d.title); if(title === null) return;
-  const sub = prompt('Untertitel (optional):', d.sub || '');
-  d.key = sanitizeDayKey(key) || d.key; d.title = title.slice(0, 40) || d.title; d.sub = (sub || '').slice(0, 60);
+  const key = await askText('Tag umbenennen', 'Kurzbezeichnung (max. 6 Zeichen)', d.key, 6);
+  if(key === null) return;
+  const title = await askText('Tag umbenennen', 'Titel', d.title, 40);
+  if(title === null) return;
+  const sub = await askText('Tag umbenennen', 'Untertitel (optional)', d.sub || '', 60);
+  if(sub === null) return;
+  d.key = sanitizeDayKey(key) || d.key;
+  d.title = title.slice(0, 40) || d.title;
+  d.sub = sub.slice(0, 60);
   save(); renderPlanTab(); renderDaySelect();
 }
-function removeDay(di){
+async function removeDay(di){
   const p = ensureCustom();
-  if(!confirm('Trainingstag "' + p.days[di].title + '" entfernen?')) return;
+  const ok = await askConfirm('Trainingstag entfernen',
+    'Soll „' + p.days[di].title + '“ aus dem Plan entfernt werden? Der Stufenfortschritt der Übungen bleibt erhalten.',
+    'Entfernen', true);
+  if(!ok) return;
   p.days.splice(di, 1); save(); renderPlanTab(); renderDaySelect();
 }
 function addEx(di){
@@ -1437,12 +1458,18 @@ function renderRoadmap(){
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
   'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-let openDialogEl = null;
-let focusBeforeDialog = null;
+/* Ein Stapel, kein einzelner Dialog: eine Rueckfrage kann ueber dem
+   Einstellungsdialog liegen ("Backup importieren?"). Mit nur einer Variablen
+   haette das Schliessen der oberen Ebene inert vom Hintergrund genommen und
+   den Fokus an der falschen Stelle abgelegt, waehrend die untere noch offen
+   ist. */
+const dialogStack = [];
+const openDialogEl = { get current(){ return dialogStack.length ? dialogStack[dialogStack.length - 1].el : null; } };
 
 function trapTab(e){
-  if(e.key !== 'Tab' || !openDialogEl) return;
-  const items = [...openDialogEl.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+  const top = dialogStack[dialogStack.length - 1];
+  if(e.key !== 'Tab' || !top) return;
+  const items = [...top.el.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
   if(!items.length) return;
   const first = items[0], last = items[items.length - 1];
   if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
@@ -1450,26 +1477,133 @@ function trapTab(e){
 }
 
 function openDialog(overlay){
-  focusBeforeDialog = document.activeElement;
+  const unten = dialogStack[dialogStack.length - 1];
+  /* Die darunterliegende Ebene wird selbst unerreichbar. */
+  if(unten) unten.el.setAttribute('inert', '');
+  else document.querySelector('.wrap')?.setAttribute('inert', '');
+
+  dialogStack.push({ el: overlay, rueckfokus: document.activeElement });
   overlay.classList.add('open');
-  openDialogEl = overlay;
-  /* Der Rest der Seite verschwindet fuer Screenreader und Tabulator. */
-  document.querySelector('.wrap')?.setAttribute('inert', '');
   const first = overlay.querySelector(FOCUSABLE);
   if(first) first.focus();
-  document.addEventListener('keydown', trapTab, true);
+  if(dialogStack.length === 1) document.addEventListener('keydown', trapTab, true);
 }
 
 function closeDialog(overlay){
+  const i = dialogStack.findIndex(d => d.el === overlay);
+  if(i < 0){ overlay.classList.remove('open'); return; }
+  const [eintrag] = dialogStack.splice(i, 1);
   overlay.classList.remove('open');
-  if(openDialogEl === overlay){
-    openDialogEl = null;
-    document.removeEventListener('keydown', trapTab, true);
+
+  const unten = dialogStack[dialogStack.length - 1];
+  if(unten) unten.el.removeAttribute('inert');
+  else {
     document.querySelector('.wrap')?.removeAttribute('inert');
-    /* Fokus dorthin zurueck, wo er herkam. */
-    if(focusBeforeDialog && document.contains(focusBeforeDialog)) focusBeforeDialog.focus();
-    focusBeforeDialog = null;
+    document.removeEventListener('keydown', trapTab, true);
   }
+  /* Fokus dorthin zurueck, wo er herkam. */
+  if(eintrag.rueckfokus && document.contains(eintrag.rueckfokus)) eintrag.rueckfokus.focus();
+}
+
+/* ================= Eigene Dialoge =================
+   Ersetzt prompt() und confirm(). Diese blockieren den Browser, sind in
+   plattformübergreifenden PWAs unterschiedlich zuverlaessig, lassen sich
+   nicht gestalten und waren hier der Grund fuer eine Auswahl per
+   eingetippter Nummer. Alle drei Funktionen liefern ein Promise und nutzen
+   dasselbe Fokus-Management wie die uebrigen Dialoge. */
+
+function askDialog(build){
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    let done = false;
+    const finish = wert => {
+      if(done) return;
+      done = true;
+      closeDialog(overlay);
+      overlay.remove();
+      resolve(wert);
+    };
+
+    overlay.innerHTML = '<div class="modal" role="dialog" aria-modal="true"></div>';
+    const modal = overlay.firstChild;
+    build(modal, finish);
+
+    overlay.addEventListener('click', e => { if(e.target === overlay) finish(null); });
+    overlay.addEventListener('keydown', e => { if(e.key === 'Escape'){ e.stopPropagation(); finish(null); } });
+    document.body.appendChild(overlay);
+    openDialog(overlay);
+  });
+}
+
+function dialogKopf(titel){
+  return '<div class="modal-head"><span>' + esc(titel) + '</span>' +
+    '<button data-dlg="abbrechen" aria-label="Schließen">✕</button></div>';
+}
+function dialogFuss(okText, gefahr){
+  return '<div class="dlg-actions">' +
+    '<button data-dlg="abbrechen">Abbrechen</button>' +
+    '<button data-dlg="ok" class="primary' + (gefahr ? ' danger' : '') + '">' + esc(okText) + '</button></div>';
+}
+
+/* Freitexteingabe – Ersatz fuer prompt() */
+function askText(titel, label, vorgabe = '', maxLen = 80){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<label class="dlg-label" for="dlg-input">' + esc(label) + '</label>' +
+      '<input id="dlg-input" class="dlg-input" maxlength="' + maxLen + '" value="' + esc(vorgabe) + '">' +
+      dialogFuss('Übernehmen');
+    const input = modal.querySelector('#dlg-input');
+    const ok = () => finish(input.value);
+    modal.querySelector('[data-dlg=ok]').onclick = ok;
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+    input.onkeydown = e => { if(e.key === 'Enter') ok(); };
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  });
+}
+
+/* Rueckfrage – Ersatz fuer confirm() */
+function askConfirm(titel, text, okText = 'OK', gefahr = false){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<p class="dlg-text">' + esc(text).replace(/\n/g, '<br>') + '</p>' +
+      dialogFuss(okText, gefahr);
+    modal.querySelector('[data-dlg=ok]').onclick = () => finish(true);
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(false); });
+  });
+}
+
+/* Auswahlliste – ersetzt die frühere Eingabe einer Nummer per prompt() */
+function askChoice(titel, optionen){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<div class="dlg-list" role="group">' +
+      optionen.map((o, i) =>
+        '<button class="dlg-choice" data-i="' + i + '"><span class="dlg-choice-name">' + esc(o.name) + '</span>' +
+        (o.sub ? '<span class="dlg-choice-sub">' + esc(o.sub) + '</span>' : '') + '</button>').join('') +
+      '</div><div class="dlg-actions"><button data-dlg="abbrechen">Abbrechen</button></div>';
+    modal.querySelectorAll('.dlg-choice').forEach(b => {
+      b.onclick = () => finish(optionen[parseInt(b.dataset.i, 10)].value);
+    });
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+  });
+}
+
+/* Nur-Lese-Text zum Markieren und Kopieren */
+function showTextDialog(titel, text){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<textarea class="dlg-area" readonly rows="12"></textarea>' +
+      '<div class="dlg-actions"><button data-dlg="abbrechen" class="primary">Schließen</button></div>';
+    modal.querySelector('.dlg-area').value = text;
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+    setTimeout(() => { const a = modal.querySelector('.dlg-area'); a.focus(); a.select(); }, 0);
+  });
 }
 
 function openSettings(){
@@ -1540,8 +1674,8 @@ function exportText(){
   const text = lines.join('\n');
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(() => toast('In die Zwischenablage kopiert.'))
-      .catch(() => prompt('Zum Kopieren markieren:', text));
-  } else prompt('Zum Kopieren markieren:', text);
+      .catch(() => showTextDialog('Zum Kopieren markieren', text));
+  } else showTextDialog('Zum Kopieren markieren', text);
 }
 const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
@@ -1595,7 +1729,10 @@ function importJSON(input){
       const data = JSON.parse(e.target.result);
       if(!data || typeof data !== 'object' || Array.isArray(data) ||
          (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
-      if(!confirm('Backup importieren? Der aktuelle Stand auf diesem Gerät wird überschrieben.')){ input.value = ''; return; }
+      const ok = await askConfirm('Backup importieren',
+        'Der aktuelle Stand auf diesem Gerät wird vollständig überschrieben. Lade vorher ein Backup herunter, wenn du ihn behalten willst.',
+        'Importieren', true);
+      if(!ok){ input.value = ''; return; }
       cancelHold(); stopRest();
       state = Object.assign(DEFAULT_STATE(), clampBackup(data));
       clearSession();          /* vor dem Speichern: sonst landet eine aus dem
@@ -1627,14 +1764,14 @@ function importCSV(input){
     toast('Datei ist zu groß (über 5 MB).'); input.value = ''; return;
   }
   const r = new FileReader();
-  r.onload = e => {
+  r.onload = async e => {
     try{
       const { entries: imported, skipped } = parseLog(e.target.result, sanitizeDayKey);
       if(!imported.length) throw new Error('keine gültigen Zeilen gefunden');
 
-      const msg = imported.length + ' Einträge importieren? Doppelte werden übersprungen.' +
-        (skipped ? '\n\n' + skipped + ' Zeile(n) werden übersprungen (ungültiges Datum oder keine Sätze).' : '');
-      if(!confirm(msg)) return;
+      const msg = imported.length + ' Einträge werden importiert. Bereits vorhandene Einträge werden übersprungen.' +
+        (skipped ? '\n\n' + skipped + ' Zeile(n) werden ausgelassen (ungültiges Datum oder keine Sätze).' : '');
+      if(!await askConfirm('Verlauf importieren', msg, 'Importieren')) return;
 
       const existing = new Set((state.log || []).map(l => l.d + '-' + l.day));
       let added = 0;
@@ -1659,7 +1796,11 @@ function importCSV(input){
 }
 
 async function resetAll(){
-  if(!confirm('Wirklich alles zurücksetzen? Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewichtsdaten und Maße werden gelöscht. Einstellungen und Design bleiben.')) return;
+  const ok = await askConfirm('Alles zurücksetzen',
+    'Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewichtsdaten und Maße werden gelöscht.\n\n' +
+    'Einstellungen, Design und Plan bleiben erhalten. Das lässt sich nicht rückgängig machen.',
+    'Alles löschen', true);
+  if(!ok) return;
   cancelHold(); stopRest();
   const keep = { theme: state.theme, settings: state.settings, planId: state.planId, customPlan: state.customPlan };
   /* Ohne catch bricht ein Fehler in store.clear() die async-Funktion mitten
