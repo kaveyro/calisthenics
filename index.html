@@ -42,28 +42,32 @@
   <div class="stats" id="stats"></div>
 
   <nav class="tabs" role="tablist" aria-label="Bereiche">
-    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab" aria-selected="true">Training</button>
-    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab" aria-selected="false">Verlauf</button>
-    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab" aria-selected="false">Übungen</button>
-    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab" aria-selected="false">Plan</button>
-    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab" aria-selected="false">Ziele</button>
+    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0">Training</button>
+    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1">Verlauf</button>
+    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1">Übungen</button>
+    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1">Plan</button>
+    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1">Ziele</button>
   </nav>
 
   <!-- ============ TRAINING ============ -->
-  <section id="view-train" role="tabpanel">
+  <main><section id="view-train" role="tabpanel" aria-labelledby="tab-train" tabindex="0">
     <div id="banners"></div>
     <div class="day-select" id="daySelect" role="group" aria-label="Trainingstag wählen"></div>
 
+    <!-- Der Hinzufügen-Button lag früher IM <summary>. Verschachtelte
+         interaktive Elemente sind ungültig, und die Tastaturaktivierung von
+         Zusammenfassung und Button kollidierte. Jetzt steht er daneben. -->
     <details class="acc">
-      <summary>Warm-up (8–10 Min) – vor jeder Einheit <button class="mini-btn" onclick="event.stopPropagation();addWarmupItem()" title="Eintrag hinzufügen" style="float:right;margin-right:20px">+</button></summary>
+      <summary>Warm-up (8–10 Min) – vor jeder Einheit</summary>
       <ul id="warmupList"></ul>
+      <button class="mini-btn" onclick="addWarmupItem()" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
     </details>
 
     <div id="content"><div class="loading">Lade deinen Fortschritt …</div></div>
   </section>
 
   <!-- ============ VERLAUF ============ -->
-  <section id="view-history" hidden role="tabpanel">
+  <section id="view-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
     <div class="section-title">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>
@@ -97,7 +101,7 @@
   </section>
 
   <!-- ============ ÜBUNGEN ============ -->
-  <section id="view-library" hidden role="tabpanel">
+  <section id="view-library" hidden role="tabpanel" aria-labelledby="tab-library" tabindex="0">
     <div class="section-title">Übungsbibliothek</div>
     <div class="filter-row" id="catFilter"></div>
     <div class="inline-row" style="margin-bottom:12px">
@@ -107,7 +111,7 @@
   </section>
 
   <!-- ============ PLAN ============ -->
-  <section id="view-plan" hidden role="tabpanel">
+  <section id="view-plan" hidden role="tabpanel" aria-labelledby="tab-plan" tabindex="0">
     <div class="section-title">Trainingsplan</div>
     <div class="card">
       <div class="set-row" style="border-bottom:none;padding-top:0">
@@ -124,7 +128,7 @@
   </section>
 
   <!-- ============ ZIELE ============ -->
-  <section id="view-milestones" hidden role="tabpanel">
+  <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
     <div class="section-title">Meilensteine</div>
     <div class="inline-row" style="margin-bottom:10px">
       <input type="search" id="msSearch" placeholder="Meilenstein suchen …" oninput="renderMilestones()" aria-label="Meilenstein suchen">
@@ -135,10 +139,11 @@
     <div class="section-title">Skill-Fahrplan</div>
     <div class="card" id="roadmap"></div>
   </section>
+  </main>
 
   <footer>
     Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts
-    <br><small>Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab</small>
+    <br><small>Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab, ←/→ in der Tableiste</small>
   </footer>
 </div>
 

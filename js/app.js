@@ -159,7 +159,7 @@ const LANG = {
     calendar: 'Kalender', schedule: 'Planübersicht',
     substitute: 'Ersetzen', superset: 'Supersatz',
     warmupCustom: 'Warm-up anpassen', milestoneSearch: 'Meilenstein suchen',
-    keyboardHints: 'Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tag',
+    keyboardHints: 'Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab',
     undoWorkout: 'Training rückgängig gemacht',
     volumeProgress: 'Volumensteigerung',
     addMeasurement: 'Maß speichern', cm: 'cm'
@@ -202,6 +202,7 @@ function cfg(k){
     restoreActiveSession();
     registerSW();
     addKeyboardShortcuts();
+    addTablistNavigation();
   }catch(err){
     /* Ohne diesen Zweig bliebe der Ladehinweis dauerhaft stehen und der
        Fehler landete nur als unbehandelte Promise-Rejection in der Konsole. */
@@ -444,7 +445,8 @@ function renderWarmup(){
   const el = document.getElementById('warmupList');
   el.innerHTML = items.map((w, i) =>
     '<li' + (w.includes('Pflicht') ? ' class="pflicht"' : '') + '>' +
-    esc(w) + ' <button class="mini-btn" onclick="removeWarmupItem(' + i + ')" title="entfernen" style="font-size:10px;width:20px;height:20px;margin-left:6px">✕</button></li>'
+    esc(w) + ' <button class="mini-btn mini-btn--inline" onclick="removeWarmupItem(' + i + ')"' +
+    ' aria-label="Warm-up-Eintrag entfernen: ' + esc(w) + '">✕</button></li>'
   ).join('');
 }
 function removeWarmupItem(i){
@@ -464,9 +466,17 @@ function addWarmupItem(){
 const TABS = ['train', 'history', 'library', 'plan', 'milestones'];
 function showTab(t){
   TABS.forEach(x => {
-    document.getElementById('view-' + x).hidden = (x !== t);
-    document.getElementById('tab-' + x).classList.toggle('active', x === t);
-    document.getElementById('tab-' + x).ariaSelected = (x === t) ? 'true' : 'false';
+    const sel = (x === t);
+    document.getElementById('view-' + x).hidden = !sel;
+    const tab = document.getElementById('tab-' + x);
+    tab.classList.toggle('active', sel);
+    /* setAttribute statt der IDL-Eigenschaft .ariaSelected: wo die Browser
+       sie nicht reflektieren, entstand dort nur eine Expando-Eigenschaft,
+       waehrend das Attribut im DOM dauerhaft auf false stehen blieb. */
+    tab.setAttribute('aria-selected', sel ? 'true' : 'false');
+    /* Roving tabindex: der Tabulator springt in die Leiste hinein und wieder
+       heraus, zwischen den Tabs navigiert man mit den Pfeiltasten. */
+    tab.tabIndex = sel ? 0 : -1;
   });
   document.getElementById('finishBar').style.display = (t === 'train' && session.dayKey) ? 'block' : 'none';
   if(t === 'history') renderHistory();
@@ -476,11 +486,32 @@ function showTab(t){
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/* Pfeiltasten-Navigation innerhalb der Tableiste (ARIA-Tabs-Muster). */
+function addTablistNavigation(){
+  document.querySelector('.tabs').addEventListener('keydown', e => {
+    const keys = { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
+    if(!(e.key in keys)) return;
+    const cur = TABS.indexOf(e.target.id.replace('tab-', ''));
+    if(cur < 0) return;
+    e.preventDefault();
+    const d = keys[e.key];
+    const next = d === 'first' ? 0
+      : d === 'last' ? TABS.length - 1
+      : (cur + d + TABS.length) % TABS.length;
+    showTab(TABS[next]);
+    document.getElementById('tab-' + TABS[next]).focus();
+  });
+}
+
 /* ================= Tab Keyboard Navigation ================= */
 function addKeyboardShortcuts(){
   document.addEventListener('keydown', e => {
-    /* Escape zuerst und unabhaengig vom Fokus. */
-    if(e.key === 'Escape'){ closeSettings(); return; }
+    /* Escape zuerst und unabhaengig vom Fokus – schliesst den jeweils
+       offenen Dialog, nicht nur die Einstellungen. */
+    if(e.key === 'Escape'){
+      if(openDialogEl) closeDialog(openDialogEl);
+      return;
+    }
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     /* Bei offenem Einstellungsdialog keine Kuerzel im Hintergrund ausloesen. */
     if(document.getElementById('settingsOverlay').classList.contains('open')) return;
@@ -559,15 +590,28 @@ function renderWorkout(){
     let rungs = '';
     ex.levels.forEach((l, i) => {
       if(i > 0) rungs += '<div class="rung-line' + (i <= lvl ? ' done' : '') + '"></div>';
-      rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(l.stage) + '"></div>';
+      /* title allein wird nicht zuverlaessig angesagt und auf Touch nie
+         angezeigt – die Leiter transportierte ihren Zustand rein farblich. */
+      rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(l.stage) + '" aria-hidden="true"></div>';
     });
 
     let dots = '';
     for(let s = 0; s < t.sets; s++){
       const repKey = ex.id + '-' + s;
-      dots += '<button class="set-dot" id="set-' + repKey + '" onclick="tapSet(\'' + ex.id + '\',' + s + ')" aria-label="' + __('sets') + ' ' + (s + 1) + '">' + (s + 1) + '</button>';
+      /* aria-pressed statt reiner Farbcodierung: der Erledigt-Zustand war
+         nur ueber eine CSS-Klasse sichtbar und das Label statisch.
+         aria-live auf dem Punkt, damit der Countdown einer Halteuebung
+         ueberhaupt angesagt wird – er aendert nur den Textinhalt. */
+      dots += '<button class="set-dot" id="set-' + repKey + '"' +
+        ' onclick="tapSet(\'' + ex.id + '\',' + s + ')"' +
+        ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
+        (t.isHold ? ' aria-live="polite"' : '') +
+        ' aria-label="' + esc(ex.name) + ', Satz ' + (s + 1) + ' von ' + t.sets + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
-        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '" placeholder="' + (t.minReps + '-' + t.maxReps) + '" title="' + __('reps') + '" value="' + ((session.reps || {})[repKey] || '') + '" oninput="setRep(\'' + repKey + '\',this.value)">';
+        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
+          ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
+          ' aria-label="Wiederholungen, ' + esc(ex.name) + ', Satz ' + (s + 1) + '"' +
+          ' value="' + ((session.reps || {})[repKey] || '') + '" oninput="setRep(\'' + repKey + '\',this.value)">';
       }
     }
 
@@ -584,7 +628,8 @@ function renderWorkout(){
         ' <span class="cat-chip">' + CATS[ex.cat].name + '</span></span>' +
         '<span class="lvl-adjust"><button onclick="adjustLevel(\'' + ex.id + '\',-1)" title="Stufe verringern" aria-label="Stufe verringern">−</button>' +
         '<button onclick="adjustLevel(\'' + ex.id + '\',1)" title="Stufe erhöhen" aria-label="Stufe erhöhen">+</button></span></div>' +
-      '<div class="rungs">' + rungs + '</div>' +
+      '<div class="rungs" role="img" aria-label="Stufe ' + (lvl + 1) + ' von ' + ex.levels.length +
+        ': ' + esc(level.stage) + '">' + rungs + '</div>' +
       '<div class="ex-head"><div class="ex-name">' + esc(ex.name) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
       '<div class="ex-stage">Aktuell: <b>' + esc(level.stage) + '</b></div>' +
       (pr ? '<div class="pr-line">' + __('best') + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
@@ -618,7 +663,10 @@ function snapshotNotes(){
 }
 function restoreSession(notes, reps){
   Object.keys(session.sets).forEach(k => {
-    if(session.sets[k]){ const el = document.getElementById('set-' + k); if(el) el.classList.add('done'); }
+    if(session.sets[k]){
+      const el = document.getElementById('set-' + k);
+      if(el){ el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); }
+    }
   });
   Object.keys(session.top).forEach(id => {
     if(session.top[id]){
@@ -679,8 +727,11 @@ function showExHistory(id){
     const day = getDay(l.day);
     return day && day.ex.includes(id);
   }).slice(-15).reverse();
-  let html = '<div class="modal" style="max-width:400px;padding:16px"><div class="modal-head">' +
-    esc(ex.name) + ' · Verlauf<button onclick="closeExHistory()">✕</button></div>';
+  /* role/aria-modal fehlten hier komplett – anders als beim statischen
+     Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
+  let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(ex.name) + ' – Verlauf"' +
+    ' style="max-width:400px;padding:16px"><div class="modal-head">' +
+    esc(ex.name) + ' · Verlauf<button onclick="closeExHistory()" aria-label="Schließen">✕</button></div>';
   if(!logEntries.length) html += '<div class="muted">Noch keine Einträge.</div>';
   else {
     /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
@@ -699,9 +750,12 @@ function showExHistory(id){
     document.body.appendChild(o); return o;
   })();
   overlay.innerHTML = html;
-  overlay.classList.add('open');
+  openDialog(overlay);
 }
-function closeExHistory(){ const o = document.getElementById('exHistoryOverlay'); if(o) o.classList.remove('open'); }
+function closeExHistory(){
+  const o = document.getElementById('exHistoryOverlay');
+  if(o) closeDialog(o);
+}
 
 /* ================= Satz-Interaktion ================= */
 function tapSet(id, s){
@@ -714,7 +768,7 @@ function tapSet(id, s){
 
   if(session.sets[key]){
     session.sets[key] = false;
-    el.classList.remove('done'); el.textContent = s + 1;
+    el.classList.remove('done'); el.setAttribute('aria-pressed', 'false'); el.textContent = s + 1;
     updateFinish(); persistSession(); return;
   }
 
@@ -737,7 +791,7 @@ function tapSet(id, s){
 }
 function markDone(key, el, s, ex){
   session.sets[key] = true;
-  el.classList.add('done'); el.textContent = s + 1;
+  el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
   updateFinish(); persistSession();
   if(cfg('autoRest')) startRest(restFor(ex));
 }
@@ -978,18 +1032,29 @@ function renderHistory(){
     document.getElementById('weekLegend').textContent = '';
     document.getElementById('volChart').innerHTML = '';
   } else {
+    /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
+       steckte allein in der Balkenfarbe. Jeder Balken bekommt daher ein
+       sprechendes Label, das Diagramm selbst eine Rolle und Beschriftung. */
     const max = Math.max(goal, ...weeks.map(w => byWeek[w]));
+    wc.setAttribute('role', 'img');
+    wc.setAttribute('aria-label', 'Trainings pro Woche, ' +
+      (weeks.length === 1 ? 'letzte Woche' : 'letzte ' + weeks.length + ' Wochen') + ': ' +
+      weeks.map(w => weekLabel(w) + ' ' + byWeek[w] + (byWeek[w] >= goal ? ' (Ziel erreicht)' : '')).join(', '));
     wc.innerHTML = weeks.map(w => {
       const n = byWeek[w];
-      return '<div class="bar-col"><span class="bar-num">' + n + '</span>' +
+      return '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + n + '</span>' +
         '<div class="bar' + (n >= goal ? ' goal-met' : '') + '" style="height:' + Math.round(n / max * 100) + '%"></div>' +
         '<span class="bar-lbl">' + weekLabel(w) + '</span></div>';
     }).join('');
     document.getElementById('weekLegend').textContent = 'Grün = Wochenziel von ' + goal + ' Trainings erreicht.';
 
     const vmax = Math.max(...weeks.map(w => volWeek[w]), 1);
-    document.getElementById('volChart').innerHTML = weeks.map(w =>
-      '<div class="bar-col"><span class="bar-num">' + volWeek[w] + '</span>' +
+    const vc = document.getElementById('volChart');
+    vc.setAttribute('role', 'img');
+    vc.setAttribute('aria-label', 'Sätze pro Woche: ' +
+      weeks.map(w => weekLabel(w) + ' ' + volWeek[w]).join(', '));
+    vc.innerHTML = weeks.map(w =>
+      '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + volWeek[w] + '</span>' +
       '<div class="bar" style="height:' + Math.round(volWeek[w] / vmax * 100) + '%"></div>' +
       '<span class="bar-lbl">' + weekLabel(w) + '</span></div>').join('');
   }
@@ -1026,16 +1091,21 @@ function renderCalendar(){
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
-  let html = '<div class="section-title">' + __('calendar') + ' ' + now.toLocaleDateString('de', { month: 'long', year: 'numeric' }) + '</div>' +
-    '<div class="calendar-grid">';
-  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header">' + d + '</div>'; });
+  const monatsName = now.toLocaleDateString('de', { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title">' + __('calendar') + ' ' + monatsName + '</div>' +
+    '<div class="calendar-grid" role="list" aria-label="Trainingstage im ' + monatsName + '">';
+  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + d + '</div>'; });
   const offset = (first + 6) % 7;
-  for(let i = 0; i < offset; i++) html += '<div class="cal-day empty"></div>';
+  for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
   for(let d = 1; d <= daysInMonth; d++){
     const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     const isWorkout = workoutDays.has(dateStr);
     const isToday = dateStr === today();
-    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '">' + d + '</div>';
+    /* Trainingstage waren nur gruen eingefaerbt – ohne Datum, ohne Label.
+       Jetzt tragen sie den vollen Tag samt Zustand als Textalternative. */
+    const label = d + '. ' + monatsName + (isWorkout ? ', trainiert' : '') + (isToday ? ', heute' : '');
+    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '"' +
+      ' role="listitem" aria-label="' + label + '"><span aria-hidden="true">' + d + '</span></div>';
   }
   html += '</div>';
   cal.innerHTML = html;
@@ -1091,7 +1161,9 @@ function renderMeasurements(){
     html += fmtDate(last.d);
     html += '</div>';
     if(dates.length > 1){
-      html += '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none">';
+      /* Die Zahlen stehen direkt darüber im Text – die Kurve ist reine
+         Dekoration und wird deshalb ausgeblendet statt doppelt vorgelesen. */
+      html += '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">';
       parts.forEach((p, pi) => {
         const vals = dates.map(d => d[p]).filter(v => v);
         if(vals.length < 2) return;
@@ -1164,10 +1236,13 @@ function renderLibrary(){
     const lvl = lvlOf(ex), open = libOpen[ex.id];
     const pr = (state.prs || {})[ex.id];
     return '<div class="lib-item">' +
-      '<div class="lib-head" onclick="toggleLib(\'' + ex.id + '\')">' +
+      /* Echter Button statt eines klickbaren div: der Kopf ist die
+         Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
+      '<button type="button" class="lib-head" onclick="toggleLib(\'' + ex.id + '\')"' +
+        ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
         '<span class="lib-name">' + esc(ex.name) + (planIds.has(ex.id) ? ' <span class="cat-chip">' + __('inPlan') + '</span>' : '') + '</span>' +
-        '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' ' + (open ? '−' : '+') + '</span>' +
-      '</div>' +
+        '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
+      '</button>' +
       '<div class="lib-body' + (open ? ' open' : '') + '" id="libbody-' + ex.id + '">' +
         '<div class="muted">' + CATS[ex.cat].name + ' · Equipment: ' + ex.equip.map(eq => EQUIP_NAMES[eq] || eq).join(', ') +
           (ex.rest ? ' · Pause ' + ex.rest + ' Sek' : '') + '</div>' +
@@ -1353,15 +1428,59 @@ function renderRoadmap(){
 }
 
 /* ================= Einstellungen ================= */
+/* ================= Dialog-Fokus =================
+   Beide Overlays haben bisher nur eine CSS-Klasse umgeschaltet: der Fokus
+   wanderte nie hinein, wurde nicht gefangen und beim Schliessen nicht
+   zurueckgegeben. Ein Screenreader lief am Dialog vorbei in die Seite
+   dahinter, und mit der Tabulatortaste landete man hinter dem Dialog. */
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+let openDialogEl = null;
+let focusBeforeDialog = null;
+
+function trapTab(e){
+  if(e.key !== 'Tab' || !openDialogEl) return;
+  const items = [...openDialogEl.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+  if(!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+
+function openDialog(overlay){
+  focusBeforeDialog = document.activeElement;
+  overlay.classList.add('open');
+  openDialogEl = overlay;
+  /* Der Rest der Seite verschwindet fuer Screenreader und Tabulator. */
+  document.querySelector('.wrap')?.setAttribute('inert', '');
+  const first = overlay.querySelector(FOCUSABLE);
+  if(first) first.focus();
+  document.addEventListener('keydown', trapTab, true);
+}
+
+function closeDialog(overlay){
+  overlay.classList.remove('open');
+  if(openDialogEl === overlay){
+    openDialogEl = null;
+    document.removeEventListener('keydown', trapTab, true);
+    document.querySelector('.wrap')?.removeAttribute('inert');
+    /* Fokus dorthin zurueck, wo er herkam. */
+    if(focusBeforeDialog && document.contains(focusBeforeDialog)) focusBeforeDialog.focus();
+    focusBeforeDialog = null;
+  }
+}
+
 function openSettings(){
   ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
   document.getElementById('storageInfo').textContent = 'Speicherort: ' + store.mode + '.';
-  document.getElementById('settingsOverlay').classList.add('open');
+  openDialog(document.getElementById('settingsOverlay'));
 }
-function closeSettings(){ document.getElementById('settingsOverlay').classList.remove('open'); }
+function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
 /* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
    hat closeSettings() pro Tastendruck doppelt aufgerufen. */
 

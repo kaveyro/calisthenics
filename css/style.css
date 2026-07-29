@@ -215,7 +215,7 @@ details.acc li{margin-bottom:5px}
 /* ---------- Meilensteine ---------- */
 .ms{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .ms:last-child{border-bottom:none}
-.ms input{width:20px;height:20px;accent-color:var(--success);flex:none;cursor:pointer}
+.ms input{width:24px;height:24px;accent-color:var(--success);flex:none;cursor:pointer}
 .ms-name{font-weight:600;font-size:14px}
 .ms-date{font-family:var(--mono);font-size:11px;color:var(--success)}
 .ms.done .ms-name{color:var(--ink-soft);text-decoration:line-through}
@@ -227,7 +227,9 @@ details.acc li{margin-bottom:5px}
 .chip:focus-visible{outline:2px solid var(--accent)}
 .lib-item{border-bottom:1px solid var(--line);padding:12px 0}
 .lib-item:last-child{border-bottom:none}
-.lib-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;cursor:pointer}
+/* Als <button>: Browser-Vorgaben zuruecksetzen, Aussehen bleibt gleich */
+.lib-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;cursor:pointer;
+  width:100%;padding:0;background:none;border:none;color:inherit;font:inherit;text-align:left}
 .lib-name{font-weight:700;font-size:14.5px}
 .lib-meta{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
 .lib-body{display:none;margin-top:10px}
@@ -248,7 +250,10 @@ details.acc li{margin-bottom:5px}
 .plan-ex[draggable="true"]{cursor:grab}
 .plan-ex[draggable="true"]:active{cursor:grabbing;opacity:.6}
 .drag-handle{color:var(--ink-soft);font-size:16px;cursor:grab;user-select:none;flex:none;width:20px;text-align:center}
-.mini-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:13px;cursor:pointer;flex:none;line-height:1}
+/* Mindestens 32px: WCAG 2.5.8 fordert 24x24, empfohlen sind 44x44.
+   Die Buttons waren 28x28 bzw. inline sogar nur 20x20. */
+.mini-btn{min-width:32px;min-height:32px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:13px;cursor:pointer;flex:none;line-height:1;padding:0 6px}
+.mini-btn--inline{margin-left:6px;font-size:11px}
 .mini-btn:focus-visible{outline:2px solid var(--accent)}
 .mini-btn.danger{color:var(--warn)}
 
@@ -275,7 +280,7 @@ details.acc li{margin-bottom:5px}
 .set-row .hint{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:400;margin-top:1px}
 .set-row select,.set-row input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;flex:none;max-width:175px;font-family:var(--body)}
 .set-row select:focus-visible,.set-row input:focus-visible{outline:2px solid var(--accent)}
-.set-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none;cursor:pointer}
+.set-row input[type=checkbox]{width:24px;height:24px;accent-color:var(--accent);flex:none;cursor:pointer}
 .modal .section-title{margin:16px 0 4px;font-size:13px}
 .data-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .data-btns .btn{flex:1;min-width:135px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;font-size:13.5px;text-align:center}
