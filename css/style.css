@@ -86,6 +86,11 @@ h1 .thin{color:var(--accent)}
 .banner button{margin-top:8px;background:var(--warn);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:600;font-size:13px;cursor:pointer}
 .banner.info button{background:var(--accent)}
 
+/* Dauerhafter Hinweis, solange Schreiben in den Speicher fehlschlaegt */
+.storage-warn{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
+  border-radius:var(--radius);padding:12px 14px;margin:14px 0;font-size:13.5px;line-height:1.45}
+.storage-warn[hidden]{display:none}
+
 /* ---------- Tagesauswahl ---------- */
 .day-select{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:6px 0 18px}
 .day-btn{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);padding:14px 12px;text-align:left;cursor:pointer;transition:border-color .15s,background .15s;position:relative}

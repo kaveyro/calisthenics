@@ -7,14 +7,98 @@ const SETTINGS_DEFAULTS = {
   setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de'
 };
 
+/* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
+   hochzaehlen und in migrateState() einen Schritt ergaenzen. */
+const STATE_VERSION = 5;
+
+/* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
+   4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
+   abgeschnitten. Ein Eintrag ist rund 100 Bytes, 2000 bleiben deutlich
+   unter dem localStorage-Budget. */
+const MAX_LOG_ENTRIES = 2000;
+const MAX_SERIES_ENTRIES = 1000;
+
 const DEFAULT_STATE = () => ({
-  v: 4, planId: 'ab4', customPlan: null, activeSession: null,
+  v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
   streakDays: 0, lastWeek: null, measurements: {},
   warmupCustom: null, pauseHistory: {}
 });
+
+/* ================= Migration =================
+   Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
+   Stand in der aktuellen Form. Ersetzt das fruehere
+   Object.assign(DEFAULT_STATE(), loaded) – ein FLACHER Merge, bei dem ein
+   "notes": null aus einem alten oder handgeschriebenen Stand den Default {}
+   ueberschrieb und die App beim naechsten Training abstuerzen liess.
+
+   Zwischen v1 und v4 ist keine strukturelle Aenderung dokumentiert oder aus
+   dem Code ableitbar; diese Schritte sind daher reine Normalisierung. v5
+   ergaenzt activeSession und das numerische Feld prs[].n – beides additiv
+   und ueber die Defaults bzw. prNumber() abgedeckt. */
+function migrateState(raw){
+  const def = DEFAULT_STATE();
+  if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
+
+  const out = DEFAULT_STATE();
+  Object.keys(def).forEach(k => {
+    const v = raw[k], d = def[k];
+    if(v === undefined || v === null) return;              /* Default behalten */
+    if(Array.isArray(d)){ if(Array.isArray(v)) out[k] = v; return; }
+    if(d !== null && typeof d === 'object'){
+      if(typeof v === 'object' && !Array.isArray(v)) out[k] = v;
+      return;
+    }
+    if(typeof d === 'number'){ if(typeof v === 'number' && Number.isFinite(v)) out[k] = v; return; }
+    if(typeof d === 'string'){ if(typeof v === 'string') out[k] = v; return; }
+    out[k] = v;                                            /* Defaults mit null */
+  });
+
+  /* Felder mit Default null, die dennoch eine Form haben muessen. */
+  if(out.customPlan && (typeof out.customPlan !== 'object' || !Array.isArray(out.customPlan.days))) out.customPlan = null;
+  if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
+  if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
+  if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
+
+  /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
+  out.log = out.log
+    .filter(l => l && typeof l === 'object' && typeof l.d === 'string')
+    .map(l => ({
+      d: l.d,
+      day: typeof l.day === 'string' ? l.day : 'A',
+      sets: Number(l.sets) || 0,
+      tops: Number(l.tops) || 0,
+      ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
+      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
+    }))
+    .slice(-MAX_LOG_ENTRIES);
+
+  out.weights = out.weights
+    .filter(w => w && typeof w === 'object' && typeof w.d === 'string' && Number.isFinite(Number(w.kg)))
+    .map(w => ({ d: w.d, kg: Number(w.kg) }))
+    .slice(-MAX_SERIES_ENTRIES);
+
+  /* levels/streaks sind id -> Zahl. Ein Nicht-Zahl-Wert wuerde spaeter in
+     Vergleiche und Array-Indizes laufen. */
+  ['levels', 'streaks'].forEach(k => {
+    Object.keys(out[k]).forEach(id => {
+      const n = parseInt(out[k][id], 10);
+      if(Number.isFinite(n) && n >= 0) out[k][id] = n; else delete out[k][id];
+    });
+  });
+
+  /* Nur bekannte Einstellungen uebernehmen. */
+  const settings = {};
+  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
+    if(out.settings[k] !== undefined && out.settings[k] !== null) settings[k] = out.settings[k];
+  });
+  out.settings = settings;
+
+  out.v = STATE_VERSION;
+  return out;
+}
 
 let state = DEFAULT_STATE();
 let session = { dayKey: null, sets: {}, top: {}, reps: {} };
@@ -83,7 +167,22 @@ function cfg(k){
 (async function boot(){
   try{
     const loaded = await store.load();
-    if(loaded) state = Object.assign(DEFAULT_STATE(), loaded);
+    if(loaded){
+      const wasLegacy = store.loadedFrom && store.loadedFrom !== STORAGE_KEY;
+      state = migrateState(loaded);
+      if(wasLegacy || loaded.v !== STATE_VERSION){
+        /* Sofort im aktuellen Schluessel und Format ablegen, danach die
+           Altschluessel entfernen – sonst werden sie bei jedem Kaltstart
+           erneut gelesen. */
+        await save();
+        if(wasLegacy) await store.dropLegacy();
+      }
+    } else if(store.loadError){
+      /* Es lag ein Stand vor, war aber nicht lesbar. storage.js hat das
+         Original unter progression:corrupt:* gesichert. */
+      console.error('[boot] Gespeicherter Stand nicht lesbar:', store.loadError);
+      setTimeout(() => toast('Gespeicherter Stand war beschädigt – es wurde neu begonnen. Eine Kopie liegt im Browser-Speicher.', true), 400);
+    }
     setLang(cfg('lang'));
     applyTheme();
     renderWarmup();
@@ -104,13 +203,26 @@ function cfg(k){
   }
 })();
 
+/* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
+   wochenlang weiter, ohne dass etwas ankommt. Der Hinweis bleibt jetzt
+   sichtbar, solange Schreiben fehlschlaegt, und verschwindet von selbst,
+   sobald es wieder klappt. */
+function updateStorageWarning(){
+  const el = document.getElementById('storageWarn');
+  if(el) el.hidden = storageOK;
+}
+
 async function save(){
   try{
     const res = await store.save(state);
     if(!res) throw new Error('no result');
+    if(!storageOK){
+      storageOK = true; updateStorageWarning();
+      toast('Speichern funktioniert wieder.');
+    }
   }catch(e){
     if(storageOK){
-      storageOK = false;
+      storageOK = false; updateStorageWarning();
       toast('Speichern nicht möglich – Fortschritt gilt nur für diese Sitzung.');
     }
   }
@@ -786,7 +898,7 @@ async function finishWorkout(){
   state.lastDate = now;
 
   state.log.push(entry);
-  if(state.log.length > 500) state.log = state.log.slice(-500);
+  if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
   await save();
 
   clearSession();
@@ -940,7 +1052,7 @@ async function addMeasurement(){
   });
   if(Object.keys(entry).length < 2){ toast('Bitte mindestens ein Maß eingeben.'); return; }
   m._dates.push(entry);
-  if(m._dates.length > 200) m._dates = m._dates.slice(-200);
+  if(m._dates.length > MAX_SERIES_ENTRIES) m._dates = m._dates.slice(-MAX_SERIES_ENTRIES);
   state.measurements = m;
   parts.forEach(p => { const el = document.getElementById('meas-' + p); if(el) el.value = ''; });
   await save(); renderMeasurements(); toast(__('addMeasurement') + '.');
@@ -1000,7 +1112,7 @@ async function addWeight(){
   const v = parseFloat(String(inp.value).replace(',', '.'));
   if(!v || v < 30 || v > 250){ toast('Bitte ein plausibles Gewicht in kg eingeben.'); return; }
   state.weights.push({ d: today(), kg: Math.round(v * 10) / 10 });
-  if(state.weights.length > 200) state.weights = state.weights.slice(-200);
+  if(state.weights.length > MAX_SERIES_ENTRIES) state.weights = state.weights.slice(-MAX_SERIES_ENTRIES);
   inp.value = '';
   await save(); renderWeight(); toast('Gewicht gespeichert.');
 }
@@ -1353,8 +1465,8 @@ function clampBackup(data){
       p.v = String(p.v == null ? '' : p.v).slice(0, 40);
     });
   }
-  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-500);
-  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-200);
+  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-MAX_LOG_ENTRIES);
+  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-MAX_SERIES_ENTRIES);
   return out;
 }
 
@@ -1465,7 +1577,7 @@ function importCSV(input){
         if(!existing.has(key)){ state.log.push(en); existing.add(key); added++; }
       });
       state.log.sort((a, b) => a.d.localeCompare(b.d));
-      if(state.log.length > 500) state.log = state.log.slice(-500);
+      if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
       save(); renderAll(); renderHistory();
       toast(added + ' von ' + imported.length + ' Einträgen importiert.');
     }catch(err){

@@ -80,8 +80,8 @@ progression/
 │   └── style.css       Alles Visuelle, Themes über CSS-Variablen
 ├── js/
 │   ├── exercises.js    ► ÜBUNGSDATEN & PLAN-VORLAGEN (hier erweitern)
-│   ├── storage.js      Speicher-Adapter + Migration alter Versionen
-│   └── app.js          Logik, Rendering, Timer, Backup
+│   ├── storage.js      Speicher-Adapter (localStorage, Altschlüssel)
+│   └── app.js          Logik, Rendering, Timer, Backup, Migration
 └── icons/              App-Icons (192, 512, maskable)
 ```
 
@@ -132,7 +132,7 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Version in `DEFAULT_STATE()` (`v: 3`) hochzählen und in `storage.js` bei Bedarf eine Migration ergänzen. `LEGACY_KEYS` zeigt, wie ältere Stände übernommen werden.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/app.js` hochzählen und in `migrateState()` einen Schritt ergänzen. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 
