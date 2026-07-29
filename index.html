@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Progression – Calisthenics Tracker</title>
+<meta name="description" content="Calisthenics-Trainingstracker mit automatischer Progression, Timern und Skill-Fahrplan bis Handstand und Planche.">
+<meta name="theme-color" content="#F3F4F1">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Progression">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="head-row">
+      <div>
+        <div class="eyebrow" id="planName">Calisthenics</div>
+        <h1>Progres<span class="thin">sion</span></h1>
+      </div>
+      <div class="head-btns">
+        <button class="icon-btn" onclick="openSettings()" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
+        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
+      </div>
+    </div>
+    <div class="phase-line" id="phaseLine"></div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <nav class="tabs" role="tablist" aria-label="Bereiche">
+    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab">Training</button>
+    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab">Verlauf</button>
+    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab">Übungen</button>
+    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab">Plan</button>
+    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab">Ziele</button>
+  </nav>
+
+  <!-- ============ TRAINING ============ -->
+  <section id="view-train">
+    <div id="banners"></div>
+    <div class="day-select" id="daySelect" role="group" aria-label="Trainingstag wählen"></div>
+
+    <details class="acc">
+      <summary>Warm-up (8–10 Min) – vor jeder Einheit</summary>
+      <ul id="warmupList"></ul>
+    </details>
+
+    <div id="content"><div class="loading">Lade deinen Fortschritt …</div></div>
+  </section>
+
+  <!-- ============ VERLAUF ============ -->
+  <section id="view-history" hidden>
+    <div class="section-title">Trainings pro Woche</div>
+    <div class="card">
+      <div class="bar-chart" id="weekChart"></div>
+      <div class="vol-legend" id="weekLegend"></div>
+    </div>
+
+    <div class="section-title">Sätze pro Woche</div>
+    <div class="card">
+      <div class="bar-chart" id="volChart"></div>
+      <div class="vol-legend">Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft.</div>
+    </div>
+
+    <div class="section-title">Körpergewicht</div>
+    <div class="card">
+      <div class="inline-row">
+        <input type="number" step="0.1" min="30" max="250" id="weightInput" placeholder="Gewicht in kg" aria-label="Körpergewicht in Kilogramm">
+        <button onclick="addWeight()">Speichern</button>
+      </div>
+      <svg class="spark" id="weightSpark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="weight-meta" id="weightMeta"></div>
+    </div>
+
+    <div class="section-title">Letzte Trainings</div>
+    <div class="card" id="logList"></div>
+  </section>
+
+  <!-- ============ ÜBUNGEN ============ -->
+  <section id="view-library" hidden>
+    <div class="section-title">Übungsbibliothek</div>
+    <div class="filter-row" id="catFilter"></div>
+    <div class="inline-row" style="margin-bottom:12px">
+      <input type="search" id="libSearch" placeholder="Übung suchen …" oninput="renderLibrary()" aria-label="Übung suchen">
+    </div>
+    <div class="card" id="libList"></div>
+  </section>
+
+  <!-- ============ PLAN ============ -->
+  <section id="view-plan" hidden>
+    <div class="section-title">Trainingsplan</div>
+    <div class="card">
+      <div class="set-row" style="border-bottom:none;padding-top:0">
+        <span><span class="lbl2">Vorlage</span><span class="hint" id="planDesc"></span></span>
+        <select id="planSelect" onchange="changePlan(this.value)"></select>
+      </div>
+    </div>
+    <div id="planEditor"></div>
+    <div class="data-btns">
+      <button class="btn secondary" onclick="addPlanDay()">Trainingstag hinzufügen</button>
+      <button class="btn secondary" onclick="resetPlan()">Auf Vorlage zurücksetzen</button>
+    </div>
+    <p class="muted" style="margin-top:10px">Änderungen erzeugen automatisch deinen eigenen Plan. Die Vorlagen bleiben davon unberührt.</p>
+  </section>
+
+  <!-- ============ ZIELE ============ -->
+  <section id="view-milestones" hidden>
+    <div class="section-title">Meilensteine</div>
+    <div class="card" id="msList"></div>
+    <p class="muted">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.</p>
+
+    <div class="section-title">Skill-Fahrplan</div>
+    <div class="card" id="roadmap"></div>
+  </section>
+
+  <footer>
+    Progression · Offline nutzbar · Backup &amp; Einstellungen über ⚙ oben rechts
+  </footer>
+</div>
+
+<!-- Abschlussleiste -->
+<div class="finish-bar" id="finishBar">
+  <div class="inner">
+    <span class="finish-count" id="finishCount"></span>
+    <button class="finish-btn" id="finishBtn" onclick="finishWorkout()">Training abschließen</button>
+  </div>
+</div>
+
+<!-- Pausen-Timer -->
+<button class="rest-chip" id="restChip" onclick="stopRest()" aria-label="Pausen-Timer beenden">
+  <small>Pause · Tippen beendet</small><span id="restTime">1:30</span>
+</button>
+
+<!-- Einstellungen -->
+<div class="overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Einstellungen">
+    <div class="modal-head"><span>Einstellungen</span><button onclick="closeSettings()" aria-label="Schließen">✕</button></div>
+
+    <div class="section-title">Training</div>
+    <div class="set-row">
+      <span><span class="lbl2">Satz-Modus</span><span class="hint">Einsteiger deckelt alles auf 3 Sätze</span></span>
+      <select id="cfg-setsMode" onchange="updateSetting('setsMode',this.value)">
+        <option value="standard">Standard (3–4)</option>
+        <option value="light">Einsteiger (max. 3)</option>
+        <option value="hard">Fortgeschritten (+1 Satz)</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Satzpause</span><span class="hint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
+      <select id="cfg-rest" onchange="updateSetting('rest',parseInt(this.value))">
+        <option value="45">45 Sek</option>
+        <option value="60">60 Sek</option>
+        <option value="90">90 Sek</option>
+        <option value="120">120 Sek</option>
+        <option value="180">180 Sek</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Übungsspezifische Pausen</span><span class="hint">Nutzt die empfohlene Pause je Übung</span></span>
+      <input type="checkbox" id="cfg-perExRest" onchange="updateSetting('perExRest',this.checked)">
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Pausen-Timer automatisch</span><span class="hint">Startet nach jedem abgehakten Satz</span></span>
+      <input type="checkbox" id="cfg-autoRest" onchange="updateSetting('autoRest',this.checked)">
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Signaltöne</span><span class="hint">Ton bei Timer-Ende und Level-Ups</span></span>
+      <input type="checkbox" id="cfg-sound" onchange="updateSetting('sound',this.checked)">
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Vibration</span><span class="hint">Falls das Gerät es unterstützt</span></span>
+      <input type="checkbox" id="cfg-vibrate" onchange="updateSetting('vibrate',this.checked)">
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Level-Up nach</span><span class="hint">Einheiten am oberen Limit in Folge</span></span>
+      <select id="cfg-streak" onchange="updateSetting('streak',parseInt(this.value))">
+        <option value="1">1 Einheit</option>
+        <option value="2">2 Einheiten</option>
+        <option value="3">3 Einheiten</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Wochenziel</span><span class="hint">Trainings pro Woche</span></span>
+      <select id="cfg-weekGoal" onchange="updateSetting('weekGoal',parseInt(this.value))">
+        <option value="2">2×</option><option value="3">3×</option>
+        <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2">Deload-Erinnerung</span><span class="hint">Nach dieser Anzahl Trainings</span></span>
+      <select id="cfg-deload" onchange="updateSetting('deload',parseInt(this.value))">
+        <option value="0">Aus</option><option value="16">16</option>
+        <option value="24">24</option><option value="32">32</option>
+      </select>
+    </div>
+
+    <div class="section-title">Daten &amp; Backup</div>
+    <div class="data-btns">
+      <button class="btn" onclick="exportJSON()">Backup herunterladen</button>
+      <label class="btn secondary" style="cursor:pointer">Backup importieren
+        <input type="file" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
+      </label>
+    </div>
+    <div class="data-hint">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, deinen Plan und alle Einstellungen. Ideal zum Sichern oder zum Umzug auf ein anderes Gerät.</div>
+    <div class="data-btns">
+      <button class="btn secondary" onclick="exportCSV()">Verlauf als CSV</button>
+      <button class="btn secondary" onclick="exportText()">Als Text kopieren</button>
+    </div>
+    <div class="data-btns">
+      <button class="btn secondary" style="color:var(--warn)" onclick="resetAll()">Alles zurücksetzen</button>
+    </div>
+    <div class="data-hint" id="storageInfo"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/exercises.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
