@@ -204,6 +204,10 @@
       </select>
     </div>
     <div class="set-row">
+      <span><span class="lbl2">Stufe zurück nach Pause</span><span class="hint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
+      <input type="checkbox" id="cfg-regress" onchange="updateSetting('regress',this.checked)">
+    </div>
+    <div class="set-row">
       <span><span class="lbl2">Wochenziel</span><span class="hint">Trainings pro Woche</span></span>
       <select id="cfg-weekGoal" onchange="updateSetting('weekGoal',parseInt(this.value))">
         <option value="2">2×</option><option value="3">3×</option>
@@ -242,8 +246,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/exercises.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/app.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

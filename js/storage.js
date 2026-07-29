@@ -4,12 +4,12 @@
    spaeterer Wechsel auf IndexedDB nur diese Datei betrifft.
    ========================================================= */
 
-const STORAGE_KEY = 'progression:v3';
+export const STORAGE_KEY = 'progression:v3';
 const LEGACY_KEYS = ['ct:progress:v2', 'ct:progress:v1'];
 /* Hierhin wird ein nicht lesbarer Stand gesichert, statt ihn zu verwerfen. */
 const CORRUPT_KEY = 'progression:corrupt';
 
-const store = {
+export const store = {
   /* Woher der zuletzt geladene Stand kam – die Migration raeumt danach auf. */
   loadedFrom: null,
   /* Gesetzt, wenn ein vorhandener Stand nicht gelesen werden konnte. */
@@ -57,7 +57,7 @@ const store = {
         /* Kaputtes JSON nicht stillschweigend verwerfen – sonst startet der
            Nutzer kommentarlos bei null und der einzige Stand ist weg. */
         this.loadError = err;
-        try{ localStorage.setItem(CORRUPT_KEY + ':' + key, raw); }catch(e){ /* kein Platz */ }
+        try{ localStorage.setItem(CORRUPT_KEY + ':' + key, raw); }catch{ /* kein Platz */ }
         return null;
       }
     }
@@ -70,7 +70,7 @@ const store = {
 
   /* Entfernt die Altschluessel, nachdem ihr Inhalt uebernommen wurde. */
   async dropLegacy(){
-    for(const k of LEGACY_KEYS){ try{ await this.remove(k); }catch(e){ /* egal */ } }
+    for(const k of LEGACY_KEYS){ try{ await this.remove(k); }catch{ /* egal */ } }
   },
 
   async clear(){

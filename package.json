@@ -1,0 +1,24 @@
+{
+  "name": "progression",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-fähiger Calisthenics-Tracker (PWA, ohne Build-Schritt)",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "start": "npx --yes serve -l 8080 .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "sw:manifest": "node tools/gen-sw-manifest.js",
+    "sw:check": "node tools/gen-sw-manifest.js --check",
+    "check": "npm run lint && npm run test && npm run sw:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "vitest": "^2.1.8"
+  }
+}

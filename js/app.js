@@ -2,9 +2,17 @@
    PROGRESSION – App-Logik
    ========================================================= */
 
+import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, EX_BY_ID } from './exercises.js';
+import { store, STORAGE_KEY } from './storage.js';
+import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
+import { esc, sanitizeDayKey } from './domain/escape.js';
+import { parseTarget as parseTargetPure } from './domain/target.js';
+import { serializeLog, parseLog } from './domain/csv.js';
+
 const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
-  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de'
+  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de',
+  regress: true
 };
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
@@ -23,9 +31,11 @@ const DEFAULT_STATE = () => ({
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  streakDays: 0, lastWeek: null, measurements: {},
-  warmupCustom: null, pauseHistory: {}
+  measurements: {}, warmupCustom: null, regressedFor: null
 });
+/* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
+   bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
+   alter Staende einfach weg. */
 
 /* ================= Migration =================
    Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
@@ -103,7 +113,8 @@ function migrateState(raw){
 let state = DEFAULT_STATE();
 let session = { dayKey: null, sets: {}, top: {}, reps: {} };
 let holdTimer = null, restTimer = null, wakeLock = null;
-let libFilter = 'all', libOpen = {}, exHistoryOpen = null;
+let libFilter = 'all';
+const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
 
 const LANG = {
@@ -185,6 +196,7 @@ function cfg(k){
     }
     setLang(cfg('lang'));
     applyTheme();
+    applyRegression();     /* vor dem ersten Rendern, damit die Stufen stimmen */
     renderWarmup();
     renderAll();
     restoreActiveSession();
@@ -220,7 +232,8 @@ async function save(){
       storageOK = true; updateStorageWarning();
       toast('Speichern funktioniert wieder.');
     }
-  }catch(e){
+  }catch(err){
+    console.error('[save]', err);
     if(storageOK){
       storageOK = false; updateStorageWarning();
       toast('Speichern nicht möglich – Fortschritt gilt nur für diese Sitzung.');
@@ -317,7 +330,6 @@ function renderStats(){
   const ups = (state.log || []).reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
   const ms = Object.keys(state.milestones || {}).length;
   const thisWeek = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
-  const streak = calcGlobalStreak();
   document.getElementById('stats').innerHTML =
     statBox(state.workouts || 0, __('trainings')) +
     statBox(thisWeek + ' / ' + cfg('weekGoal'), __('thisWeek')) +
@@ -344,24 +356,9 @@ function renderPhase(){
 }
 
 /* ================= Global Streak & Plateau Detection ================= */
-function calcGlobalStreak(){
-  if(!state.log || !state.log.length) return 0;
-  const dates = [...new Set(state.log.map(l => l.d))].sort().reverse();
-  /* Anker ist heute ODER gestern. Frueher war er fest auf heute gesetzt,
-     wodurch eine laufende Serie jeden Morgen auf 0 fiel, bis man wieder
-     trainiert hatte – und im Kopfbereich schlicht verschwand. */
-  let offset;
-  if(dates[0] === isoDaysAgo(0)) offset = 0;
-  else if(dates[0] === isoDaysAgo(1)) offset = 1;
-  else return 0;
-
-  let streak = 0;
-  for(let i = 0; i < dates.length; i++){
-    if(dates[i] === isoDaysAgo(i + offset)) streak++;
-    else break;
-  }
-  return streak;
-}
+/* Duenne Huellen um die reinen Funktionen aus js/domain/, damit die vielen
+   Aufrufstellen unveraendert bleiben. */
+function calcGlobalStreak(){ return streakOf(state.log); }
 
 function detectPlateaus(){
   const plateaus = [];
@@ -381,21 +378,36 @@ function detectPlateaus(){
   return plateaus;
 }
 
+/* Nach einer laengeren Pause eine Stufe zurueckgehen.
+
+   Die Funktion existierte vollstaendig, wurde aber nie aufgerufen – das
+   Feature war unsichtbar. Zwei Dinge fehlten fuer den produktiven Einsatz:
+   eine Abschaltmoeglichkeit und ein Schutz gegen mehrfaches Ausloesen.
+   Ohne den zweiten wuerde jeder App-Start waehrend derselben Pause erneut
+   eine Stufe abziehen. */
+const REGRESSION_DAYS = 14;
+
 function applyRegression(){
-  if(!state.lastDate) return;
+  if(!cfg('regress') || !state.lastDate) return;
+  /* Pro Pause nur einmal: gemerkt wird das Datum der letzten Einheit. */
+  if(state.regressedFor === state.lastDate) return;
+
   const days = Math.round((new Date(today()) - new Date(state.lastDate)) / 864e5);
-  if(days >= 14){
-    let regressed = false;
-    Object.keys(state.levels).forEach(id => {
-      const ex = EX_BY_ID[id];
-      if(!ex || !state.levels[id]) return;
-      if(days >= 14 && state.levels[id] > 0){
-        state.levels[id] = Math.max(0, state.levels[id] - 1);
-        state.streaks[id] = 0;
-        regressed = true;
-      }
-    });
-    if(regressed) toast(__('regressAfterBreak'), true);
+  if(days < REGRESSION_DAYS) return;
+
+  const namen = [];
+  Object.keys(state.levels).forEach(id => {
+    const ex = EX_BY_ID[id];
+    if(!ex || !(state.levels[id] > 0)) return;
+    state.levels[id] = state.levels[id] - 1;
+    state.streaks[id] = 0;
+    namen.push(ex.name);
+  });
+
+  state.regressedFor = state.lastDate;
+  if(namen.length){
+    save();
+    setTimeout(() => toast(__('regressAfterBreak') + ' (' + namen.length + ' Übungen)', true), 600);
   }
 }
 
@@ -520,22 +532,7 @@ document.getElementById('daySelect').addEventListener('click', e => {
 });
 
 /* ================= Sätze & Ziele berechnen ================= */
-function parseTarget(target){
-  const sm = target.match(/^(\d+)\s*×/);
-  /* Bindestrich und Halbgeviertstrich beide zulassen, und eine nachgestellte
-     Einheit ("Versuche", "Wdh") tolerieren: '4 × 5–8 Versuche' lieferte sonst
-     keine Wiederholungszahl, wodurch fuer diese Stufen weder Eingabefelder
-     noch PR-Erfassung erschienen. */
-  const hm = target.match(/(\d+)(?:[–-](\d+))?\s*Sek/);
-  const rm = target.match(/(\d+)(?:[–-](\d+))?\s*(?:Wdh|Versuche|Reps)?\.?$/);
-  let sets = sm ? parseInt(sm[1], 10) : 3;
-  const mode = cfg('setsMode');
-  if(mode === 'light') sets = Math.min(sets, 3);
-  if(mode === 'hard') sets = sets + 1;
-  let minReps = null, maxReps = null;
-  if(rm && !hm){ minReps = parseInt(rm[1], 10); maxReps = rm[2] ? parseInt(rm[2], 10) : minReps; }
-  return { sets, isHold: !!hm, holdSecs: hm ? parseInt(hm[2] || hm[1], 10) : 0, minReps, maxReps };
-}
+function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
 function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
@@ -686,9 +683,10 @@ function showExHistory(id){
     esc(ex.name) + ' · Verlauf<button onclick="closeExHistory()">✕</button></div>';
   if(!logEntries.length) html += '<div class="muted">Noch keine Einträge.</div>';
   else {
-    html += '<table style="width:100%;font-size:13px"><tr><th>Datum</th><th>Sätze</th><th>Top</th><th>Level</th></tr>';
+    /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
+       Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
+    html += '<table style="width:100%;font-size:13px"><tr><th>Datum</th><th>Sätze</th><th>Top</th><th>Level-Up</th></tr>';
     logEntries.forEach(l => {
-      const lvl = state.levels[id] || 0;
       html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
         (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</td></tr>';
     });
@@ -800,11 +798,17 @@ function stopRest(){
 let audioCtx = null;
 function signal(double){
   if(cfg('vibrate') && navigator.vibrate){
-    try{ navigator.vibrate(double ? [120, 80, 120] : 150); }catch(e){}
+    /* Vibration ist auf Desktop und in manchen Browsern nicht verfuegbar –
+       ein Fehlschlag darf das Signal nicht abbrechen. */
+    try{ navigator.vibrate(double ? [120, 80, 120] : 150); }catch{ /* nicht unterstuetzt */ }
   }
   if(!cfg('sound')) return;
   try{
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    /* Ein ausserhalb einer Nutzergeste erzeugter Kontext bleibt "suspended";
+       ohne resume() blieb jeder Timer-Ton lautlos – genau dann, wenn er
+       gebraucht wird, naemlich beim automatischen Ablauf der Pause. */
+    if(audioCtx.state === 'suspended') audioCtx.resume();
     const play = (t, f) => {
       const o = audioCtx.createOscillator(), g = audioCtx.createGain();
       o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination);
@@ -814,7 +818,7 @@ function signal(double){
       o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + .3);
     };
     play(0, 880); if(double) play(.35, 1174);
-  }catch(e){}
+  }catch{ /* Web Audio blockiert oder nicht verfuegbar – dann eben stumm */ }
 }
 
 /* ================= Bildschirm wach halten ================= */
@@ -824,9 +828,14 @@ async function requestWakeLock(){
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     }
-  }catch(e){}
+  }catch{ /* Wake Lock nicht unterstuetzt oder vom System verweigert */ }
 }
-function releaseWakeLock(){ if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; } }
+function releaseWakeLock(){
+  if(wakeLock){
+    try{ wakeLock.release(); }catch{ /* bereits freigegeben */ }
+    wakeLock = null;
+  }
+}
 
 /* ================= Training abschließen mit Undo ================= */
 async function finishWorkout(){
@@ -950,13 +959,6 @@ function undoWorkout(){
 }
 
 /* ================= Verlauf ================= */
-function isoWeek(iso){
-  const d = new Date(iso + 'T12:00:00');
-  const day = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - day + 3);
-  const firstThu = new Date(d.getFullYear(), 0, 4);
-  return d.getFullYear() + '-KW' + String(1 + Math.round((d - firstThu) / 6048e5)).padStart(2, '0');
-}
 function weekLabel(w){ return w.split('-')[1]; }
 
 function renderHistory(){
@@ -1279,10 +1281,6 @@ function resetPlan(){
   if(!confirm('Plan auf die gewählte Vorlage zurücksetzen? Deine eigenen Änderungen am Plan gehen verloren (Fortschritt bleibt).')) return;
   state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast('Plan zurückgesetzt.');
 }
-/* Tag-Keys dienen als Bezeichner (Vergleiche, data-Attribute, Log-Eintraege).
-   Auf harmlose Zeichen begrenzen – das haelt sie auch nach einem Import sauber. */
-function sanitizeDayKey(s){ return String(s == null ? '' : s).replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 6); }
-
 function addPlanDay(){
   const p = ensureCustom();
   const key = sanitizeDayKey(prompt('Kurzbezeichnung des Tages (z. B. C):', String.fromCharCode(65 + p.days.length)));
@@ -1356,7 +1354,7 @@ function renderRoadmap(){
 
 /* ================= Einstellungen ================= */
 function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload'].forEach(k => {
+  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
@@ -1396,13 +1394,10 @@ function exportJSON(){
   try{
     download('progression-backup-' + today() + '.json', JSON.stringify(state, null, 2), 'application/json');
     toast('Backup heruntergeladen.');
-  }catch(e){ toast('Export fehlgeschlagen.'); }
+  }catch(err){ console.error('[exportJSON]', err); toast('Export fehlgeschlagen.'); }
 }
 function exportCSV(){
-  const rows = [['Datum', 'Tag', 'Saetze', 'TopSaetze', 'LevelUps']].concat(
-    (state.log || []).map(l => [l.d, l.day, l.sets, l.tops, (l.ups || []).join(' | ')]));
-  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
-  download('progression-verlauf-' + today() + '.csv', '\uFEFF' + csv, 'text/csv');
+  download('progression-verlauf-' + today() + '.csv', '\uFEFF' + serializeLog(state.log), 'text/csv');
   toast('CSV heruntergeladen.');
 }
 function exportText(){
@@ -1490,7 +1485,10 @@ function importJSON(input){
       document.getElementById('finishBar').style.display = 'none';
       applyTheme(); closeSettings(); showTab('train'); renderAll();
       toast('Backup importiert – willkommen zurück!', true);
-    }catch(err){ toast('Import fehlgeschlagen – keine gültige Backup-Datei.'); }
+    }catch(err){
+      console.error('[importJSON]', err);
+      toast('Import fehlgeschlagen – keine gültige Backup-Datei.');
+    }
     input.value = '';
   };
   r.onerror = () => { toast('Datei konnte nicht gelesen werden.'); input.value = ''; };
@@ -1504,31 +1502,6 @@ function importJSON(input){
    Der frueher genutzte line.split(';') + replace(/"/g,'') zerlegte jede
    Zeile falsch, sobald ein Feld selbst ein Semikolon enthielt – der
    Roundtrip des eigenen Exports war damit nicht verlustfrei. */
-function parseCSV(text){
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  const src = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;   /* BOM */
-
-  for(let i = 0; i < src.length; i++){
-    const c = src[i];
-    if(inQuotes){
-      if(c === '"'){
-        if(src[i + 1] === '"'){ field += '"'; i++; }                  /* "" -> " */
-        else inQuotes = false;
-      } else field += c;
-      continue;
-    }
-    if(c === '"') inQuotes = true;
-    else if(c === ';'){ row.push(field); field = ''; }
-    else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
-    else if(c !== '\r') field += c;
-  }
-  if(field !== '' || row.length){ row.push(field); rows.push(row); }
-  return rows.filter(r => r.some(c => c.trim() !== ''));
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 function importCSV(input){
   const file = input.files && input.files[0]; if(!file) return;
   if(file.size > MAX_BACKUP_BYTES){
@@ -1537,33 +1510,7 @@ function importCSV(input){
   const r = new FileReader();
   r.onload = e => {
     try{
-      const rows = parseCSV(e.target.result);
-      if(rows.length < 2) throw new Error('Datei enthält keine Datenzeilen');
-
-      /* Alle Spalten ueber den Kopf aufloesen – frueher waren Saetze und
-         TopSaetze fest auf Index 2 und 3 verdrahtet, sodass eine
-         umsortierte Datei stillschweigend Unsinn ergab. */
-      const header = rows[0].map(h => h.trim());
-      const col = name => header.indexOf(name);
-      const iDate = col('Datum'), iDay = col('Tag');
-      const iSets = col('Saetze'), iTops = col('TopSaetze'), iUps = col('LevelUps');
-      if(iDate < 0) throw new Error('Spalte „Datum" fehlt');
-
-      const imported = [];
-      let skipped = 0;
-      rows.slice(1).forEach(cols => {
-        const d = (cols[iDate] || '').trim();
-        if(!ISO_DATE.test(d)){ skipped++; return; }   /* sonst NaN-KW im Chart */
-        const sets = iSets >= 0 ? parseInt(cols[iSets], 10) : 0;
-        if(!(sets > 0)){ skipped++; return; }
-        imported.push({
-          d,
-          day: sanitizeDayKey(iDay >= 0 ? cols[iDay] : '') || 'A',
-          sets,
-          tops: (iTops >= 0 ? parseInt(cols[iTops], 10) : 0) || 0,
-          ups: iUps >= 0 && cols[iUps] ? cols[iUps].split(' | ').filter(Boolean) : []
-        });
-      });
+      const { entries: imported, skipped } = parseLog(e.target.result, sanitizeDayKey);
       if(!imported.length) throw new Error('keine gültigen Zeilen gefunden');
 
       const msg = imported.length + ' Einträge importieren? Doppelte werden übersprungen.' +
@@ -1614,26 +1561,8 @@ async function resetAll(){
 }
 
 /* ================= Helfer ================= */
-/* Lokales Datum als ISO-Tag, n Tage in der Vergangenheit.
-   Ueber den Zeitzonen-Offset, damit nicht in UTC auf den Vortag gerutscht wird. */
-function isoDaysAgo(n){
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-function today(){ return isoDaysAgo(0); }
-function fmtDate(iso){ if(!iso) return ''; const p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
-/* Escaped Text fuer die Einbettung in HTML – auch in Attributwerte.
-   Achtung: & muss zuerst ersetzt werden, sonst werden die eigenen
-   Entities der folgenden Schritte doppelt escaped. */
-function esc(s){
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+/* today(), isoDaysAgo(), fmtDate(), esc() und sanitizeDayKey() liegen in
+   js/domain/ und werden oben importiert. */
 
 let toastTimer = null;
 function toast(msg, big){
@@ -1652,11 +1581,24 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-/* ================= IndexedDB fallback & build hint ================= */
-/* Die App nutzt localStorage, was für 500 Workouts ausreicht.
-   Sollte der Speicher knapp werden, kann in storage.js auf IndexedDB
-   umgestellt werden (siehe Kommentare dort). */
+/* =========================================================
+   TEMPORÄRE BRÜCKE – wird mit der Umstellung auf data-action gelöscht.
 
-/* Unit tests: run via "npx vitest run" after installing vitest.
-   Test config ist in package.json (muss erstellt werden).
-   Oder öffne test.html im Browser für einfache Tests. */
+   Seit der ES-Modul-Umstellung liegen diese Funktionen im Modul-Scope und
+   sind für die Inline-Handler in index.html und in den generierten
+   HTML-Strings nicht mehr erreichbar. Die Liste schrumpft mit jedem auf
+   Event-Delegation umgestellten Bereich – nichts hinzufügen.
+   ========================================================= */
+Object.assign(window, {
+  showTab, toggleTheme, selectDay, tapSet, toggleTop, toggleTips,
+  adjustLevel, substituteExercise, showExHistory, closeExHistory,
+  setRep, finishWorkout, undoWorkout, stopRest, dismissDeload,
+  addWarmupItem, removeWarmupItem,
+  addWeight, addMeasurement,
+  setLibFilter, toggleLib, savePR,
+  dragStart, dragOver, dragDrop, dragEnd, changePlan, resetPlan,
+  addPlanDay, renameDay, removeDay, addEx, removeEx, moveEx,
+  toggleMilestone,
+  openSettings, closeSettings, updateSetting,
+  exportJSON, exportCSV, exportText, importJSON, importCSV, resetAll
+});

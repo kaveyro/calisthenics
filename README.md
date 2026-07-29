@@ -8,18 +8,34 @@ Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt u
 
 ## 1. Lokal ausprobieren
 
-Einfach `index.html` im Browser öffnen. Es funktioniert alles außer dem Service Worker (Offline-Cache) – der braucht `http(s)`.
-
-Mit lokalem Server (empfohlen, dann läuft auch der Offline-Modus):
+Die App braucht einen lokalen Server. Ein direkter Doppelklick auf `index.html` reicht nicht: ES-Module werden über `file://` von den Browsern blockiert, und der Service Worker (Offline-Cache) braucht ohnehin `http(s)`.
 
 ```bash
-# Python
+npm start
+```
+
+Alternativ ohne Node:
+
+```bash
 python3 -m http.server 8080
-# oder Node
-npx serve .
 ```
 
 Dann `http://localhost:8080` aufrufen.
+
+### Entwicklung
+
+Zum *Ausführen* und *Veröffentlichen* der App wird nichts installiert – sie besteht aus statischen Dateien ohne Build-Schritt. Die folgenden Werkzeuge sind reine Entwicklungshilfen; `node_modules/` kann jederzeit gelöscht werden, ohne dass sich an der App etwas ändert.
+
+```bash
+npm install        # einmalig, nur für die Werkzeuge
+npm run check      # Linting, Tests und Prüfung des Offline-Manifests
+```
+
+| Befehl | Zweck |
+| --- | --- |
+| `npm test` | Unit-Tests der reinen Logik in `js/domain/` |
+| `npm run lint` | ESLint, inklusive der Schichtgrenzen |
+| `npm run sw:manifest` | Offline-Dateiliste neu erzeugen (siehe Abschnitt 7) |
 
 ---
 
@@ -138,13 +154,15 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 
 ## 7. Nach Änderungen: Cache aktualisieren
 
-Der Service Worker cached die Dateien. Damit ein Update sicher bei allen ankommt, in `sw.js` die Version hochzählen:
+Dateiliste und Cache-Version stehen in `sw-manifest.js` und werden erzeugt, nicht von Hand gepflegt:
 
-```js
-const CACHE = 'progression-v2';   // vorher v1
+```bash
+npm run sw:manifest
 ```
 
-Neue Dateien zusätzlich in die `ASSETS`-Liste eintragen.
+Die Version leitet sich aus dem Inhalt aller Dateien ab – sie kann also nicht vergessen werden, und jede Änderung erzeugt automatisch einen neuen Cache. `npm run sw:check` schlägt fehl, wenn das Manifest veraltet ist; das gehört vor jeden Deploy.
+
+Der Grund für die Automatik: `cache.add()` schlägt pro Datei fehl, und die frühere `addAll()`-Variante brach **atomar** ab, sobald ein einziger Eintrag fehlte. Ein vergessener Dateiname legte damit den kompletten Offline-Betrieb still – ohne jede Fehlermeldung.
 
 ---
 

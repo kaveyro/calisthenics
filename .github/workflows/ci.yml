@@ -1,0 +1,28 @@
+# Beratende Prüfung – bewusst KEIN Deploy-Workflow.
+#
+# Die App wird weiterhin direkt von GitHub Pages aus dem Branch `main`
+# ausgeliefert. Damit bleibt sie per `git push` von überall reparierbar, und
+# eine rote Prüfung hier verhindert nie ein Deploy.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+      # TODO nach der Umstellung auf data-action ergänzen: sicherstellen, dass
+      # keine Inline-Event-Handler zurückkehren (sie machen eine CSP ohne
+      # 'unsafe-inline' unmöglich):
+      #   grep -rEn '\son[a-z]+=' index.html js/  → muss leer sein
