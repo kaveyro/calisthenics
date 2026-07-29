@@ -328,12 +328,20 @@ function addKeyboardShortcuts(){
 function renderDaySelect(){
   const sug = nextSuggestedKey();
   document.getElementById('daySelect').innerHTML = getDays().map(d =>
-    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') + '" onclick="selectDay(\'' + d.key + '\')">' +
+    /* Der Tag-Key stammt aus einer Nutzereingabe und darf nicht in einen
+       JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
+       weil der HTML-Parser die Entities vor der JS-Auswertung zurueckwandelt.
+       Deshalb data-key + delegierter Listener (siehe unten). */
+    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') + '" data-key="' + esc(d.key) + '">' +
     (d.key === sug && !session.dayKey ? '<span class="badge">dran</span>' : '') +
     '<div class="tag">' + esc(d.key) + ' · ' + esc(d.title) + '</div>' +
     '<div class="sub">' + esc(d.sub || (d.ex.length + ' Übungen')) + '</div></button>'
   ).join('') || '<div class="empty-hint">' + __('noPlanDays') + ' – lege im Tab „Plan" einen an.</div>';
 }
+document.getElementById('daySelect').addEventListener('click', e => {
+  const btn = e.target.closest('.day-btn[data-key]');
+  if(btn) selectDay(btn.dataset.key);
+});
 
 /* ================= Sätze & Ziele berechnen ================= */
 function parseTarget(target){
@@ -1034,12 +1042,16 @@ function resetPlan(){
   if(!confirm('Plan auf die gewählte Vorlage zurücksetzen? Deine eigenen Änderungen am Plan gehen verloren (Fortschritt bleibt).')) return;
   state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast('Plan zurückgesetzt.');
 }
+/* Tag-Keys dienen als Bezeichner (Vergleiche, data-Attribute, Log-Eintraege).
+   Auf harmlose Zeichen begrenzen – das haelt sie auch nach einem Import sauber. */
+function sanitizeDayKey(s){ return String(s == null ? '' : s).replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 6); }
+
 function addPlanDay(){
   const p = ensureCustom();
-  const key = prompt('Kurzbezeichnung des Tages (z. B. C):', String.fromCharCode(65 + p.days.length));
+  const key = sanitizeDayKey(prompt('Kurzbezeichnung des Tages (z. B. C):', String.fromCharCode(65 + p.days.length)));
   if(!key) return;
   const title = prompt('Titel des Tages:', __('addDay')) || __('addDay');
-  p.days.push({ key: key.slice(0, 6), title: title.slice(0, 40), sub: '', ex: [] });
+  p.days.push({ key, title: title.slice(0, 40), sub: '', ex: [] });
   save(); renderPlanTab(); renderDaySelect();
 }
 function renameDay(di){
@@ -1047,7 +1059,7 @@ function renameDay(di){
   const key = prompt('Kurzbezeichnung:', d.key); if(key === null) return;
   const title = prompt('Titel:', d.title); if(title === null) return;
   const sub = prompt('Untertitel (optional):', d.sub || '');
-  d.key = key.slice(0, 6) || d.key; d.title = title.slice(0, 40) || d.title; d.sub = (sub || '').slice(0, 60);
+  d.key = sanitizeDayKey(key) || d.key; d.title = title.slice(0, 40) || d.title; d.sub = (sub || '').slice(0, 60);
   save(); renderPlanTab(); renderDaySelect();
 }
 function removeDay(di){
@@ -1180,16 +1192,61 @@ function exportText(){
       .catch(() => prompt('Zum Kopieren markieren:', text));
   } else prompt('Zum Kopieren markieren:', text);
 }
+const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+
+/* Beschneidet ein importiertes Backup auf die bekannte Form.
+   Bewusst kappen statt ablehnen: ein Validator, der die eigenen aelteren
+   Backups des Nutzers zurueckweist, waere ein Datenverlust-Bug. */
+function clampBackup(data){
+  const known = Object.keys(DEFAULT_STATE());
+  const out = {};
+  known.forEach(k => { if(data[k] !== undefined && data[k] !== null) out[k] = data[k]; });
+
+  if(out.customPlan && typeof out.customPlan === 'object'){
+    const days = Array.isArray(out.customPlan.days) ? out.customPlan.days : [];
+    out.customPlan.days = days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => ({
+      key: sanitizeDayKey(d.key) || '?',
+      title: String(d.title == null ? '' : d.title).slice(0, 40),
+      sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
+      ex: (Array.isArray(d.ex) ? d.ex : []).filter(id => EX_BY_ID[id]).slice(0, 30)
+    }));
+  }
+  if(Array.isArray(out.warmupCustom)){
+    out.warmupCustom = out.warmupCustom.slice(0, 30).map(w => String(w == null ? '' : w).slice(0, 80));
+  }
+  if(out.notes && typeof out.notes === 'object'){
+    Object.keys(out.notes).forEach(id => {
+      const n = out.notes[id];
+      if(!n || typeof n !== 'object'){ delete out.notes[id]; return; }
+      n.t = String(n.t == null ? '' : n.t).slice(0, 160);
+    });
+  }
+  if(out.prs && typeof out.prs === 'object'){
+    Object.keys(out.prs).forEach(id => {
+      const p = out.prs[id];
+      if(!p || typeof p !== 'object'){ delete out.prs[id]; return; }
+      p.v = String(p.v == null ? '' : p.v).slice(0, 40);
+    });
+  }
+  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-500);
+  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-200);
+  return out;
+}
+
 function importJSON(input){
   const file = input.files && input.files[0]; if(!file) return;
+  if(file.size > MAX_BACKUP_BYTES){
+    toast('Datei ist zu groß für ein Backup (über 5 MB).'); input.value = ''; return;
+  }
   const r = new FileReader();
   r.onload = async e => {
     try{
       const data = JSON.parse(e.target.result);
-      if(!data || typeof data !== 'object' || (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
+      if(!data || typeof data !== 'object' || Array.isArray(data) ||
+         (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
       if(!confirm('Backup importieren? Der aktuelle Stand auf diesem Gerät wird überschrieben.')){ input.value = ''; return; }
       cancelHold(); stopRest();
-      state = Object.assign(DEFAULT_STATE(), data);
+      state = Object.assign(DEFAULT_STATE(), clampBackup(data));
       await save();
       session = { dayKey: null, sets: {}, top: {}, reps: {} };
       document.getElementById('finishBar').style.display = 'none';
