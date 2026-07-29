@@ -8,7 +8,7 @@ const SETTINGS_DEFAULTS = {
 };
 
 const DEFAULT_STATE = () => ({
-  v: 4, planId: 'ab4', customPlan: null,
+  v: 4, planId: 'ab4', customPlan: null, activeSession: null,
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
@@ -81,14 +81,27 @@ function cfg(k){
 
 /* ================= Start ================= */
 (async function boot(){
-  const loaded = await store.load();
-  if(loaded) state = Object.assign(DEFAULT_STATE(), loaded);
-  setLang(cfg('lang'));
-  applyTheme();
-  renderWarmup();
-  renderAll();
-  registerSW();
-  addKeyboardShortcuts();
+  try{
+    const loaded = await store.load();
+    if(loaded) state = Object.assign(DEFAULT_STATE(), loaded);
+    setLang(cfg('lang'));
+    applyTheme();
+    renderWarmup();
+    renderAll();
+    restoreActiveSession();
+    registerSW();
+    addKeyboardShortcuts();
+  }catch(err){
+    /* Ohne diesen Zweig bliebe der Ladehinweis dauerhaft stehen und der
+       Fehler landete nur als unbehandelte Promise-Rejection in der Konsole. */
+    console.error('[boot]', err);
+    const el = document.getElementById('content');
+    if(el) el.innerHTML =
+      '<div class="empty-hint"><b>Die App konnte nicht starten.</b><br><br>' +
+      esc(String(err && err.message || err)) +
+      '<br><br>Lade die Seite neu. Bleibt der Fehler, hilft ein Backup-Import ' +
+      'oder „Alles zurücksetzen" in den Einstellungen.</div>';
+  }
 })();
 
 async function save(){
@@ -103,6 +116,39 @@ async function save(){
   }
 }
 
+/* ================= Laufende Einheit sichern =================
+   session lebte bisher nur im Arbeitsspeicher. Schickt das Handy die PWA in
+   den Hintergrund und der Browser entlaedt sie, war die halb fertige Einheit
+   weg – beforeunload feuert beim App-Wechsel auf Mobilgeraeten nicht.
+   Deshalb wird sie bei jeder Aenderung mitgeschrieben. */
+function persistSession(){
+  state.activeSession = session.dayKey
+    ? { dayKey: session.dayKey, sets: { ...session.sets }, top: { ...session.top }, reps: { ...session.reps }, d: today() }
+    : null;
+  save();
+}
+function clearSession(){
+  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  state.activeSession = null;
+}
+function restoreActiveSession(){
+  const a = state.activeSession;
+  if(!a || !a.dayKey) return false;
+  /* Eine Einheit von gestern ist keine laufende Einheit mehr. */
+  if(a.d && a.d !== today()){ state.activeSession = null; return false; }
+  if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
+  session = { dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {}, reps: a.reps || {} };
+  renderDaySelect(); renderWorkout(); restoreSession({}, session.reps);
+  toast('Laufendes Training wiederhergestellt.');
+  return true;
+}
+
+function setRep(key, value){
+  const n = parseInt(value, 10);
+  session.reps[key] = Number.isFinite(n) ? n : null;
+  persistSession();
+}
+
 function registerSW(){
   if('serviceWorker' in navigator && location.protocol.startsWith('http')){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
@@ -111,6 +157,9 @@ function registerSW(){
 
 function renderAll(){
   renderStats(); renderPhase(); renderBanners(); renderDaySelect();
+  /* Ein laufendes Training nicht ueberschreiben. Alle Aufrufer, die eine
+     Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
+  if(session.dayKey) return;
   document.getElementById('content').innerHTML =
     '<div class="empty-hint">' + __('selectDay') + '.<br><br>' +
     'Bei Halteübungen startet ein Tipp auf den Satz einen Countdown mit Signal.</div>';
@@ -150,7 +199,10 @@ function nextSuggestedKey(){
 
 /* ================= Kopfbereich ================= */
 function renderStats(){
-  const ups = Object.values(state.levels).reduce((a, b) => a + b, 0);
+  /* Echte Level-Ups aus dem Log zaehlen. Frueher wurde die Summe der
+     Stufen-Indizes gebildet, sodass jede manuelle Korrektur ueber die
+     +/--Buttons den Zaehler mit aufgeblaeht hat. */
+  const ups = (state.log || []).reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
   const ms = Object.keys(state.milestones || {}).length;
   const thisWeek = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
   const streak = calcGlobalStreak();
@@ -182,13 +234,18 @@ function renderPhase(){
 /* ================= Global Streak & Plateau Detection ================= */
 function calcGlobalStreak(){
   if(!state.log || !state.log.length) return 0;
-  let streak = 0;
   const dates = [...new Set(state.log.map(l => l.d))].sort().reverse();
+  /* Anker ist heute ODER gestern. Frueher war er fest auf heute gesetzt,
+     wodurch eine laufende Serie jeden Morgen auf 0 fiel, bis man wieder
+     trainiert hatte – und im Kopfbereich schlicht verschwand. */
+  let offset;
+  if(dates[0] === isoDaysAgo(0)) offset = 0;
+  else if(dates[0] === isoDaysAgo(1)) offset = 1;
+  else return 0;
+
+  let streak = 0;
   for(let i = 0; i < dates.length; i++){
-    const expected = new Date();
-    expected.setDate(expected.getDate() - i);
-    const expectedStr = new Date(expected.getTime() - expected.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    if(dates[i] === expectedStr) streak++;
+    if(dates[i] === isoDaysAgo(i + offset)) streak++;
     else break;
   }
   return streak;
@@ -298,7 +355,15 @@ function showTab(t){
 /* ================= Tab Keyboard Navigation ================= */
 function addKeyboardShortcuts(){
   document.addEventListener('keydown', e => {
+    /* Escape zuerst und unabhaengig vom Fokus. */
+    if(e.key === 'Escape'){ closeSettings(); return; }
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    /* Bei offenem Einstellungsdialog keine Kuerzel im Hintergrund ausloesen. */
+    if(document.getElementById('settingsOverlay').classList.contains('open')) return;
+    /* Nur auslosen, wenn kein anderes Bedienelement den Fokus hat – sonst
+       schluckt Space die Aktivierung des fokussierten Buttons. */
+    if(e.key === ' ' && e.target.closest('button, a, summary, [tabindex]') &&
+       !e.target.classList.contains('set-dot')) return;
     if(e.key === ' ' && session.dayKey){
       e.preventDefault();
       const active = document.activeElement;
@@ -320,7 +385,6 @@ function addKeyboardShortcuts(){
       const tabs = ['train', 'history', 'library', 'plan', 'milestones'];
       showTab(tabs[parseInt(e.key) - 1]);
     }
-    if(e.key === 'Escape') closeSettings();
   });
 }
 
@@ -346,8 +410,12 @@ document.getElementById('daySelect').addEventListener('click', e => {
 /* ================= Sätze & Ziele berechnen ================= */
 function parseTarget(target){
   const sm = target.match(/^(\d+)\s*×/);
-  const hm = target.match(/(\d+)(?:–(\d+))?\s*Sek/);
-  const rm = target.match(/(\d+)(?:–(\d+))?$/);
+  /* Bindestrich und Halbgeviertstrich beide zulassen, und eine nachgestellte
+     Einheit ("Versuche", "Wdh") tolerieren: '4 × 5–8 Versuche' lieferte sonst
+     keine Wiederholungszahl, wodurch fuer diese Stufen weder Eingabefelder
+     noch PR-Erfassung erschienen. */
+  const hm = target.match(/(\d+)(?:[–-](\d+))?\s*Sek/);
+  const rm = target.match(/(\d+)(?:[–-](\d+))?\s*(?:Wdh|Versuche|Reps)?\.?$/);
   let sets = sm ? parseInt(sm[1], 10) : 3;
   const mode = cfg('setsMode');
   if(mode === 'light') sets = Math.min(sets, 3);
@@ -363,6 +431,7 @@ function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest
 function selectDay(key){
   cancelHold(); stopRest();
   session = { dayKey: key, sets: {}, top: {}, reps: {} };
+  persistSession();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
 
@@ -389,7 +458,7 @@ function renderWorkout(){
       const repKey = ex.id + '-' + s;
       dots += '<button class="set-dot" id="set-' + repKey + '" onclick="tapSet(\'' + ex.id + '\',' + s + ')" aria-label="' + __('sets') + ' ' + (s + 1) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
-        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '" placeholder="' + (t.minReps + '-' + t.maxReps) + '" title="' + __('reps') + '" value="' + ((session.reps || {})[repKey] || '') + '" onchange="session.reps[\'' + repKey + '\']=parseInt(this.value)||null">';
+        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '" placeholder="' + (t.minReps + '-' + t.maxReps) + '" title="' + __('reps') + '" value="' + ((session.reps || {})[repKey] || '') + '" oninput="setRep(\'' + repKey + '\',this.value)">';
       }
     }
 
@@ -464,7 +533,10 @@ function adjustLevel(id, d){
   if(next === cur) return;
   state.levels[id] = next; state.streaks[id] = 0;
   save(); renderStats();
-  if(session.dayKey){ const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
+  /* cancelHold() zuerst: sonst laeuft ein Countdown gegen das alte,
+     nach renderWorkout() abgehaengte Element weiter und markiert einen
+     Satz, den man nicht mehr sieht. */
+  if(session.dayKey){ cancelHold(); const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
   toast(ex.name + ': Stufe "' + ex.levels[next].stage + '"');
 }
@@ -533,7 +605,7 @@ function tapSet(id, s){
   if(session.sets[key]){
     session.sets[key] = false;
     el.classList.remove('done'); el.textContent = s + 1;
-    updateFinish(); return;
+    updateFinish(); persistSession(); return;
   }
 
   if(t.isHold){
@@ -556,7 +628,7 @@ function tapSet(id, s){
 function markDone(key, el, s, ex){
   session.sets[key] = true;
   el.classList.add('done'); el.textContent = s + 1;
-  updateFinish();
+  updateFinish(); persistSession();
   if(cfg('autoRest')) startRest(restFor(ex));
 }
 function cancelHold(){
@@ -569,13 +641,24 @@ function cancelHold(){
 function toggleTop(id, on){
   session.top[id] = on;
   document.getElementById('top-' + id).classList.toggle('checked', on);
+  persistSession();
 }
 function toggleTips(id){ document.getElementById('tips-' + id).classList.toggle('open'); }
 
+/* Die Uebungen der laufenden Einheit. Faellt auf die Session selbst zurueck,
+   wenn der Trainingstag zwischenzeitlich aus dem Plan geloescht wurde –
+   sonst geht die halb fertige Einheit verloren. */
+function sessionExerciseIds(){
+  const day = getDay(session.dayKey);
+  if(day) return day.ex;
+  const fromSets = Object.keys(session.sets).map(k => k.slice(0, k.lastIndexOf('-')));
+  return [...new Set(Object.keys(session.top).concat(fromSets))].filter(id => EX_BY_ID[id]);
+}
+
 function updateFinish(){
-  const day = getDay(session.dayKey); if(!day) return;
+  const ids = sessionExerciseIds(); if(!ids.length) return;
   const done = Object.values(session.sets).filter(Boolean).length;
-  const total = day.ex.reduce((a, id) => {
+  const total = ids.reduce((a, id) => {
     const ex = EX_BY_ID[id];
     return ex ? a + parseTarget(ex.levels[lvlOf(ex)].target).sets : a;
   }, 0);
@@ -636,12 +719,30 @@ function releaseWakeLock(){ if(wakeLock){ try{ wakeLock.release(); }catch(e){} w
 /* ================= Training abschließen mit Undo ================= */
 async function finishWorkout(){
   cancelHold(); stopRest(); releaseWakeLock();
-  const day = getDay(session.dayKey);
+  const exIds = sessionExerciseIds();
+  if(!exIds.length){ toast('Keine Übungen in dieser Einheit – nichts zu speichern.'); return; }
   const need = cfg('streak');
   const ups = [];
   let tops = 0;
 
-  day.ex.forEach(id => {
+  /* Snapshot VOR der Mutationsschleife. Er wurde frueher danach gezogen und
+     enthielt damit bereits die neuen Werte – levels, streaks, prs und notes
+     liessen sich also gar nicht zurueckrollen, obwohl undoWorkout() sie
+     zuzuweisen schien. */
+  lastWorkoutSnapshot = {
+    levels: JSON.parse(JSON.stringify(state.levels)),
+    streaks: JSON.parse(JSON.stringify(state.streaks)),
+    prs: JSON.parse(JSON.stringify(state.prs)),
+    notes: JSON.parse(JSON.stringify(state.notes)),
+    byDay: JSON.parse(JSON.stringify(state.byDay || {})),
+    session: JSON.parse(JSON.stringify(session)),
+    workouts: state.workouts || 0,
+    lastDate: state.lastDate,
+    deloadDismissed: state.deloadDismissed,
+    entry: null            /* wird nach dem Anlegen des Log-Eintrags gesetzt */
+  };
+
+  exIds.forEach(id => {
     const ex = EX_BY_ID[id]; if(!ex) return;
     const lvl = state.levels[id] || 0;
     const maxed = lvl >= ex.levels.length - 1;
@@ -666,8 +767,8 @@ async function finishWorkout(){
         const repEl = document.getElementById('rep-' + id + '-' + s);
         if(repEl && repEl.value){
           const v = parseInt(repEl.value, 10);
-          if(v && (!state.prs[id] || v > parseInt(state.prs[id].v, 10))){
-            state.prs[id] = { v: v + ' ' + __('reps'), d: today() };
+          if(v && v > prNumber(state.prs[id])){
+            state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
           }
         }
       }
@@ -678,28 +779,17 @@ async function finishWorkout(){
   const now = today();
   const entry = { d: now, day: session.dayKey, sets, tops, ups, reps: { ...session.reps } };
 
-  lastWorkoutSnapshot = {
-    levels: JSON.parse(JSON.stringify(state.levels)),
-    streaks: JSON.parse(JSON.stringify(state.streaks)),
-    prs: JSON.parse(JSON.stringify(state.prs)),
-    notes: JSON.parse(JSON.stringify(state.notes)),
-    session: JSON.parse(JSON.stringify(session)),
-    entry
-  };
+  lastWorkoutSnapshot.entry = entry;
 
   state.workouts = (state.workouts || 0) + 1;
   state.byDay[session.dayKey] = (state.byDay[session.dayKey] || 0) + 1;
   state.lastDate = now;
 
-  /* Global streak */
-  const gs = calcGlobalStreak();
-  state.streakDays = gs + 1;
-
   state.log.push(entry);
   if(state.log.length > 500) state.log = state.log.slice(-500);
   await save();
 
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
@@ -708,32 +798,40 @@ async function finishWorkout(){
 
   /* Offer undo for 5 seconds */
   clearTimeout(undoTimeout);
-  undoTimeout = setTimeout(() => { lastWorkoutSnapshot = null; }, 5000);
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
   undoBtn.textContent = '↩ ' + __('undo');
   undoBtn.onclick = undoWorkout;
   document.getElementById('content').appendChild(undoBtn);
+  /* Den Button zusammen mit dem Snapshot entfernen – sonst bleibt eine
+     Schaltflaeche stehen, die nach 5 s wortlos nichts mehr tut. */
+  undoTimeout = setTimeout(() => {
+    lastWorkoutSnapshot = null;
+    undoBtn.remove();
+  }, 5000);
 }
 
 function undoWorkout(){
-  if(!lastWorkoutSnapshot) return;
-  state.levels = lastWorkoutSnapshot.levels;
-  state.streaks = lastWorkoutSnapshot.streaks;
-  state.prs = lastWorkoutSnapshot.prs;
-  state.notes = lastWorkoutSnapshot.notes;
-  state.workouts = Math.max(0, state.workouts - 1);
-  const idx = state.log.findIndex(l =>
-    l.d === lastWorkoutSnapshot.entry.d &&
-    l.day === lastWorkoutSnapshot.entry.day
-  );
+  const snap = lastWorkoutSnapshot;
+  if(!snap) return;
+  state.levels = snap.levels;
+  state.streaks = snap.streaks;
+  state.prs = snap.prs;
+  state.notes = snap.notes;
+  state.byDay = snap.byDay;
+  state.workouts = snap.workouts;
+  state.lastDate = snap.lastDate;
+  state.deloadDismissed = snap.deloadDismissed;
+  /* Identitaetsvergleich statt Suche ueber (Datum, Tag): zwei Einheiten
+     desselben Tages am selben Datum sind zulaessig, und der Suchtreffer
+     waere dann der falsche Eintrag. */
+  const idx = state.log.lastIndexOf(snap.entry);
   if(idx >= 0) state.log.splice(idx, 1);
-  state.lastDate = state.log.length ? state.log[state.log.length - 1].d : null;
   save();
   clearTimeout(undoTimeout);
   lastWorkoutSnapshot = null;
   document.querySelector('.undo-btn')?.remove();
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
   toast(__('undoWorkout'));
@@ -923,8 +1021,10 @@ function renderWeight(){
   const min = Math.min(...kgs) - 1, max = Math.max(...kgs) + 1;
   const pts = ws.map((w, i) =>
     (i / (ws.length - 1) * 296 + 2).toFixed(1) + ',' + (66 - (w.kg - min) / (max - min) * 62).toFixed(1)).join(' ');
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  /* var(--accent) statt des aufgeloesten Wertes: sonst bleibt die Kurve nach
+     einem Theme-Wechsel in der alten Farbe, bis zufaellig neu gerendert wird.
+     Die Messwert-Kurve daneben macht es bereits so. */
+  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   const delta = Math.round((kgs[kgs.length - 1] - kgs[0]) * 10) / 10;
   meta.innerHTML = 'Aktuell <b>' + kgs[kgs.length - 1] + ' kg</b> · seit Start <b>' + (delta > 0 ? '+' : '') + delta + ' kg</b> · ' + ws.length + ' Einträge';
 }
@@ -971,9 +1071,24 @@ function renderLibrary(){
 }
 const EQUIP_NAMES = { none: 'kein Gerät', parallettes: 'Parallettes', bar: 'Klimmzugstange', chair: 'Stuhl/Tisch' };
 function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
+/* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar ist.
+   Das Feld erlaubt Freitext ("sauber!"); frueher lieferte parseInt() dann NaN
+   und jeder Vergleich  v > NaN  war false – die automatische PR-Erfassung war
+   fuer diese Uebung dauerhaft tot. Ein nicht lesbarer Wert darf nicht blockieren. */
+function prNumber(pr){
+  if(!pr) return -Infinity;
+  const n = typeof pr.n === 'number' ? pr.n : parseInt(pr.v, 10);
+  return Number.isFinite(n) ? n : -Infinity;
+}
+
 async function savePR(id){
   const v = (document.getElementById('pr-' + id).value || '').trim().slice(0, 40);
-  if(!v){ delete state.prs[id]; } else { state.prs[id] = { v, d: today() }; }
+  if(!v){
+    delete state.prs[id];
+  } else {
+    const n = parseInt(v, 10);
+    state.prs[id] = Number.isFinite(n) ? { v, n, d: today() } : { v, d: today() };
+  }
   await save(); renderLibrary(); toast(v ? 'Bestleistung gespeichert.' : 'Bestleistung gelöscht.');
 }
 
@@ -995,7 +1110,7 @@ function renderPlanTab(){
         '<button class="mini-btn danger" onclick="removeDay(' + di + ')" title="' + __('remove') + '">✕</button></span></div>' +
       d.ex.map((id, ei) => {
         const ex = EX_BY_ID[id];
-        return '<div class="plan-ex" draggable="true" ondragstart="dragStart(' + di + ',' + ei + ')" ondragover="dragOver(event)" ondrop="dragDrop(' + di + ',' + ei + ')" ondragend="dragEnd()">' +
+        return '<div class="plan-ex" draggable="true" ondragstart="dragStart(event,' + di + ',' + ei + ')" ondragover="dragOver(event)" ondrop="dragDrop(' + di + ',' + ei + ')" ondragend="dragEnd()">' +
           '<span class="drag-handle">⠿</span>' +
           '<span class="nm">' + (ex ? esc(ex.name) : '<i>unbekannt: ' + esc(id) + '</i>') +
           '</span><button class="mini-btn" onclick="moveEx(' + di + ',' + ei + ',-1)" title="' + __('moveUp') + '">↑</button>' +
@@ -1010,7 +1125,17 @@ function renderPlanTab(){
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
 }
 
-function dragStart(di, ei){ dragSrcId = di; dragSrcIdx = ei; event.dataTransfer.effectAllowed = 'move'; }
+/* event explizit entgegennehmen: das implizite globale window.event ist
+   nicht standardisiert (in Firefox nicht vorhanden) und existiert unter
+   Modulen/strict mode ohnehin nicht. */
+function dragStart(e, di, ei){
+  dragSrcId = di; dragSrcIdx = ei;
+  if(e && e.dataTransfer){
+    e.dataTransfer.effectAllowed = 'move';
+    /* Firefox startet einen Drag nur, wenn Daten gesetzt sind. */
+    e.dataTransfer.setData('text/plain', di + ':' + ei);
+  }
+}
 function dragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
 function dragDrop(di, ei){
   if(dragSrcId === null || dragSrcIdx === null) return;
@@ -1127,12 +1252,12 @@ function openSettings(){
   document.getElementById('settingsOverlay').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settingsOverlay').classList.remove('open'); }
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeSettings(); });
+/* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
+   hat closeSettings() pro Tastendruck doppelt aufgerufen. */
 
 function updateSetting(k, v){
   state.settings[k] = v; save();
   if(k === 'lang'){ setLang(v); document.title = __('appName') + ' – Calisthenics Tracker'; }
-  renderStats(); renderPhase(); renderBanners();
   if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest'].includes(k)){
     if(k === 'setsMode'){
       Object.keys(session.sets).forEach(key => {
@@ -1142,7 +1267,7 @@ function updateSetting(k, v){
         if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
       });
     }
-    const n = snapshotNotes(); renderWorkout(); restoreSession(n, session.reps);
+    const n = snapshotNotes(); cancelHold(); renderWorkout(); restoreSession(n, session.reps);
   }
   renderAll();
 }
@@ -1247,8 +1372,9 @@ function importJSON(input){
       if(!confirm('Backup importieren? Der aktuelle Stand auf diesem Gerät wird überschrieben.')){ input.value = ''; return; }
       cancelHold(); stopRest();
       state = Object.assign(DEFAULT_STATE(), clampBackup(data));
+      clearSession();          /* vor dem Speichern: sonst landet eine aus dem
+                                  Backup stammende Einheit kurz im Speicher */
       await save();
-      session = { dayKey: null, sets: {}, top: {}, reps: {} };
       document.getElementById('finishBar').style.display = 'none';
       applyTheme(); closeSettings(); showTab('train'); renderAll();
       toast('Backup importiert – willkommen zurück!', true);
@@ -1260,36 +1386,97 @@ function importJSON(input){
 }
 
 /* ================= CSV Import ================= */
+
+/* Echter CSV-Parser fuer das von exportCSV() erzeugte Format:
+   Semikolon-getrennt, Felder in Anfuehrungszeichen, "" als maskiertes ".
+   Der frueher genutzte line.split(';') + replace(/"/g,'') zerlegte jede
+   Zeile falsch, sobald ein Feld selbst ein Semikolon enthielt – der
+   Roundtrip des eigenen Exports war damit nicht verlustfrei. */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  const src = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;   /* BOM */
+
+  for(let i = 0; i < src.length; i++){
+    const c = src[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(src[i + 1] === '"'){ field += '"'; i++; }                  /* "" -> " */
+        else inQuotes = false;
+      } else field += c;
+      continue;
+    }
+    if(c === '"') inQuotes = true;
+    else if(c === ';'){ row.push(field); field = ''; }
+    else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+    else if(c !== '\r') field += c;
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 function importCSV(input){
   const file = input.files && input.files[0]; if(!file) return;
+  if(file.size > MAX_BACKUP_BYTES){
+    toast('Datei ist zu groß (über 5 MB).'); input.value = ''; return;
+  }
   const r = new FileReader();
   r.onload = e => {
     try{
-      const text = e.target.result;
-      const lines = text.split('\n').filter(l => l.trim());
-      if(lines.length < 2) throw new Error('empty');
-      const header = lines[0].split(';').map(h => h.replace(/"/g, '').trim());
-      const dateIdx = header.indexOf('Datum'), dayIdx = header.indexOf('Tag');
-      if(dateIdx < 0) throw new Error('missing date column');
+      const rows = parseCSV(e.target.result);
+      if(rows.length < 2) throw new Error('Datei enthält keine Datenzeilen');
+
+      /* Alle Spalten ueber den Kopf aufloesen – frueher waren Saetze und
+         TopSaetze fest auf Index 2 und 3 verdrahtet, sodass eine
+         umsortierte Datei stillschweigend Unsinn ergab. */
+      const header = rows[0].map(h => h.trim());
+      const col = name => header.indexOf(name);
+      const iDate = col('Datum'), iDay = col('Tag');
+      const iSets = col('Saetze'), iTops = col('TopSaetze'), iUps = col('LevelUps');
+      if(iDate < 0) throw new Error('Spalte „Datum" fehlt');
+
       const imported = [];
-      lines.slice(1).forEach(line => {
-        const cols = line.split(';').map(c => c.replace(/"/g, '').trim());
-        const entry = { d: cols[dateIdx] || today(), day: cols[dayIdx] || 'A', sets: parseInt(cols[2]) || 0, tops: parseInt(cols[3]) || 0, ups: [] };
-        if(entry.d && entry.sets > 0){ imported.push(entry); }
+      let skipped = 0;
+      rows.slice(1).forEach(cols => {
+        const d = (cols[iDate] || '').trim();
+        if(!ISO_DATE.test(d)){ skipped++; return; }   /* sonst NaN-KW im Chart */
+        const sets = iSets >= 0 ? parseInt(cols[iSets], 10) : 0;
+        if(!(sets > 0)){ skipped++; return; }
+        imported.push({
+          d,
+          day: sanitizeDayKey(iDay >= 0 ? cols[iDay] : '') || 'A',
+          sets,
+          tops: (iTops >= 0 ? parseInt(cols[iTops], 10) : 0) || 0,
+          ups: iUps >= 0 && cols[iUps] ? cols[iUps].split(' | ').filter(Boolean) : []
+        });
       });
-      if(!imported.length) throw new Error('no data');
-      if(!confirm(imported.length + ' Einträge importieren? Doppelte werden übersprungen.')) return;
+      if(!imported.length) throw new Error('keine gültigen Zeilen gefunden');
+
+      const msg = imported.length + ' Einträge importieren? Doppelte werden übersprungen.' +
+        (skipped ? '\n\n' + skipped + ' Zeile(n) werden übersprungen (ungültiges Datum oder keine Sätze).' : '');
+      if(!confirm(msg)) return;
+
       const existing = new Set((state.log || []).map(l => l.d + '-' + l.day));
-      imported.forEach(e => {
-        const key = e.d + '-' + e.day;
-        if(!existing.has(key)){ state.log.push(e); existing.add(key); }
+      let added = 0;
+      imported.forEach(en => {
+        const key = en.d + '-' + en.day;
+        if(!existing.has(key)){ state.log.push(en); existing.add(key); added++; }
       });
       state.log.sort((a, b) => a.d.localeCompare(b.d));
       if(state.log.length > 500) state.log = state.log.slice(-500);
-      save(); renderHistory(); toast(imported.length + ' Einträge importiert.');
-    }catch(err){ toast('CSV-Import fehlgeschlagen: ' + err.message); }
-    input.value = '';
+      save(); renderAll(); renderHistory();
+      toast(added + ' von ' + imported.length + ' Einträgen importiert.');
+    }catch(err){
+      toast('CSV-Import fehlgeschlagen: ' + err.message);
+    }finally{
+      /* Immer zuruecksetzen – bei einem return im try-Block blieb der Wert
+         sonst stehen und dieselbe Datei loeste kein change-Event mehr aus. */
+      input.value = '';
+    }
   };
+  r.onerror = () => { toast('Datei konnte nicht gelesen werden.'); input.value = ''; };
   r.readAsText(file);
 }
 
@@ -1297,20 +1484,32 @@ async function resetAll(){
   if(!confirm('Wirklich alles zurücksetzen? Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewichtsdaten und Maße werden gelöscht. Einstellungen und Design bleiben.')) return;
   cancelHold(); stopRest();
   const keep = { theme: state.theme, settings: state.settings, planId: state.planId, customPlan: state.customPlan };
-  await store.clear();
+  /* Ohne catch bricht ein Fehler in store.clear() die async-Funktion mitten
+     im Zuruecksetzen ab – ohne Meldung und mit halb geleertem Speicher. */
+  try{
+    await store.clear();
+  }catch(err){
+    console.error('[resetAll]', err);
+    toast('Zurücksetzen fehlgeschlagen – der Speicher ließ sich nicht leeren.');
+    return;
+  }
   state = Object.assign(DEFAULT_STATE(), keep);
+  clearSession();
   await save();
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
   document.getElementById('finishBar').style.display = 'none';
   closeSettings(); showTab('train'); renderAll();
   toast('Fortschritt zurückgesetzt – neuer Zyklus!');
 }
 
 /* ================= Helfer ================= */
-function today(){
+/* Lokales Datum als ISO-Tag, n Tage in der Vergangenheit.
+   Ueber den Zeitzonen-Offset, damit nicht in UTC auf den Vortag gerutscht wird. */
+function isoDaysAgo(n){
   const d = new Date();
+  d.setDate(d.getDate() - n);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
+function today(){ return isoDaysAgo(0); }
 function fmtDate(iso){ if(!iso) return ''; const p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
 /* Escaped Text fuer die Einbettung in HTML – auch in Attributwerte.
    Achtung: & muss zuerst ersetzt werden, sonst werden die eigenen
