@@ -20,9 +20,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
-
-      # TODO nach der Umstellung auf data-action ergänzen: sicherstellen, dass
-      # keine Inline-Event-Handler zurückkehren (sie machen eine CSP ohne
-      # 'unsafe-inline' unmöglich):
-      #   grep -rEn '\son[a-z]+=' index.html js/  → muss leer sein
+      - run: npm run check   # enthält auch den Test gegen Inline-Handler

@@ -8,6 +8,7 @@ import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/
 import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
+import { installDelegation, zahl } from './ui/delegate.js';
 
 const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
@@ -201,6 +202,8 @@ function cfg(k){
     renderAll();
     restoreActiveSession();
     registerSW();
+    installDelegation(actions);
+    installPlanDragAndDrop();
     addKeyboardShortcuts();
     addTablistNavigation();
   }catch(err){
@@ -421,7 +424,7 @@ function renderBanners(){
     if(due > 0 && due > (state.deloadDismissed || 0)){
       html += '<div class="banner warn"><b>Deload-Woche empfohlen.</b> Du hast ' + state.workouts +
         ' Trainings absolviert. Mach diese Woche nur die Hälfte der Sätze mit leichteren Varianten – Sehnen und Gelenke brauchen das, besonders bei Stütz- und Zugarbeit.' +
-        '<br><button onclick="dismissDeload(' + due + ')">Verstanden</button></div>';
+        '<br><button data-action="deload:dismiss" data-due="' + due + '">Verstanden</button></div>';
     }
   }
   if(state.lastDate){
@@ -445,7 +448,7 @@ function renderWarmup(){
   const el = document.getElementById('warmupList');
   el.innerHTML = items.map((w, i) =>
     '<li' + (w.includes('Pflicht') ? ' class="pflicht"' : '') + '>' +
-    esc(w) + ' <button class="mini-btn mini-btn--inline" onclick="removeWarmupItem(' + i + ')"' +
+    esc(w) + ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
     ' aria-label="Warm-up-Eintrag entfernen: ' + esc(w) + '">✕</button></li>'
   ).join('');
 }
@@ -553,16 +556,15 @@ function renderDaySelect(){
        JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
        weil der HTML-Parser die Entities vor der JS-Auswertung zurueckwandelt.
        Deshalb data-key + delegierter Listener (siehe unten). */
-    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') + '" data-key="' + esc(d.key) + '">' +
+    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') +
+      '" data-action="day:select" data-key="' + esc(d.key) + '">' +
     (d.key === sug && !session.dayKey ? '<span class="badge">dran</span>' : '') +
     '<div class="tag">' + esc(d.key) + ' · ' + esc(d.title) + '</div>' +
     '<div class="sub">' + esc(d.sub || (d.ex.length + ' Übungen')) + '</div></button>'
   ).join('') || '<div class="empty-hint">' + __('noPlanDays') + ' – lege im Tab „Plan" einen an.</div>';
 }
-document.getElementById('daySelect').addEventListener('click', e => {
-  const btn = e.target.closest('.day-btn[data-key]');
-  if(btn) selectDay(btn.dataset.key);
-});
+/* Der frühere Sonder-Listener für #daySelect ist entfallen – die Tag-Buttons
+   laufen jetzt über dieselbe Aktionstabelle wie alles andere. */
 
 /* ================= Sätze & Ziele berechnen ================= */
 function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
@@ -605,7 +607,7 @@ function renderWorkout(){
          aria-live auf dem Punkt, damit der Countdown einer Halteuebung
          ueberhaupt angesagt wird – er aendert nur den Textinhalt. */
       dots += '<button class="set-dot" id="set-' + repKey + '"' +
-        ' onclick="tapSet(\'' + ex.id + '\',' + s + ')"' +
+        ' data-action="set:tap" data-ex="' + ex.id + '" data-set="' + s + '"' +
         ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
         (t.isHold ? ' aria-live="polite"' : '') +
         ' aria-label="' + esc(ex.name) + ', Satz ' + (s + 1) + ' von ' + t.sets + '">' + (s + 1) + '</button>';
@@ -613,7 +615,7 @@ function renderWorkout(){
         dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
           ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="Wiederholungen, ' + esc(ex.name) + ', Satz ' + (s + 1) + '"' +
-          ' value="' + ((session.reps || {})[repKey] || '') + '" oninput="setRep(\'' + repKey + '\',this.value)">';
+          ' value="' + ((session.reps || {})[repKey] || '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       }
     }
 
@@ -628,8 +630,8 @@ function renderWorkout(){
     html += '<div class="ex" data-exid="' + ex.id + '">' +
       '<div class="ex-top"><span class="rung-label">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length +
         ' <span class="cat-chip">' + CATS[ex.cat].name + '</span></span>' +
-        '<span class="lvl-adjust"><button onclick="adjustLevel(\'' + ex.id + '\',-1)" title="Stufe verringern" aria-label="Stufe verringern">−</button>' +
-        '<button onclick="adjustLevel(\'' + ex.id + '\',1)" title="Stufe erhöhen" aria-label="Stufe erhöhen">+</button></span></div>' +
+        '<span class="lvl-adjust"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1" title="Stufe verringern" aria-label="Stufe verringern">−</button>' +
+        '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1" title="Stufe erhöhen" aria-label="Stufe erhöhen">+</button></span></div>' +
       '<div class="rungs" role="img" aria-label="Stufe ' + (lvl + 1) + ' von ' + ex.levels.length +
         ': ' + esc(level.stage) + '">' + rungs + '</div>' +
       '<div class="ex-head"><div class="ex-name">' + esc(ex.name) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
@@ -639,13 +641,13 @@ function renderWorkout(){
       '<div class="sets">' + dots + '</div>' +
       (t.isHold ? '<span class="hold-hint">Tipp auf einen Satz startet den ' + t.holdSecs + '-Sek-Timer · Pause ' + restFor(ex) + ' Sek</span>'
                 : '<span class="hold-hint">Pause ' + restFor(ex) + ' Sek</span>') +
-      '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" onchange="toggleTop(\'' + ex.id + '\',this.checked)"><span>' + __('topLimit') + '</span></label>' +
+      '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"><span>' + __('topLimit') + '</span></label>' +
       hint +
       '<textarea class="note-input" id="note-' + ex.id + '" rows="1" placeholder="' + __('notes') + ' (z. B. „6 Sek Negativ geschafft") – optional"></textarea>' +
-      '<button class="tip-btn" onclick="toggleTips(\'' + ex.id + '\')">' + __('tips') + '</button>' +
+      '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
       '<ul class="tips" id="tips-' + ex.id + '">' + ex.tips.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-      '<button class="sub-btn" onclick="substituteExercise(\'' + ex.id + '\')">↻ ' + __('substitute') + '</button>' +
-      '<button class="tip-btn" onclick="showExHistory(\'' + ex.id + '\')">📊 ' + __('perExercise') + '</button>' +
+      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + ex.id + '">↻ ' + __('substitute') + '</button>' +
+      '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div>';
   });
 
@@ -740,7 +742,7 @@ function showExHistory(id){
      Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
   let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(ex.name) + ' – Verlauf"' +
     ' style="max-width:400px;padding:16px"><div class="modal-head">' +
-    esc(ex.name) + ' · Verlauf<button onclick="closeExHistory()" aria-label="Schließen">✕</button></div>';
+    esc(ex.name) + ' · Verlauf<button data-action="exHistory:close" aria-label="Schließen">✕</button></div>';
   if(!logEntries.length) html += '<div class="muted">Noch keine Einträge.</div>';
   else {
     /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
@@ -985,7 +987,7 @@ async function finishWorkout(){
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
   undoBtn.textContent = '↩ ' + __('undo');
-  undoBtn.onclick = undoWorkout;
+  undoBtn.dataset.action = 'workout:undo';
   document.getElementById('content').appendChild(undoBtn);
   /* Den Button zusammen mit dem Snapshot entfernen – sonst bleibt eine
      Schaltflaeche stehen, die nach 5 s wortlos nichts mehr tut. */
@@ -1158,7 +1160,7 @@ function renderMeasurements(){
     const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
     html += '<div style="flex:1"><small>' + esc(labels[p]) + '</small><input id="meas-' + p + '" type="number" step="0.5" min="0" max="200" placeholder="' + esc(last) + ' ' + __('cm') + '" style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
   });
-  html += '<button onclick="addMeasurement()" style="align-self:flex-end">' + __('save') + '</button>';
+  html += '<button data-action="measurement:add" style="align-self:flex-end">' + __('save') + '</button>';
   html += '</div>';
 
   if(dates.length){
@@ -1228,7 +1230,7 @@ function renderWeight(){
 function renderCatFilter(){
   const cats = ['all'].concat(Object.keys(CATS));
   document.getElementById('catFilter').innerHTML = cats.map(c =>
-    '<button class="chip' + (libFilter === c ? ' active' : '') + '" onclick="setLibFilter(\'' + c + '\')">' +
+    '<button class="chip' + (libFilter === c ? ' active' : '') + '" data-action="library:filter" data-cat="' + c + '">' +
     (c === 'all' ? __('all') : CATS[c].name) + '</button>').join('');
 }
 function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
@@ -1247,7 +1249,7 @@ function renderLibrary(){
     return '<div class="lib-item">' +
       /* Echter Button statt eines klickbaren div: der Kopf ist die
          Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
-      '<button type="button" class="lib-head" onclick="toggleLib(\'' + ex.id + '\')"' +
+      '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
         ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
         '<span class="lib-name">' + esc(ex.name) + (planIds.has(ex.id) ? ' <span class="cat-chip">' + __('inPlan') + '</span>' : '') + '</span>' +
         '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
@@ -1257,13 +1259,13 @@ function renderLibrary(){
           (ex.rest ? ' · Pause ' + ex.rest + ' Sek' : '') + '</div>' +
         '<ul class="lvl-list">' + ex.levels.map((l, i) =>
           '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(l.stage) + '</span><span class="t">' + esc(l.target) + '</span></li>').join('') + '</ul>' +
-        '<div class="inline-row"><button onclick="adjustLevel(\'' + ex.id + '\',-1)">− ' + __('level') + '</button>' +
-          '<button onclick="adjustLevel(\'' + ex.id + '\',1)">+ ' + __('level') + '</button></div>' +
+        '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
+          '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
         '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + __('best') + ', z. B. 24 Sek oder 7 Wdh" value="' + (pr ? esc(pr.v) : '') + '">' +
-          '<button onclick="savePR(\'' + ex.id + '\')">' + __('save') + '</button></div>' +
+          '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
         (pr ? '<div class="pr-line">Zuletzt aktualisiert: ' + fmtDate(pr.d) + '</div>' : '') +
         '<ul class="tips open" style="margin-top:10px">' + ex.tips.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
-        '<button class="tip-btn" onclick="showExHistory(\'' + ex.id + '\')">📊 ' + __('perExercise') + '</button>' +
+        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
   }).join('') : '<div class="empty-hint">' + __('noExercises') + '</div>';
 }
@@ -1304,37 +1306,60 @@ function renderPlanTab(){
   document.getElementById('planEditor').innerHTML = days.map((d, di) =>
     '<div class="plan-day">' +
       '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(d.title) + '</span>' +
-        '<span><button class="mini-btn" onclick="renameDay(' + di + ')" title="' + __('rename') + '">✎</button> ' +
-        '<button class="mini-btn danger" onclick="removeDay(' + di + ')" title="' + __('remove') + '">✕</button></span></div>' +
+        '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '">✎</button> ' +
+        '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '">✕</button></span></div>' +
       d.ex.map((id, ei) => {
         const ex = EX_BY_ID[id];
-        return '<div class="plan-ex" draggable="true" ondragstart="dragStart(event,' + di + ',' + ei + ')" ondragover="dragOver(event)" ondrop="dragDrop(' + di + ',' + ei + ')" ondragend="dragEnd()">' +
+        /* Drag & Drop laeuft ueber einen eigenen, auf #planEditor begrenzten
+           Listener statt ueber die allgemeine Aktionstabelle: dragover feuert
+           ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
+           gehoert nicht durch einen Namens-Lookup am document. */
+        return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '">' +
           '<span class="drag-handle">⠿</span>' +
           '<span class="nm">' + (ex ? esc(ex.name) : '<i>unbekannt: ' + esc(id) + '</i>') +
-          '</span><button class="mini-btn" onclick="moveEx(' + di + ',' + ei + ',-1)" title="' + __('moveUp') + '">↑</button>' +
-          '<button class="mini-btn" onclick="moveEx(' + di + ',' + ei + ',1)" title="' + __('moveDown') + '">↓</button>' +
-          '<button class="mini-btn danger" onclick="removeEx(' + di + ',' + ei + ')" title="' + __('remove') + '">✕</button></div>';
+          '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '">↑</button>' +
+          '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '">↓</button>' +
+          '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '">✕</button></div>';
       }).join('') +
       '<div class="inline-row"><select id="add-' + di + '">' +
         Object.keys(CATS).map(c => '<optgroup label="' + CATS[c].name + '">' +
           EXERCISES.filter(e => e.cat === c).map(e => '<option value="' + e.id + '">' + esc(e.name) + '</option>').join('') +
           '</optgroup>').join('') +
-      '</select><button onclick="addEx(' + di + ')">' + __('addExercise') + '</button></div>' +
+      '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
 }
 
-/* event explizit entgegennehmen: das implizite globale window.event ist
-   nicht standardisiert (in Firefox nicht vorhanden) und existiert unter
-   Modulen/strict mode ohnehin nicht. */
-function dragStart(e, di, ei){
-  dragSrcId = di; dragSrcIdx = ei;
-  if(e && e.dataTransfer){
-    e.dataTransfer.effectAllowed = 'move';
+/* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
+   data-day und data-i; das Event kommt als Parameter statt aus dem
+   impliziten globalen window.event (nicht standardisiert, in Firefox nicht
+   vorhanden und unter Modulen ohnehin nicht verfuegbar). */
+function installPlanDragAndDrop(){
+  const editor = document.getElementById('planEditor');
+  const zeile = ev => ev.target.closest('.plan-ex[data-day]');
+
+  editor.addEventListener('dragstart', ev => {
+    const el = zeile(ev); if(!el) return;
+    dragSrcId = zahl(el.dataset.day); dragSrcIdx = zahl(el.dataset.i);
+    ev.dataTransfer.effectAllowed = 'move';
     /* Firefox startet einen Drag nur, wenn Daten gesetzt sind. */
-    e.dataTransfer.setData('text/plain', di + ':' + ei);
-  }
+    ev.dataTransfer.setData('text/plain', dragSrcId + ':' + dragSrcIdx);
+  });
+
+  editor.addEventListener('dragover', ev => {
+    if(!zeile(ev) || dragSrcId === null) return;
+    ev.preventDefault();                       /* macht die Zeile erst ablegbar */
+    ev.dataTransfer.dropEffect = 'move';
+  });
+
+  editor.addEventListener('drop', ev => {
+    const el = zeile(ev); if(!el) return;
+    ev.preventDefault();
+    dragDrop(zahl(el.dataset.day), zahl(el.dataset.i));
+  });
+
+  editor.addEventListener('dragend', () => { dragSrcId = null; dragSrcIdx = null; });
 }
-function dragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+
 function dragDrop(di, ei){
   if(dragSrcId === null || dragSrcIdx === null) return;
   if(dragSrcId === di && dragSrcIdx === ei) return;
@@ -1346,7 +1371,6 @@ function dragDrop(di, ei){
   dragSrcId = null; dragSrcIdx = null;
   save(); renderPlanTab();
 }
-function dragEnd(){ dragSrcId = null; dragSrcIdx = null; }
 
 function ensureCustom(){
   if(!state.customPlan){
@@ -1424,7 +1448,7 @@ function renderMilestones(){
   document.getElementById('msList').innerHTML = list.map(m => {
     const d = (state.milestones || {})[m.id];
     return '<label class="ms' + (d ? ' done' : '') + '"><input type="checkbox" ' + (d ? 'checked' : '') +
-      ' onchange="toggleMilestone(\'' + m.id + '\',this.checked)"><span><span class="ms-name">' + esc(m.name) + '</span>' +
+      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span><span class="ms-name">' + esc(m.name) + '</span>' +
       (d ? '<br><span class="ms-date">geschafft am ' + fmtDate(d) + '</span>' : '') + '</span></label>';
   }).join('');
 }
@@ -1842,23 +1866,78 @@ window.addEventListener('beforeunload', e => {
 });
 
 /* =========================================================
-   TEMPORÄRE BRÜCKE – wird mit der Umstellung auf data-action gelöscht.
-
-   Seit der ES-Modul-Umstellung liegen diese Funktionen im Modul-Scope und
-   sind für die Inline-Handler in index.html und in den generierten
-   HTML-Strings nicht mehr erreichbar. Die Liste schrumpft mit jedem auf
-   Event-Delegation umgestellten Bereich – nichts hinzufügen.
+   AKTIONEN
+   Die einzige Verbindung zwischen Markup und Logik. Jeder Eintrag bekommt
+   (dataset, event, element). dataset-Werte sind immer Strings – die
+   Umwandlung passiert hier an der Grenze, nicht im Markup.
    ========================================================= */
-Object.assign(window, {
-  showTab, toggleTheme, selectDay, tapSet, toggleTop, toggleTips,
-  adjustLevel, substituteExercise, showExHistory, closeExHistory,
-  setRep, finishWorkout, undoWorkout, stopRest, dismissDeload,
-  addWarmupItem, removeWarmupItem,
-  addWeight, addMeasurement,
-  setLibFilter, toggleLib, savePR,
-  dragStart, dragOver, dragDrop, dragEnd, changePlan, resetPlan,
-  addPlanDay, renameDay, removeDay, addEx, removeEx, moveEx,
-  toggleMilestone,
-  openSettings, closeSettings, updateSetting,
-  exportJSON, exportCSV, exportText, importJSON, importCSV, resetAll
-});
+export const actions = {
+  /* Kopfbereich und Navigation */
+  'settings:open':      () => openSettings(),
+  'settings:close':     () => closeSettings(),
+  /* Nur schliessen, wenn wirklich der Hintergrund getroffen wurde. Aus einem
+     Listener am document heraus waere stopPropagation() wirkungslos, deshalb
+     ist dieser Vergleich hier tragend und nicht mehr beilaeufig. */
+  'settings:closeOnBackdrop': (d, ev, el) => { if(ev.target === el) closeSettings(); },
+  'theme:toggle':       () => toggleTheme(),
+  'tab:show':           d => showTab(d.tab),
+
+  /* Training */
+  'day:select':         d => selectDay(d.key),
+  'set:tap':            d => tapSet(d.ex, zahl(d.set)),
+  'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
+  'level:adjust':       d => adjustLevel(d.ex, zahl(d.delta)),
+  'tips:toggle':        d => toggleTips(d.ex),
+  'exercise:substitute': d => substituteExercise(d.ex),
+  'exercise:history':   d => showExHistory(d.ex),
+  'exHistory:close':    () => closeExHistory(),
+  'workout:finish':     () => finishWorkout(),
+  'workout:undo':       () => undoWorkout(),
+  'rest:stop':          () => stopRest(),
+  'deload:dismiss':     d => dismissDeload(zahl(d.due)),
+
+  /* Warm-up */
+  'warmup:add':         () => addWarmupItem(),
+  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),
+
+  /* Verlauf */
+  'weight:add':         () => addWeight(),
+  'measurement:add':    () => addMeasurement(),
+
+  /* Bibliothek */
+  'library:filter':     d => setLibFilter(d.cat),
+  'library:toggle':     d => toggleLib(d.ex),
+  'library:search':     () => renderLibrary(),
+  'pr:save':            d => savePR(d.ex),
+
+  /* Plan */
+  'plan:change':        (d, ev, el) => changePlan(el.value),
+  'plan:reset':         () => resetPlan(),
+  'planDay:add':        () => addPlanDay(),
+  'planDay:rename':     d => renameDay(zahl(d.day)),
+  'planDay:remove':     d => removeDay(zahl(d.day)),
+  'planEx:add':         d => addEx(zahl(d.day)),
+  'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
+  'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
+
+  /* Ziele */
+  'milestone:toggle':   (d, ev, el) => toggleMilestone(d.id, el.checked),
+  'milestone:search':   () => renderMilestones(),
+
+  /* Einstellungen */
+  'setting:update':     (d, ev, el) => {
+    const wert = el.type === 'checkbox' ? el.checked
+      : d.type === 'int' ? zahl(el.value)
+      : el.value;
+    updateSetting(d.key, wert);
+  },
+
+  /* Backup */
+  'backup:exportJSON':  () => exportJSON(),
+  'backup:exportCSV':   () => exportCSV(),
+  'backup:exportText':  () => exportText(),
+  'backup:importJSON':  (d, ev, el) => importJSON(el),
+  'backup:importCSV':   (d, ev, el) => importCSV(el),
+  'backup:resetAll':    () => resetAll()
+};

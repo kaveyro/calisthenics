@@ -1,6 +1,6 @@
 # Progression – Calisthenics Tracker
 
-Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten – alle Daten bleiben auf deinem Gerät.
+Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten zur Laufzeit – alle Daten bleiben auf deinem Gerät, und es geht keine einzige Anfrage an einen fremden Server. Auch die Schriften liegen lokal (`fonts/`, SIL OFL 1.1).
 
 **Funktionen:** automatische Progression über Stufen · Halte- und Pausen-Timer mit Signal · 36 Übungen mit 141 Progressionsstufen · vier Plan-Vorlagen plus eigener Plan-Editor · Verlauf mit Diagrammen · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 16 Meilensteine · Skill-Fahrplan · Deload-Erinnerung · Dark Mode · Backup als JSON/CSV.
 
@@ -89,17 +89,29 @@ Die Daten liegen im `localStorage` des Browsers, gebunden an die Adresse (Origin
 
 ```
 progression/
-├── index.html          Struktur & alle Ansichten
+├── index.html          Struktur & alle Ansichten (ohne Inline-Handler)
 ├── manifest.json       PWA-Metadaten (Name, Icons, Farben)
 ├── sw.js               Service Worker (Offline-Cache)
+├── sw-manifest.js      GENERIERT – Dateiliste & Cache-Version
 ├── css/
-│   └── style.css       Alles Visuelle, Themes über CSS-Variablen
+│   └── style.css       Alles Visuelle, @font-face, Themes über CSS-Variablen
 ├── js/
 │   ├── exercises.js    ► ÜBUNGSDATEN & PLAN-VORLAGEN (hier erweitern)
 │   ├── storage.js      Speicher-Adapter (localStorage, Altschlüssel)
-│   └── app.js          Logik, Rendering, Timer, Backup, Migration
+│   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
+│   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
+│   │                   dates · escape · target · csv
+│   └── ui/
+│       └── delegate.js Event-Delegation (data-action)
+├── fonts/              Selbst gehostete woff2 + SIL-OFL-Lizenz
+├── test/               Unit-Tests (vitest)
+├── tools/              gen-sw-manifest.js
 └── icons/              App-Icons (192, 512, maskable)
 ```
+
+**Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart. Genau diese Schicht ist getestet.
+
+**Keine Inline-Event-Handler.** Markup und Logik hängen ausschließlich über `data-action` zusammen, aufgelöst durch eine Tabelle in `app.js`. Das ist die Voraussetzung für die Content-Security-Policy ohne `'unsafe-inline'` und verhindert zugleich, dass Werte in JavaScript-Strings innerhalb von Attributen landen. Ein Test prüft, dass jede verwendete Aktion existiert und keine Handler zurückkehren.
 
 ---
 

@@ -4,6 +4,52 @@
    überschreibt sie via html[data-theme="dark"].
    ========================================================= */
 
+/* ---------- Schriften ----------
+   Selbst gehostet statt von fonts.googleapis.com. Zwei Gründe:
+   die README verspricht „keine Abhängigkeiten, alle Daten bleiben auf
+   deinem Gerät" – jeder Start schickte aber IP und User-Agent an Google –,
+   und der Service Worker cachte die CORS-Antworten nie, sodass die App
+   offline auf Systemschriften zurückfiel.
+
+   Nur woff2 (jeder Browser mit Service-Worker-Unterstützung kann es) und
+   nur das latin-Subset: ä/ö/ü/ß sind darin enthalten, die Symbolzeichen
+   der Oberfläche (×, ▲, ⚙, ⠿) kommen ohnehin aus System-Fallbacks.
+
+   Inter als Variable Font: 47 KB für 400–700 statt 141 KB für drei
+   einzelne Schnitte. Pfade relativ zu dieser Datei, damit der Unterpfad
+   von GitHub Pages automatisch stimmt.
+
+   Alle drei stehen unter der SIL Open Font License 1.1, siehe fonts/OFL.txt.
+*/
+@font-face{
+  font-family:'Inter';
+  font-style:normal;
+  font-weight:400 700;          /* variabler Bereich */
+  font-display:swap;
+  src:url('../fonts/inter-var.woff2') format('woff2');
+}
+@font-face{
+  font-family:'IBM Plex Mono';
+  font-style:normal;
+  font-weight:500;
+  font-display:swap;
+  src:url('../fonts/ibm-plex-mono-500.woff2') format('woff2');
+}
+@font-face{
+  font-family:'IBM Plex Mono';
+  font-style:normal;
+  font-weight:600;
+  font-display:swap;
+  src:url('../fonts/ibm-plex-mono-600.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Archivo Black';
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+  src:url('../fonts/archivo-black-400.woff2') format('woff2');
+}
+
 :root{
   --bg:#F3F4F1;
   --card:#FFFFFF;

@@ -11,10 +11,45 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Progression">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Content-Security-Policy
+     GitHub Pages kann keine Antwort-Header setzen, deshalb als meta-Tag.
+     Hinweis: frame-ancestors und report-uri sind in dieser Form
+     spezifikationsgemäß wirkungslos – frame-ancestors bleibt trotzdem
+     stehen, falls die App je selbst gehostet wird.
+
+     script-src 'self' ohne 'unsafe-inline' ist der eigentliche Gewinn:
+     eingeschleustes Skript wird nicht mehr ausgeführt. Möglich wurde das
+     erst, nachdem alle 64 Inline-Handler durch data-action ersetzt waren.
+
+     Ehrlich dazu: style-src-attr 'unsafe-inline' bleibt nötig, weil die
+     Balkenhöhen der Diagramme als style-Attribut erzeugt werden. Angreifbar
+     ist damit höchstens die Darstellung, nicht die Ausführung. Wer das auch
+     schließen will, muss die Diagramme über createElement + .style bauen –
+     CSSOM unterliegt der CSP nicht.
+
+     Die style-src-Zeile ohne Suffix ist der Rückfall für Safari < 15.4, das
+     -elem/-attr nicht kennt. Ohne sie griffe dort default-src 'none' und die
+     Seite bliebe ungestylt. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+  style-src-elem 'self';
+  style-src-attr 'unsafe-inline';
+  img-src 'self';
+  font-src 'self';
+  connect-src 'self';
+  manifest-src 'self';
+  worker-src 'self';
+  base-uri 'none';
+  form-action 'none';
+  frame-ancestors 'none'">
 <link rel="stylesheet" href="css/style.css">
+<!-- crossorigin ist bei Font-Preloads auch für dieselbe Herkunft Pflicht;
+     ohne das Attribut lädt der Browser die Datei ein zweites Mal. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-var.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/archivo-black-400.woff2">
 </head>
 <body>
 <div class="wrap">
@@ -26,8 +61,8 @@
         <h1>Progres<span class="thin">sion</span></h1>
       </div>
       <div class="head-btns">
-        <button class="icon-btn" onclick="openSettings()" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
-        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
+        <button class="icon-btn" data-action="settings:open" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
+        <button class="icon-btn" id="themeBtn" data-action="theme:toggle" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
       </div>
     </div>
     <div class="phase-line" id="phaseLine"></div>
@@ -42,11 +77,11 @@
   <div class="stats" id="stats"></div>
 
   <nav class="tabs" role="tablist" aria-label="Bereiche">
-    <button class="tab active" id="tab-train" onclick="showTab('train')" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0">Training</button>
-    <button class="tab" id="tab-history" onclick="showTab('history')" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1">Verlauf</button>
-    <button class="tab" id="tab-library" onclick="showTab('library')" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1">Übungen</button>
-    <button class="tab" id="tab-plan" onclick="showTab('plan')" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1">Plan</button>
-    <button class="tab" id="tab-milestones" onclick="showTab('milestones')" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1">Ziele</button>
+    <button class="tab active" id="tab-train" data-action="tab:show" data-tab="train" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0">Training</button>
+    <button class="tab" id="tab-history" data-action="tab:show" data-tab="history" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1">Verlauf</button>
+    <button class="tab" id="tab-library" data-action="tab:show" data-tab="library" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1">Übungen</button>
+    <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1">Plan</button>
+    <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1">Ziele</button>
   </nav>
 
   <!-- ============ TRAINING ============ -->
@@ -60,7 +95,7 @@
     <details class="acc">
       <summary>Warm-up (8–10 Min) – vor jeder Einheit</summary>
       <ul id="warmupList"></ul>
-      <button class="mini-btn" onclick="addWarmupItem()" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
+      <button class="mini-btn" data-action="warmup:add" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
     </details>
 
     <div id="content"><div class="loading">Lade deinen Fortschritt …</div></div>
@@ -84,7 +119,7 @@
     <div class="card">
       <div class="inline-row">
         <input type="number" step="0.1" min="30" max="250" id="weightInput" placeholder="Gewicht in kg" aria-label="Körpergewicht in Kilogramm">
-        <button onclick="addWeight()">Speichern</button>
+        <button data-action="weight:add">Speichern</button>
       </div>
       <svg class="spark" id="weightSpark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div class="weight-meta" id="weightMeta"></div>
@@ -105,7 +140,7 @@
     <div class="section-title">Übungsbibliothek</div>
     <div class="filter-row" id="catFilter"></div>
     <div class="inline-row" style="margin-bottom:12px">
-      <input type="search" id="libSearch" placeholder="Übung suchen …" oninput="renderLibrary()" aria-label="Übung suchen">
+      <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen">
     </div>
     <div class="card" id="libList"></div>
   </section>
@@ -116,13 +151,13 @@
     <div class="card">
       <div class="set-row" style="border-bottom:none;padding-top:0">
         <span><span class="lbl2">Vorlage</span><span class="hint" id="planDesc"></span></span>
-        <select id="planSelect" onchange="changePlan(this.value)"></select>
+        <select id="planSelect" data-action-change="plan:change"></select>
       </div>
     </div>
     <div id="planEditor"></div>
     <div class="data-btns">
-      <button class="btn secondary" onclick="addPlanDay()">Trainingstag hinzufügen</button>
-      <button class="btn secondary" onclick="resetPlan()">Auf Vorlage zurücksetzen</button>
+      <button class="btn secondary" data-action="planDay:add">Trainingstag hinzufügen</button>
+      <button class="btn secondary" data-action="plan:reset">Auf Vorlage zurücksetzen</button>
     </div>
     <p class="muted" style="margin-top:10px">Änderungen erzeugen automatisch deinen eigenen Plan. Die Vorlagen bleiben davon unberührt.</p>
   </section>
@@ -131,7 +166,7 @@
   <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
     <div class="section-title">Meilensteine</div>
     <div class="inline-row" style="margin-bottom:10px">
-      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" oninput="renderMilestones()" aria-label="Meilenstein suchen">
+      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen">
     </div>
     <div class="card" id="msList"></div>
     <p class="muted">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.</p>
@@ -151,24 +186,24 @@
 <div class="finish-bar" id="finishBar">
   <div class="inner">
     <span class="finish-count" id="finishCount"></span>
-    <button class="finish-btn" id="finishBtn" onclick="finishWorkout()">Training abschließen</button>
+    <button class="finish-btn" id="finishBtn" data-action="workout:finish">Training abschließen</button>
   </div>
 </div>
 
 <!-- Pausen-Timer -->
-<button class="rest-chip" id="restChip" onclick="stopRest()" aria-label="Pausen-Timer beenden">
+<button class="rest-chip" id="restChip" data-action="rest:stop" aria-label="Pausen-Timer beenden">
   <small>Pause · Tippen beendet</small><span id="restTime">1:30</span>
 </button>
 
 <!-- Einstellungen -->
-<div class="overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+<div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Einstellungen">
-    <div class="modal-head"><span>Einstellungen</span><button onclick="closeSettings()" aria-label="Schließen">✕</button></div>
+    <div class="modal-head"><span>Einstellungen</span><button data-action="settings:close" aria-label="Schließen">✕</button></div>
 
     <div class="section-title">Training</div>
     <div class="set-row">
       <span><span class="lbl2">Satz-Modus</span><span class="hint">Einsteiger deckelt alles auf 3 Sätze</span></span>
-      <select id="cfg-setsMode" onchange="updateSetting('setsMode',this.value)">
+      <select id="cfg-setsMode" data-action-change="setting:update" data-key="setsMode">
         <option value="standard">Standard (3–4)</option>
         <option value="light">Einsteiger (max. 3)</option>
         <option value="hard">Fortgeschritten (+1 Satz)</option>
@@ -176,7 +211,7 @@
     </div>
     <div class="set-row">
       <span><span class="lbl2">Satzpause</span><span class="hint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
-      <select id="cfg-rest" onchange="updateSetting('rest',parseInt(this.value))">
+      <select id="cfg-rest" data-action-change="setting:update" data-key="rest" data-type="int">
         <option value="45">45 Sek</option>
         <option value="60">60 Sek</option>
         <option value="90">90 Sek</option>
@@ -186,23 +221,23 @@
     </div>
     <div class="set-row">
       <span><span class="lbl2">Übungsspezifische Pausen</span><span class="hint">Nutzt die empfohlene Pause je Übung</span></span>
-      <input type="checkbox" id="cfg-perExRest" onchange="updateSetting('perExRest',this.checked)">
+      <input type="checkbox" id="cfg-perExRest" data-action-change="setting:update" data-key="perExRest">
     </div>
     <div class="set-row">
       <span><span class="lbl2">Pausen-Timer automatisch</span><span class="hint">Startet nach jedem abgehakten Satz</span></span>
-      <input type="checkbox" id="cfg-autoRest" onchange="updateSetting('autoRest',this.checked)">
+      <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest">
     </div>
     <div class="set-row">
       <span><span class="lbl2">Signaltöne</span><span class="hint">Ton bei Timer-Ende und Level-Ups</span></span>
-      <input type="checkbox" id="cfg-sound" onchange="updateSetting('sound',this.checked)">
+      <input type="checkbox" id="cfg-sound" data-action-change="setting:update" data-key="sound">
     </div>
     <div class="set-row">
       <span><span class="lbl2">Vibration</span><span class="hint">Falls das Gerät es unterstützt</span></span>
-      <input type="checkbox" id="cfg-vibrate" onchange="updateSetting('vibrate',this.checked)">
+      <input type="checkbox" id="cfg-vibrate" data-action-change="setting:update" data-key="vibrate">
     </div>
     <div class="set-row">
       <span><span class="lbl2">Level-Up nach</span><span class="hint">Einheiten am oberen Limit in Folge</span></span>
-      <select id="cfg-streak" onchange="updateSetting('streak',parseInt(this.value))">
+      <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int">
         <option value="1">1 Einheit</option>
         <option value="2">2 Einheiten</option>
         <option value="3">3 Einheiten</option>
@@ -210,18 +245,18 @@
     </div>
     <div class="set-row">
       <span><span class="lbl2">Stufe zurück nach Pause</span><span class="hint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
-      <input type="checkbox" id="cfg-regress" onchange="updateSetting('regress',this.checked)">
+      <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress">
     </div>
     <div class="set-row">
       <span><span class="lbl2">Wochenziel</span><span class="hint">Trainings pro Woche</span></span>
-      <select id="cfg-weekGoal" onchange="updateSetting('weekGoal',parseInt(this.value))">
+      <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int">
         <option value="2">2×</option><option value="3">3×</option>
         <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
       </select>
     </div>
     <div class="set-row">
       <span><span class="lbl2">Deload-Erinnerung</span><span class="hint">Nach dieser Anzahl Trainings</span></span>
-      <select id="cfg-deload" onchange="updateSetting('deload',parseInt(this.value))">
+      <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int">
         <option value="0">Aus</option><option value="16">16</option>
         <option value="24">24</option><option value="32">32</option>
       </select>
@@ -229,21 +264,21 @@
 
     <div class="section-title">Daten & Backup</div>
     <div class="data-btns">
-      <button class="btn" onclick="exportJSON()">Backup herunterladen</button>
+      <button class="btn" data-action="backup:exportJSON">Backup herunterladen</button>
       <label class="btn secondary" style="cursor:pointer">Backup importieren
-        <input type="file" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
+        <input type="file" accept=".json,application/json" style="display:none" data-action-change="backup:importJSON">
       </label>
     </div>
     <div class="data-hint">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, Maße, deinen Plan und alle Einstellungen.</div>
     <div class="data-btns">
-      <button class="btn secondary" onclick="exportCSV()">Verlauf als CSV</button>
-      <button class="btn secondary" onclick="exportText()">Als Text kopieren</button>
+      <button class="btn secondary" data-action="backup:exportCSV">Verlauf als CSV</button>
+      <button class="btn secondary" data-action="backup:exportText">Als Text kopieren</button>
       <label class="btn secondary" style="cursor:pointer">CSV importieren
-        <input type="file" accept=".csv,text/csv" style="display:none" onchange="importCSV(this)">
+        <input type="file" accept=".csv,text/csv" style="display:none" data-action-change="backup:importCSV">
       </label>
     </div>
     <div class="data-btns">
-      <button class="btn secondary" style="color:var(--warn)" onclick="resetAll()">Alles zurücksetzen</button>
+      <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll">Alles zurücksetzen</button>
     </div>
     <div class="data-hint" id="storageInfo"></div>
   </div>
