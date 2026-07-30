@@ -155,6 +155,8 @@ Endet die Angabe auf `Sek`, erkennt die App eine Halteübung und stellt automati
 
 Neue Übung in einen Trainingstag bringen: entweder direkt in `PLAN_TEMPLATES` bei `ex: [...]` eintragen, oder einfach in der App im Tab **Plan** hinzufügen.
 
+> Fünf Übungen sind bewusst in keiner Vorlage enthalten und nur über den Plan-Editor oder die Bibliothek erreichbar: `archer_push`, `dragon_flag`, `lsit_hs`, `bridge` und `hip_mob`. Sie sind entweder sehr fortgeschritten oder als Ergänzung nach Bedarf gedacht.
+
 Eigene Plan-Vorlage anlegen:
 
 ```js
