@@ -11,12 +11,22 @@ export function isoDaysAgo(n, now = new Date()){
 
 export function today(now){ return isoDaysAgo(0, now); }
 
-/* '2026-07-29' -> '29.07.26' */
-export function fmtDate(iso){
+/* '2026-07-29' -> '29.07.26' (de) bzw. '07/29/26' (en).
+
+   Das Format war fest deutsch verdrahtet und stand damit auch in der
+   englischen Oberflaeche. Die Sprache kommt als Parameter herein, damit die
+   Schicht rein bleibt; Intl faellt bei einem unbekannten Kennzeichen selbst
+   auf die Standardsprache zurueck. */
+export function fmtDate(iso, lang = 'de'){
   if(!iso) return '';
   const p = String(iso).split('-');
   if(p.length !== 3) return '';
-  return p[2] + '.' + p[1] + '.' + p[0].slice(2);
+  try{
+    return new Intl.DateTimeFormat(lang, { day: '2-digit', month: '2-digit', year: '2-digit' })
+      .format(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  }catch{
+    return p[2] + '.' + p[1] + '.' + p[0].slice(2);
+  }
 }
 
 /* ISO-8601-Kalenderwoche als '2026-KW31'.

@@ -91,6 +91,13 @@ export const LANG = {
     undo: 'Rückgängig', undoWorkout: 'Training rückgängig gemacht',
     milestoneToast: 'Meilenstein: {name}',
     updateAvailable: 'Neue Version verfügbar', updateReload: 'Neu laden',
+    restChipAria: 'Pausen-Timer beenden', restChipHint: 'Pause · Tippen beendet',
+    restStarted: 'Pause gestartet, {sec} Sekunden',
+    holdStarted: 'Halten, {sec} Sekunden', holdOver: 'Haltezeit geschafft',
+    warmupRemoveAria: 'Warm-up-Eintrag entfernen: {item}',
+    prUpdated: 'Zuletzt aktualisiert:', msAchievedOn: 'geschafft am',
+    bestAria: 'Bestleistung für {name}',
+    secShort: 'Sek', attempts: 'Versuche', weekShort: 'KW',
 
     /* Banner */
     deloadTitle: 'Deload-Woche empfohlen.',
@@ -305,6 +312,13 @@ export const LANG = {
     undo: 'Undo', undoWorkout: 'Workout undone',
     milestoneToast: 'Milestone: {name}',
     updateAvailable: 'New version available', updateReload: 'Reload',
+    restChipAria: 'Stop rest timer', restChipHint: 'Rest · tap to stop',
+    restStarted: 'Rest started, {sec} seconds',
+    holdStarted: 'Hold, {sec} seconds', holdOver: 'Hold complete',
+    warmupRemoveAria: 'Remove warm-up item: {item}',
+    prUpdated: 'Last updated:', msAchievedOn: 'achieved on',
+    bestAria: 'Personal best for {name}',
+    secShort: 'sec', attempts: 'attempts', weekShort: 'W',
 
     deloadTitle: 'Deload week recommended.',
     deloadBody: 'You have completed {n} workouts. Do only half the sets this week using easier variations – tendons and joints need it, especially with pushing and pulling work.',

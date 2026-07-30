@@ -2,9 +2,9 @@
    PROGRESSION – App-Logik
    ========================================================= */
 
-import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, EX_BY_ID } from './exercises.js';
+import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX_BY_ID } from './exercises.js';
 import { store, STORAGE_KEY } from './storage.js';
-import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
+import { today, fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
@@ -470,9 +470,13 @@ function renderWarmup(){
   const items = state.warmupCustom || WARMUP.map((w, i) => warmupText(i, w));
   const el = document.getElementById('warmupList');
   el.innerHTML = items.map((w, i) =>
-    '<li' + (w.includes('Pflicht') ? ' class="pflicht"' : '') + '>' +
+    /* Merkmal aus den Daten statt aus einem deutschen Teilstring – die
+       fruehere Pruefung w.includes('Pflicht') fiel auf Englisch stumm aus.
+       Bei einer selbst zusammengestellten Liste laesst sich die Zuordnung
+       nicht halten, dort entfaellt die Hervorhebung. */
+    '<li' + (!state.warmupCustom && WARMUP_PFLICHT.has(i) ? ' class="pflicht"' : '') + '>' +
     esc(w) + ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
-    ' aria-label="Warm-up-Eintrag entfernen: ' + esc(w) + '">✕</button></li>'
+    ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">✕</button></li>'
   ).join('');
 }
 function removeWarmupItem(i){
@@ -509,7 +513,7 @@ function showTab(t){
   if(t === 'library') { renderCatFilter(); renderLibrary(); }
   if(t === 'plan') renderPlanTab();
   if(t === 'milestones') { renderMilestones(); renderRoadmap(); }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: wenigerBewegung() ? 'auto' : 'smooth' });
 }
 
 /* Pfeiltasten-Navigation innerhalb der Tableiste (ARIA-Tabs-Muster). */
@@ -593,6 +597,31 @@ function renderDaySelect(){
 
 /* ================= Sätze & Ziele berechnen ================= */
 function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
+/* Zielangaben wie '4 × 10–20 Sek' fuer die Anzeige uebersetzen.
+
+   Nicht in content.en.js gespiegelt, und zwar mit Absicht: parseTarget()
+   erkennt Halteuebungen an 'Sek' (js/domain/target.js). Uebersetzte Ziele in
+   den Daten wuerden die Satz- und Halteerkennung fuer alle 141 Stufen
+   zerlegen. Sprachabhaengig sind ohnehin nur die zwei Einheitenwoerter –
+   '×' und '–' sind neutral. Also nur beim Ausgeben ersetzen, waehrend
+   parseTarget() weiterhin die deutsche Quelle bekommt. */
+function zielText(target){
+  return String(target == null ? '' : target)
+    .replace(/\bSek\b/g, __('secShort'))
+    .replace(/\bVersuche\b/g, __('attempts'));
+}
+
+/* Wochentagskuerzel in der Sprache der Oberflaeche, Montag zuerst. */
+function wochentage(){
+  const f = new Intl.DateTimeFormat(getLang(), { weekday: 'short' });
+  /* 2024-01-01 war ein Montag. */
+  return Array.from({ length: 7 }, (_, i) => f.format(new Date(Date.UTC(2024, 0, 1 + i))));
+}
+
+/* Datum in der Sprache der Oberflaeche. Die Domaenenschicht kennt die
+   aktuelle Sprache nicht, also wird sie hier hereingereicht. */
+function fmtDate(iso){ return fmtDatePure(iso, getLang()); }
+
 function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
@@ -629,12 +658,14 @@ function renderWorkout(){
       const repKey = ex.id + '-' + s;
       /* aria-pressed statt reiner Farbcodierung: der Erledigt-Zustand war
          nur ueber eine CSS-Klasse sichtbar und das Label statisch.
-         aria-live auf dem Punkt, damit der Countdown einer Halteuebung
-         ueberhaupt angesagt wird – er aendert nur den Textinhalt. */
+
+         Hier stand zusaetzlich aria-live="polite" fuer Halteuebungen, damit
+         der Countdown ueberhaupt angesagt wird. Angesagt wurde damit aber
+         JEDE einzelne Sekunde. Beginn und Ende meldet jetzt melde() ueber
+         #srStatus, der Punkt selbst bleibt still. */
       dots += '<button class="set-dot" id="set-' + repKey + '"' +
         ' data-action="set:tap" data-ex="' + ex.id + '" data-set="' + s + '"' +
         ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
-        (t.isHold ? ' aria-live="polite"' : '') +
         ' aria-label="' + esc(__('setAria', { ex: exName(ex), n: s + 1, total: t.sets })) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
         dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
@@ -662,7 +693,7 @@ function renderWorkout(){
       '<div class="rungs" role="img" aria-label="' +
         esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
         '">' + rungs + '</div>' +
-      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
+      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
@@ -742,7 +773,7 @@ async function substituteExercise(id){
   const gewaehlt = await askChoice(__('substituteFor', { name: exName(ex) }), sameCat.map(e => ({
     value: e.id,
     name: exName(e),
-    sub: exStage(e, lvlOf(e)) + ' · ' + e.levels[lvlOf(e)].target
+    sub: exStage(e, lvlOf(e)) + ' · ' + zielText(e.levels[lvlOf(e)].target)
   })));
   if(!gewaehlt) return;
 
@@ -822,6 +853,7 @@ function tapSet(id, s){
     holdTimer = { key, el, id, s, ex, ende: Date.now() + t.holdSecs * 1000, interval: null };
     haltenAnzeigen();
     holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
+    melde(__('holdStarted', { sec: t.holdSecs }));
   } else {
     markDone(key, el, s, ex);
   }
@@ -847,6 +879,7 @@ function haltenAnzeigen(){
   el.classList.remove('running');
   markDone(key, el, s, ex);
   signal(true);
+  melde(__('holdOver'));
 }
 
 function markDone(key, el, s, ex){
@@ -902,7 +935,11 @@ function restBis(ende){
   stopRest();
   restEnde = ende;
   pauseAnzeigen();
-  if(restEnde) restTimer = setInterval(pauseAnzeigen, TAKT);
+  if(!restEnde) return;
+  restTimer = setInterval(pauseAnzeigen, TAKT);
+  /* Der Chip erscheint sichtbar; ohne Ansage bliebe der Beginn der Pause
+     fuer einen Screenreader unbemerkt. Das Ende meldet ohnehin ein Toast. */
+  melde(__('restStarted', { sec: Math.ceil((restEnde - Date.now()) / 1000) }));
 }
 function pauseAnzeigen(){
   const rem = Math.ceil((restEnde - Date.now()) / 1000);
@@ -1118,7 +1155,9 @@ function undoWorkout(){
 }
 
 /* ================= Verlauf ================= */
-function weekLabel(w){ return w.split('-')[1]; }
+/* '2026-KW31' -> 'KW31' bzw. 'W31'. Der Schluessel bleibt deutsch, weil er
+   in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
+function weekLabel(w){ return __('weekShort') + w.split('-')[1].replace('KW', ''); }
 
 function renderHistory(){
   /* Week chart */
@@ -1198,10 +1237,12 @@ function renderCalendar(){
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
-  const monatsName = now.toLocaleDateString('de', { month: 'long', year: 'numeric' });
-  let html = '<div class="section-title">' + __('calendar') + ' ' + monatsName + '</div>' +
-    '<div class="calendar-grid" role="list" aria-label="Trainingstage im ' + monatsName + '">';
-  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + d + '</div>'; });
+  /* Monatsname und Wochentage aus Intl statt fest verdrahtet – sonst steht
+     im englischen Kalender "Juli" und darueber "Mo Di Mi". */
+  const monatsName = now.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title">' + esc(__('calendar')) + ' ' + esc(monatsName) + '</div>' +
+    '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
+  wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
   const offset = (first + 6) % 7;
   for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
   for(let d = 1; d <= daysInMonth; d++){
@@ -1255,7 +1296,12 @@ function renderMeasurements(){
   html += '<div class="inline-row">';
   parts.forEach(p => {
     const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
-    html += '<div style="flex:1"><small>' + esc(labels[p]) + '</small><input id="meas-' + p + '" type="number" step="0.5" min="0" max="200" placeholder="' + esc(last) + ' ' + __('cm') + '" style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
+    /* <small> ist keine Beschriftung – ein Screenreader las hier bisher
+       nur "Eingabefeld". */
+    html += '<div style="flex:1"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
+      '<input id="meas-' + p + '" type="number" step="0.5" min="0" max="200"' +
+      ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '"' +
+      ' style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
   });
   html += '<button data-action="measurement:add" style="align-self:flex-end">' + __('save') + '</button>';
   html += '</div>';
@@ -1356,12 +1402,16 @@ function renderLibrary(){
         '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(ex.equip.map(equipName).join(', ')) +
           (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') + '</div>' +
         '<ul class="lvl-list">' + ex.levels.map((l, i) =>
-          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(l.target) + '</span></li>').join('') + '</ul>' +
+          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(zielText(l.target)) + '</span></li>').join('') + '</ul>' +
         '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
           '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
-        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '" value="' + (pr ? esc(pr.v) : '') + '">' +
+        /* Der Platzhalter war die einzige Beschriftung; er verschwindet beim
+           Tippen und wird nicht von jedem Screenreader angesagt. */
+        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '"' +
+          ' aria-label="' + esc(__('bestAria', { name: exName(ex) })) + '"' +
+          ' value="' + (pr ? esc(pr.v) : '') + '">' +
           '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
-        (pr ? '<div class="pr-line">Zuletzt aktualisiert: ' + fmtDate(pr.d) + '</div>' : '') +
+        (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
         '<ul class="tips open" style="margin-top:10px">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
         '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
@@ -1476,7 +1526,7 @@ function dragDrop(di, ei){
 function ensureCustom(){
   if(!state.customPlan){
     const base = PLAN_TEMPLATES[state.planId] || PLAN_TEMPLATES.ab4;
-    state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: 'Von dir angepasst', days: base.days }));
+    state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: __('customPlanDesc'), days: base.days }));
   }
   return state.customPlan;
 }
@@ -1547,7 +1597,7 @@ function renderMilestones(){
     const d = (state.milestones || {})[m.id];
     return '<label class="ms' + (d ? ' done' : '') + '"><input type="checkbox" ' + (d ? 'checked' : '') +
       ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span><span class="ms-name">' + esc(msName(m)) + '</span>' +
-      (d ? '<br><span class="ms-date">geschafft am ' + fmtDate(d) + '</span>' : '') + '</span></label>';
+      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') + '</span></label>';
   }).join('');
 }
 async function toggleMilestone(id, on){
@@ -1797,7 +1847,7 @@ function exportText(){
       const ex = EX_BY_ID[id]; if(!ex) return;
       const l = lvlOf(ex);
       lines.push('  ' + exName(ex) + ': ' + __('level') + ' ' + (l + 1) + '/' + ex.levels.length +
-        ' – ' + exStage(ex, l) + ' (' + ex.levels[l].target + ')');
+        ' – ' + exStage(ex, l) + ' (' + zielText(ex.levels[l].target) + ')');
     });
   });
   const ms = Object.keys(state.milestones || {});
@@ -1925,6 +1975,70 @@ async function resetAll(){
 /* today(), isoDaysAgo(), fmtDate(), esc() und sanitizeDayKey() liegen in
    js/domain/ und werden oben importiert. */
 
+/* Ansage nur fuer Screenreader. Fuer Ereignisse, die sichtbar ohnehin
+   erkennbar sind und deshalb keinen Toast rechtfertigen. */
+function melde(text){
+  const el = document.getElementById('srStatus');
+  if(!el) return;
+  /* Zweimal derselbe Text wuerde sonst nicht erneut vorgelesen. */
+  el.textContent = '';
+  setTimeout(() => { el.textContent = text; }, 30);
+}
+
+/* Haelt den Fokus ueber ein Neuzeichnen hinweg.
+
+   Die Render-Funktionen ersetzen ganze Container per innerHTML. Das gerade
+   betaetigte Element ist danach weg und der Fokus faellt auf <body> – bei
+   Tastatur- und Screenreader-Bedienung reisst die Navigation jedes Mal ab.
+   Fuer Dialoge gibt es laengst einen Fokus-Trap mit Rueckgabe; fuer Renders
+   gab es nichts.
+
+   Bewusst an den Aktionen aufgerufen und nicht in den Render-Funktionen: so
+   steht an der Stelle, welche Interaktion den Fokus halten soll. */
+
+/* Wiedererkennungsmerkmal eines Bedienelements ueber ein Neuzeichnen hinweg.
+   Eine id haben laengst nicht alle – Bibliothekskoepfe, Meilenstein-Haken und
+   die Plan-Schaltflaechen tragen nur ihre data-Attribute. Die sind aber
+   stabil und eindeutig, also dienen sie als Kennung. */
+const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta'];
+function fokusKennung(el){
+  if(!el || el === document.body) return null;
+  if(el.id) return '#' + CSS.escape(el.id);
+  const art = el.dataset.action ? '' : el.dataset.actionChange ? '-change' : el.dataset.actionInput ? '-input' : null;
+  if(art === null) return null;
+  const name = el.dataset.action || el.dataset.actionChange || el.dataset.actionInput;
+  let sel = '[data-action' + art + '="' + name + '"]';
+  for(const k of FOKUS_DATEN){
+    const v = el.dataset[k];
+    if(v === undefined || v.includes('"')) continue;
+    sel += '[data-' + k + '="' + v + '"]';
+  }
+  return sel;
+}
+
+/* async, weil mehrere Aktionen erst nach einem await neu zeichnen
+   (toggleMilestone speichert, renameDay oeffnet einen Dialog). Wuerde hier
+   nicht gewartet, liefe die Wiederherstellung vor dem Neuzeichnen. */
+async function mitFokus(fn){
+  const alt = document.activeElement;
+  const kennung = fokusKennung(alt);
+  const pos = alt && typeof alt.selectionStart === 'number' ? alt.selectionStart : null;
+  await fn();
+  if(!kennung) return;
+  let neu;
+  try{ neu = document.querySelector(kennung); }catch{ return; }
+  if(!neu || neu === document.activeElement) return;
+  neu.focus({ preventScroll: true });
+  if(pos !== null && typeof neu.setSelectionRange === 'function'){
+    try{ neu.setSelectionRange(pos, pos); }catch{ /* Feldtyp erlaubt keine Auswahl */ }
+  }
+}
+
+/* Vom Nutzer abgelehnte Bewegung gilt auch fuer JavaScript-Animationen –
+   die CSS-Regel in style.css erreicht window.scrollTo nicht. */
+const wenigerBewegung = () =>
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 let toastTimer = null;
 /* aktion: optional { text, action } – haengt eine Schaltflaeche an, die ueber
    die Aktionstabelle laeuft wie jedes andere Element auch. Bewusst
@@ -1999,7 +2113,9 @@ export const actions = {
   'set:reps':           (d, ev, el) => setRep(d.key, el.value),
   'note:set':           (d, ev, el) => setNote(d.ex, el.value),
   'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
-  'level:adjust':       d => adjustLevel(d.ex, zahl(d.delta)),
+  /* mitFokus(): diese Aktionen zeichnen ihren Container neu, das gerade
+     betaetigte Element verschwindet dabei und der Fokus fiele auf <body>. */
+  'level:adjust':       d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
   'tips:toggle':        d => toggleTips(d.ex),
   'exercise:substitute': d => substituteExercise(d.ex),
   'exercise:history':   d => showExHistory(d.ex),
@@ -2012,31 +2128,31 @@ export const actions = {
 
   /* Warm-up */
   'warmup:add':         () => addWarmupItem(),
-  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),
+  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),   /* Eintrag ist danach weg – kein Fokusziel */
 
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
 
   /* Bibliothek */
-  'library:filter':     d => setLibFilter(d.cat),
-  'library:toggle':     d => toggleLib(d.ex),
-  'library:search':     () => renderLibrary(),
-  'pr:save':            d => savePR(d.ex),
+  'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),
+  'library:toggle':     d => mitFokus(() => toggleLib(d.ex)),
+  'library:search':     () => mitFokus(() => renderLibrary()),
+  'pr:save':            d => mitFokus(() => savePR(d.ex)),
 
   /* Plan */
   'plan:change':        (d, ev, el) => changePlan(el.value),
   'plan:reset':         () => resetPlan(),
   'planDay:add':        () => addPlanDay(),
-  'planDay:rename':     d => renameDay(zahl(d.day)),
+  'planDay:rename':     d => mitFokus(() => renameDay(zahl(d.day))),
   'planDay:remove':     d => removeDay(zahl(d.day)),
   'planEx:add':         d => addEx(zahl(d.day)),
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
-  'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
+  'planEx:move':        d => mitFokus(() => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta))),
 
   /* Ziele */
-  'milestone:toggle':   (d, ev, el) => toggleMilestone(d.id, el.checked),
-  'milestone:search':   () => renderMilestones(),
+  'milestone:toggle':   (d, ev, el) => mitFokus(() => toggleMilestone(d.id, el.checked)),
+  'milestone:search':   () => mitFokus(() => renderMilestones()),
 
   /* Einstellungen */
   'setting:update':     (d, ev, el) => {

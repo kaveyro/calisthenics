@@ -627,6 +627,11 @@ export const WARMUP = [
   'Bei Pull-Tagen: 10–15 Sek locker an der Stange hängen'
 ];
 
+/* Welche Warm-up-Punkte nicht optional sind – als Index, nicht als Textsuche.
+   Die Oberfläche prüfte bisher w.includes('Pflicht') und hob im englischen
+   Warm-up folglich nichts mehr hervor. Beim Ergänzen der Liste mitpflegen. */
+export const WARMUP_PFLICHT = new Set([3]);
+
 /* Nachschlagewerk: Übung per ID finden */
 export const EX_BY_ID = {};
 EXERCISES.forEach(e => { EX_BY_ID[e.id] = e; });
