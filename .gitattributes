@@ -1,0 +1,20 @@
+# Einheitliche Zeilenenden auf allen Plattformen.
+#
+# Grund: tools/gen-sw-manifest.js leitet die Cache-Version aus dem Inhalt
+# aller ausgelieferten Dateien ab. Solange die Arbeitskopie unter Windows
+# CRLF und unter Linux LF enthaelt, ergibt derselbe Quellstand zwei
+# verschiedene Versionen – die CI schlug genau daran fehl.
+#
+# Der Generator normalisiert inzwischen selbst, damit er auch gegen lokal
+# mit CRLF erzeugte Dateien robust ist. Diese Datei haelt zusaetzlich die
+# Arbeitskopie sauber und beendet die Warnung
+# "LF will be replaced by CRLF" bei jedem Commit.
+* text=auto eol=lf
+
+# Binaerdateien niemals anfassen – eine Zeilenenden-Konvertierung wuerde
+# sie zerstoeren.
+*.woff2 binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.zip   binary

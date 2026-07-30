@@ -7,6 +7,21 @@
    ohne jede Fehlermeldung. Eine inhaltsabgeleitete Version kann ausserdem
    nicht vergessen werden.
 
+   Der Hash MUSS plattformunabhaengig sein. Zwei Fallen, die beide schon
+   zugeschnappt sind und die CI rot gemacht haben:
+
+     1. relative() liefert unter Windows 'js\\app.js', unter Linux 'js/app.js'.
+     2. Die Arbeitskopie enthaelt bei core.autocrlf=true CRLF, der Blob und
+        jeder Linux-Checkout dagegen LF.
+
+   Beide flossen ungefiltert in den Hash. Dadurch war die Version nicht
+   reproduzierbar: zwei Rechner erzeugten aus identischem Quellstand
+   verschiedene Manifeste, und schon ein Checkout oder Merge, der Dateien
+   zurueckschreibt, aenderte sie – ohne jede inhaltliche Aenderung.
+
+   Deshalb wird vor dem Hashen der Pfad auf Schraegstriche und der Inhalt
+   von Textdateien auf LF normalisiert. Bitte nicht "vereinfachen".
+
    Aufruf:
      node tools/gen-sw-manifest.js           schreibt sw-manifest.js
      node tools/gen-sw-manifest.js --check   prueft nur, Exit 1 bei Abweichung
@@ -27,6 +42,17 @@ const ROOT_FILES = ['index.html', 'manifest.json'];
    darf sich nicht selbst aus dem Cache ausliefern. */
 const SKIP = new Set(['node_modules', '.git', 'test', 'tools', 'coverage', '.claude']);
 
+/* Endungsliste statt Inhaltsraten: bei einer Binaerdatei waere eine
+   CRLF-Ersetzung sinnlos und bei falscher Erkennung irrefuehrend. */
+const TEXT = /\.(js|mjs|css|html|json|txt|svg|webmanifest|md)$/i;
+
+/* Bytes einer Datei so, wie sie auf jeder Plattform gleich aussehen. */
+function normalisierterInhalt(pfad){
+  const buf = readFileSync(pfad);
+  if(!TEXT.test(pfad)) return buf;
+  return Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+}
+
 function walk(dir, acc = []){
   if(!existsSync(dir)) return acc;
   for(const name of readdirSync(dir).sort()){
@@ -43,11 +69,17 @@ const files = [
   ...INCLUDE_DIRS.flatMap(d => walk(join(ROOT, d)))
 ];
 
-/* Pfade relativ und mit Schraegstrich – auch unter Windows. */
-const assets = files.map(f => './' + relative(ROOT, f).split(sep).join('/'));
+/* Pfade relativ und mit Schraegstrich – auch unter Windows. Derselbe Wert
+   geht in die Asset-Liste UND in den Hash; frueher normalisierte nur die
+   Liste, wodurch der Hash den Backslash mitzaehlte. */
+const relPfade = files.map(f => relative(ROOT, f).split(sep).join('/'));
+const assets = relPfade.map(p => './' + p);
 
 const hash = createHash('sha256');
-for(const f of files){ hash.update(relative(ROOT, f)); hash.update(readFileSync(f)); }
+files.forEach((f, i) => {
+  hash.update(relPfade[i]);
+  hash.update(normalisierterInhalt(f));
+});
 const version = 'progression-' + hash.digest('hex').slice(0, 8);
 
 const content =
@@ -62,7 +94,12 @@ ${assets.map(a => `  '${a}'`).join(',\n')}
 
 if(process.argv.includes('--check')){
   const current = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
-  if(current !== content){
+  /* Zeilenenden auch hier angleichen: sw-manifest.js selbst wird bei einem
+     Checkout unter Windows zu CRLF, waehrend der Generator mit \n schreibt.
+     Ohne diese Normalisierung schluege der Check nach einem frischen Clone
+     auch lokal fehl – und zwar mit einer irrefuehrenden Meldung. */
+  const lf = s => s.replace(/\r\n/g, '\n');
+  if(lf(current) !== lf(content)){
     console.error('sw-manifest.js ist nicht aktuell. Bitte "npm run sw:manifest" ausführen.');
     process.exit(1);
   }
