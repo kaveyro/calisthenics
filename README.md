@@ -101,6 +101,9 @@ progression/
 │   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
 │   │                   dates · escape · target · csv
+│   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
+│   ├── data/
+│   │   └── content.en.js  Englische Übungsinhalte
 │   └── ui/
 │       └── delegate.js Event-Delegation (data-action)
 ├── fonts/              Selbst gehostete woff2 + SIL-OFL-Lizenz
@@ -112,6 +115,15 @@ progression/
 **Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart. Genau diese Schicht ist getestet.
 
 **Keine Inline-Event-Handler.** Markup und Logik hängen ausschließlich über `data-action` zusammen, aufgelöst durch eine Tabelle in `app.js`. Das ist die Voraussetzung für die Content-Security-Policy ohne `'unsafe-inline'` und verhindert zugleich, dass Werte in JavaScript-Strings innerhalb von Attributen landen. Ein Test prüft, dass jede verwendete Aktion existiert und keine Handler zurückkehren.
+
+**Zweisprachig (Deutsch/Englisch).** Umschaltbar in den Einstellungen, übersetzt sind Oberfläche *und* Inhalte – Übungsnamen, alle 141 Stufen, Ausführungshinweise, Meilensteine und Plan-Vorlagen.
+
+- Oberflächentexte: `js/i18n/strings.js`. Platzhalter in geschweiften Klammern (`'{n} Sätze'`) statt zusammengesetzter Strings – die Wortstellung unterscheidet sich zwischen Sprachen.
+- Statisches Markup: `data-i18n="schlüssel"` am Element, `data-i18n-placeholder` / `-aria-label` / `-title` für Attribute.
+- Übungsinhalte: `js/data/content.en.js`, zugeordnet über die IDs. `js/exercises.js` bleibt die deutsche Quelle und die Rückfallsprache.
+- Eigene Einträge des Nutzers (angepasster Plan, eigene Warm-up-Punkte, Notizen) werden nie übersetzt.
+
+Vier Tests halten das dicht: gleiche Schlüssel und gleiche Platzhalter in beiden Sprachen, eine Entsprechung für jede Übung, Stufe, Tipp, Meilenstein und Planvorlage, kein sichtbarer deutscher Text ohne `data-i18n`, und kein deutscher Rest im englischen Block. **Eine neue Übung braucht daher immer beide Sprachen** – sonst schlägt `npm test` fehl.
 
 ---
 

@@ -61,65 +61,64 @@
         <h1>Progres<span class="thin">sion</span></h1>
       </div>
       <div class="head-btns">
-        <button class="icon-btn" data-action="settings:open" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
-        <button class="icon-btn" id="themeBtn" data-action="theme:toggle" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
+        <button class="icon-btn" data-action="settings:open" data-i18n-aria-label="openSettings" data-i18n-title="settings" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
+        <button class="icon-btn" id="themeBtn" data-action="theme:toggle" data-i18n-aria-label="toggleTheme" data-i18n-title="lightDark" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
       </div>
     </div>
     <div class="phase-line" id="phaseLine"></div>
   </header>
 
   <div class="storage-warn" id="storageWarn" role="alert" hidden>
-    <b>Fortschritt wird nicht gespeichert.</b>
-    Der Browser-Speicher ist voll oder blockiert (z.&nbsp;B. privater Modus).
-    Diese Sitzung geht beim Schließen verloren – lade ein Backup herunter.
+    <b data-i18n="storageWarnTitle">Fortschritt wird nicht gespeichert.</b>
+    <span data-i18n="storageWarnBody">Der Browser-Speicher ist voll oder blockiert (z.&nbsp;B. privater Modus). Diese Sitzung geht beim Schließen verloren – lade ein Backup herunter.</span>
   </div>
 
   <div class="stats" id="stats"></div>
 
-  <nav class="tabs" role="tablist" aria-label="Bereiche">
-    <button class="tab active" id="tab-train" data-action="tab:show" data-tab="train" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0">Training</button>
-    <button class="tab" id="tab-history" data-action="tab:show" data-tab="history" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1">Verlauf</button>
-    <button class="tab" id="tab-library" data-action="tab:show" data-tab="library" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1">Übungen</button>
-    <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1">Plan</button>
-    <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1">Ziele</button>
+  <nav class="tabs" role="tablist" data-i18n-aria-label="sections" aria-label="Bereiche">
+    <button class="tab active" id="tab-train" data-action="tab:show" data-tab="train" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0" data-i18n="training">Training</button>
+    <button class="tab" id="tab-history" data-action="tab:show" data-tab="history" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1" data-i18n="history">Verlauf</button>
+    <button class="tab" id="tab-library" data-action="tab:show" data-tab="library" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1" data-i18n="exercises">Übungen</button>
+    <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1" data-i18n="plan">Plan</button>
+    <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1" data-i18n="milestones">Ziele</button>
   </nav>
 
   <!-- ============ TRAINING ============ -->
   <main><section id="view-train" role="tabpanel" aria-labelledby="tab-train" tabindex="0">
     <div id="banners"></div>
-    <div class="day-select" id="daySelect" role="group" aria-label="Trainingstag wählen"></div>
+    <div class="day-select" id="daySelect" role="group" data-i18n-aria-label="chooseDay" aria-label="Trainingstag wählen"></div>
 
     <!-- Der Hinzufügen-Button lag früher IM <summary>. Verschachtelte
          interaktive Elemente sind ungültig, und die Tastaturaktivierung von
          Zusammenfassung und Button kollidierte. Jetzt steht er daneben. -->
     <details class="acc">
-      <summary>Warm-up (8–10 Min) – vor jeder Einheit</summary>
+      <summary data-i18n="warmup">Warm-up (8–10 Min) – vor jeder Einheit</summary>
       <ul id="warmupList"></ul>
-      <button class="mini-btn" data-action="warmup:add" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
+      <button class="mini-btn" data-action="warmup:add" data-i18n="warmupAddShort" data-i18n-aria-label="warmupAdd" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
     </details>
 
-    <div id="content"><div class="loading">Lade deinen Fortschritt …</div></div>
+    <div id="content"><div class="loading" data-i18n="loading">Lade deinen Fortschritt …</div></div>
   </section>
 
   <!-- ============ VERLAUF ============ -->
   <section id="view-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
-    <div class="section-title">Trainings pro Woche</div>
+    <div class="section-title" data-i18n="chartWorkouts">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>
       <div class="vol-legend" id="weekLegend"></div>
     </div>
 
-    <div class="section-title">Sätze pro Woche</div>
+    <div class="section-title" data-i18n="chartVolume">Sätze pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="volChart"></div>
-      <div class="vol-legend">Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft.</div>
+      <div class="vol-legend" data-i18n="volumeLegend">Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft.</div>
     </div>
 
-    <div class="section-title">Körpergewicht</div>
+    <div class="section-title" data-i18n="bodyWeight">Körpergewicht</div>
     <div class="card">
       <div class="inline-row">
-        <input type="number" step="0.1" min="30" max="250" id="weightInput" placeholder="Gewicht in kg" aria-label="Körpergewicht in Kilogramm">
-        <button data-action="weight:add">Speichern</button>
+        <input type="number" step="0.1" min="30" max="250" id="weightInput" placeholder="Gewicht in kg" aria-label="Körpergewicht in Kilogramm" data-i18n-placeholder="weightHint" data-i18n-aria-label="weightAria">
+        <button data-action="weight:add" data-i18n="save">Speichern</button>
       </div>
       <svg class="spark" id="weightSpark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div class="weight-meta" id="weightMeta"></div>
@@ -128,7 +127,7 @@
     <!-- Measurements container (rendered by JS) -->
     <div id="measContainer"></div>
 
-    <div class="section-title">Letzte Trainings</div>
+    <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
     <div class="card" id="logList"></div>
 
     <!-- Calendar container (rendered by JS) -->
@@ -137,48 +136,48 @@
 
   <!-- ============ ÜBUNGEN ============ -->
   <section id="view-library" hidden role="tabpanel" aria-labelledby="tab-library" tabindex="0">
-    <div class="section-title">Übungsbibliothek</div>
+    <div class="section-title" data-i18n="library">Übungsbibliothek</div>
     <div class="filter-row" id="catFilter"></div>
     <div class="inline-row" style="margin-bottom:12px">
-      <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen">
+      <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen" data-i18n-placeholder="search" data-i18n-aria-label="searchAria">
     </div>
     <div class="card" id="libList"></div>
   </section>
 
   <!-- ============ PLAN ============ -->
   <section id="view-plan" hidden role="tabpanel" aria-labelledby="tab-plan" tabindex="0">
-    <div class="section-title">Trainingsplan</div>
+    <div class="section-title" data-i18n="planTitle">Trainingsplan</div>
     <div class="card">
       <div class="set-row" style="border-bottom:none;padding-top:0">
-        <span><span class="lbl2">Vorlage</span><span class="hint" id="planDesc"></span></span>
+        <span><span class="lbl2" data-i18n="template">Vorlage</span><span class="hint" id="planDesc"></span></span>
         <select id="planSelect" data-action-change="plan:change"></select>
       </div>
     </div>
     <div id="planEditor"></div>
     <div class="data-btns">
-      <button class="btn secondary" data-action="planDay:add">Trainingstag hinzufügen</button>
-      <button class="btn secondary" data-action="plan:reset">Auf Vorlage zurücksetzen</button>
+      <button class="btn secondary" data-action="planDay:add" data-i18n="addDay">Trainingstag hinzufügen</button>
+      <button class="btn secondary" data-action="plan:reset" data-i18n="resetToTemplate">Auf Vorlage zurücksetzen</button>
     </div>
-    <p class="muted" style="margin-top:10px">Änderungen erzeugen automatisch deinen eigenen Plan. Die Vorlagen bleiben davon unberührt.</p>
+    <p class="muted" style="margin-top:10px" data-i18n="planNote">Änderungen erzeugen automatisch deinen eigenen Plan. Die Vorlagen bleiben davon unberührt.</p>
   </section>
 
   <!-- ============ ZIELE ============ -->
   <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
-    <div class="section-title">Meilensteine</div>
+    <div class="section-title" data-i18n="milestonesTitle">Meilensteine</div>
     <div class="inline-row" style="margin-bottom:10px">
-      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen">
+      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen" data-i18n-placeholder="milestoneSearch" data-i18n-aria-label="milestoneSearchAria">
     </div>
     <div class="card" id="msList"></div>
-    <p class="muted">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.</p>
+    <p class="muted" data-i18n="milestoneNote">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.</p>
 
-    <div class="section-title">Skill-Fahrplan</div>
+    <div class="section-title" data-i18n="roadmap">Skill-Fahrplan</div>
     <div class="card" id="roadmap"></div>
   </section>
   </main>
 
   <footer>
-    Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts
-    <br><small>Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab, ←/→ in der Tableiste</small>
+    <span data-i18n="footer">Progression · Offline nutzbar · Backup &amp; Einstellungen über ⚙ oben rechts</span>
+    <br><small data-i18n="keyboardHints">Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab, ←/→ in der Tableiste</small>
   </footer>
 </div>
 
@@ -186,7 +185,7 @@
 <div class="finish-bar" id="finishBar">
   <div class="inner">
     <span class="finish-count" id="finishCount"></span>
-    <button class="finish-btn" id="finishBtn" data-action="workout:finish">Training abschließen</button>
+    <button class="finish-btn" id="finishBtn" data-action="workout:finish" data-i18n="finishWorkout">Training abschließen</button>
   </div>
 </div>
 
@@ -197,20 +196,20 @@
 
 <!-- Einstellungen -->
 <div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="Einstellungen">
-    <div class="modal-head"><span>Einstellungen</span><button data-action="settings:close" aria-label="Schließen">✕</button></div>
+  <div class="modal" role="dialog" aria-modal="true" data-i18n-aria-label="settings" aria-label="Einstellungen">
+    <div class="modal-head"><span data-i18n="settings">Einstellungen</span><button data-action="settings:close" data-i18n-aria-label="close" aria-label="Schließen">✕</button></div>
 
-    <div class="section-title">Training</div>
+    <div class="section-title" data-i18n="training">Training</div>
     <div class="set-row">
-      <span><span class="lbl2">Satz-Modus</span><span class="hint">Einsteiger deckelt alles auf 3 Sätze</span></span>
+      <span><span class="lbl2" data-i18n="setsMode">Satz-Modus</span><span class="hint" data-i18n="setsModeHint">Einsteiger deckelt alles auf 3 Sätze</span></span>
       <select id="cfg-setsMode" data-action-change="setting:update" data-key="setsMode">
-        <option value="standard">Standard (3–4)</option>
-        <option value="light">Einsteiger (max. 3)</option>
-        <option value="hard">Fortgeschritten (+1 Satz)</option>
+        <option value="standard" data-i18n="standard">Standard (3–4)</option>
+        <option value="light" data-i18n="lightMode">Einsteiger (max. 3)</option>
+        <option value="hard" data-i18n="hard">Fortgeschritten (+1 Satz)</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Satzpause</span><span class="hint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
+      <span><span class="lbl2" data-i18n="restBasic">Satzpause</span><span class="hint" data-i18n="restBasicHint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
       <select id="cfg-rest" data-action-change="setting:update" data-key="rest" data-type="int">
         <option value="45">45 Sek</option>
         <option value="60">60 Sek</option>
@@ -220,65 +219,73 @@
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Übungsspezifische Pausen</span><span class="hint">Nutzt die empfohlene Pause je Übung</span></span>
+      <span><span class="lbl2" data-i18n="perExRest">Übungsspezifische Pausen</span><span class="hint" data-i18n="perExRestHint">Nutzt die empfohlene Pause je Übung</span></span>
       <input type="checkbox" id="cfg-perExRest" data-action-change="setting:update" data-key="perExRest">
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Pausen-Timer automatisch</span><span class="hint">Startet nach jedem abgehakten Satz</span></span>
+      <span><span class="lbl2" data-i18n="autoRest">Pausen-Timer automatisch</span><span class="hint" data-i18n="autoRestHint">Startet nach jedem abgehakten Satz</span></span>
       <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest">
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Signaltöne</span><span class="hint">Ton bei Timer-Ende und Level-Ups</span></span>
+      <span><span class="lbl2" data-i18n="sound">Signaltöne</span><span class="hint" data-i18n="soundHint">Ton bei Timer-Ende und Level-Ups</span></span>
       <input type="checkbox" id="cfg-sound" data-action-change="setting:update" data-key="sound">
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Vibration</span><span class="hint">Falls das Gerät es unterstützt</span></span>
+      <span><span class="lbl2" data-i18n="vibration">Vibration</span><span class="hint" data-i18n="vibrationHint">Falls das Gerät es unterstützt</span></span>
       <input type="checkbox" id="cfg-vibrate" data-action-change="setting:update" data-key="vibrate">
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Level-Up nach</span><span class="hint">Einheiten am oberen Limit in Folge</span></span>
+      <span><span class="lbl2" data-i18n="levelUpAfter">Level-Up nach</span><span class="hint" data-i18n="levelUpAfterHint">Einheiten am oberen Limit in Folge</span></span>
       <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int">
-        <option value="1">1 Einheit</option>
-        <option value="2">2 Einheiten</option>
-        <option value="3">3 Einheiten</option>
+        <option value="1" data-i18n="unitOne">1 Einheit</option>
+        <option value="2" data-i18n="unitTwo">2 Einheiten</option>
+        <option value="3" data-i18n="unitThree">3 Einheiten</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Stufe zurück nach Pause</span><span class="hint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
+      <span><span class="lbl2" data-i18n="regress">Stufe zurück nach Pause</span><span class="hint" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
       <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress">
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Wochenziel</span><span class="hint">Trainings pro Woche</span></span>
+      <span><span class="lbl2" data-i18n="language">Sprache</span><span class="hint" data-i18n="languageHint">Oberfläche und Übungsinhalte</span></span>
+      <!-- Optionen kommen aus LANGS in js/i18n/strings.js, damit eine weitere
+           Sprache nur an einer Stelle eingetragen werden muss. -->
+      <select id="cfg-lang" data-action-change="setting:update" data-key="lang"></select>
+    </div>
+    <div class="set-row">
+      <span><span class="lbl2" data-i18n="weekGoal">Wochenziel</span><span class="hint" data-i18n="weekGoalHint">Trainings pro Woche</span></span>
       <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int">
         <option value="2">2×</option><option value="3">3×</option>
         <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2">Deload-Erinnerung</span><span class="hint">Nach dieser Anzahl Trainings</span></span>
+      <span><span class="lbl2" data-i18n="deloadRemind">Deload-Erinnerung</span><span class="hint" data-i18n="deloadRemindHint">Nach dieser Anzahl Trainings</span></span>
       <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int">
-        <option value="0">Aus</option><option value="16">16</option>
+        <option value="0" data-i18n="off">Aus</option><option value="16">16</option>
         <option value="24">24</option><option value="32">32</option>
       </select>
     </div>
 
-    <div class="section-title">Daten & Backup</div>
+    <div class="section-title" data-i18n="dataBackup">Daten &amp; Backup</div>
     <div class="data-btns">
-      <button class="btn" data-action="backup:exportJSON">Backup herunterladen</button>
-      <label class="btn secondary" style="cursor:pointer">Backup importieren
+      <button class="btn" data-action="backup:exportJSON" data-i18n="downloadBackup">Backup herunterladen</button>
+      <!-- Der Text steht in einem span: data-i18n setzt textContent, das
+           würde das darin liegende File-Input sonst mit entfernen. -->
+      <label class="btn secondary" style="cursor:pointer"><span data-i18n="importBackup">Backup importieren</span>
         <input type="file" accept=".json,application/json" style="display:none" data-action-change="backup:importJSON">
       </label>
     </div>
-    <div class="data-hint">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, Maße, deinen Plan und alle Einstellungen.</div>
+    <div class="data-hint" data-i18n="backupContains">Das Backup enthält Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewicht, Maße, deinen Plan und alle Einstellungen.</div>
     <div class="data-btns">
-      <button class="btn secondary" data-action="backup:exportCSV">Verlauf als CSV</button>
-      <button class="btn secondary" data-action="backup:exportText">Als Text kopieren</button>
-      <label class="btn secondary" style="cursor:pointer">CSV importieren
+      <button class="btn secondary" data-action="backup:exportCSV" data-i18n="exportCSVLabel">Verlauf als CSV</button>
+      <button class="btn secondary" data-action="backup:exportText" data-i18n="copyText">Als Text kopieren</button>
+      <label class="btn secondary" style="cursor:pointer"><span data-i18n="importCSVLabel">Verlauf aus CSV</span>
         <input type="file" accept=".csv,text/csv" style="display:none" data-action-change="backup:importCSV">
       </label>
     </div>
     <div class="data-btns">
-      <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll">Alles zurücksetzen</button>
+      <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
     </div>
     <div class="data-hint" id="storageInfo"></div>
   </div>
