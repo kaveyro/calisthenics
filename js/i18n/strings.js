@@ -89,6 +89,7 @@ export const LANG = {
     workoutSaved: 'Training gespeichert – {n} Einheiten insgesamt.',
     sessionRestored: 'Laufendes Training wiederhergestellt.',
     undo: 'Rückgängig', undoWorkout: 'Training rückgängig gemacht',
+    milestoneToast: 'Meilenstein: {name}',
 
     /* Banner */
     deloadTitle: 'Deload-Woche empfohlen.',
@@ -301,6 +302,7 @@ export const LANG = {
     workoutSaved: 'Workout saved – {n} sessions in total.',
     sessionRestored: 'Workout in progress restored.',
     undo: 'Undo', undoWorkout: 'Workout undone',
+    milestoneToast: 'Milestone: {name}',
 
     deloadTitle: 'Deload week recommended.',
     deloadBody: 'You have completed {n} workouts. Do only half the sets this week using easier variations – tendons and joints need it, especially with pushing and pulling work.',

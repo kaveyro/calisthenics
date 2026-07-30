@@ -100,7 +100,7 @@ progression/
 │   ├── storage.js      Speicher-Adapter (localStorage, Altschlüssel)
 │   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
-│   │                   dates · escape · target · csv
+│   │                   dates · escape · target · csv · plateau · state
 │   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
 │   ├── data/
 │   │   └── content.en.js  Englische Übungsinhalte
@@ -174,7 +174,7 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/app.js` hochzählen und in `migrateState()` einen Schritt ergänzen. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 

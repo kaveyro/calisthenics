@@ -21,7 +21,10 @@ import {
 } from './i18n/index.js';
 
 let state = DEFAULT_STATE();
-let session = { dayKey: null, sets: {}, top: {}, reps: {} };
+/* Alles, was zur laufenden Einheit gehoert – an einer Stelle, damit keine
+   Sammlung beim Zuruecksetzen vergessen wird. */
+const leereSession = () => ({ dayKey: null, sets: {}, top: {}, reps: {}, notes: {} });
+let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
 let libFilter = 'all';
 const libOpen = {};
@@ -118,7 +121,11 @@ let schreibTimer = null;
 /* Uebertraegt die Session in den Zustand, ohne zu schreiben. */
 function spiegleSession(){
   state.activeSession = session.dayKey
-    ? { dayKey: session.dayKey, sets: { ...session.sets }, top: { ...session.top }, reps: { ...session.reps }, d: today() }
+    ? {
+      dayKey: session.dayKey, d: today(),
+      sets: { ...session.sets }, top: { ...session.top },
+      reps: { ...session.reps }, notes: { ...session.notes }
+    }
     : null;
 }
 
@@ -160,7 +167,7 @@ function clearSession(){
      ein ausstehender Schreibvorgang wuerde die alte Session zurueckholen. */
   clearTimeout(schreibTimer);
   schreibTimer = null;
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  session = leereSession();
   state.activeSession = null;
 }
 function restoreActiveSession(){
@@ -169,8 +176,11 @@ function restoreActiveSession(){
   /* Eine Einheit von gestern ist keine laufende Einheit mehr. */
   if(a.d && a.d !== today()){ state.activeSession = null; return false; }
   if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
-  session = { dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {}, reps: a.reps || {} };
-  renderDaySelect(); renderWorkout(); restoreSession({}, session.reps);
+  session = {
+    dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
+    reps: a.reps || {}, notes: a.notes || {}
+  };
+  renderDaySelect(); renderWorkout(); restoreSession(session.reps);
   toast(__('sessionRestored'));
   return true;
 }
@@ -178,9 +188,17 @@ function restoreActiveSession(){
 function setRep(key, value){
   const n = parseInt(value, 10);
   session.reps[key] = Number.isFinite(n) ? n : null;
-  /* Einzige entprellte Stelle: hier feuert jeder Tastendruck. Satz-Tap,
-     Top-Haekchen und Tagwechsel schreiben weiterhin sofort – dort ist ein
-     Schreibvorgang pro Interaktion angemessen. */
+  /* Entprellt: hier feuert jeder Tastendruck. Satz-Tap, Top-Haekchen und
+     Tagwechsel schreiben weiterhin sofort – dort ist ein Schreibvorgang pro
+     Interaktion angemessen. */
+  persistSessionSpaeter();
+}
+
+/* Notizen gehoeren zur laufenden Einheit wie Saetze und Wiederholungen.
+   Bisher lebten sie ausschliesslich im Textfeld: eine wiederhergestellte
+   Einheit kam ohne sie zurueck, und ein Undo warf sie weg. */
+function setNote(id, value){
+  session.notes[id] = value;
   persistSessionSpaeter();
 }
 
@@ -499,7 +517,7 @@ function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest
 /* ================= Workout rendern ================= */
 function selectDay(key){
   cancelHold(); stopRest();
-  session = { dayKey: key, sets: {}, top: {}, reps: {} };
+  session = { ...leereSession(), dayKey: key };
   persistSession();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
@@ -540,7 +558,7 @@ function renderWorkout(){
         dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
           ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
-          ' value="' + ((session.reps || {})[repKey] || '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
+          ' value="' + (session.reps[repKey] ?? '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       }
     }
 
@@ -572,7 +590,10 @@ function renderWorkout(){
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
       '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"><span>' + __('topLimit') + '</span></label>' +
       hint +
-      '<textarea class="note-input" id="note-' + ex.id + '" rows="1" placeholder="' + __('notes') + ' (z. B. „6 Sek Negativ geschafft") – optional"></textarea>' +
+      '<textarea class="note-input" id="note-' + ex.id + '" rows="1"' +
+        ' data-action-input="note:set" data-ex="' + ex.id + '"' +
+        ' placeholder="' + esc(__('notePlaceholder')) + '">' +
+        esc(session.notes[ex.id] || '') + '</textarea>' +
       '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
       '<ul class="tips" id="tips-' + ex.id + '">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
       '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + ex.id + '">↻ ' + __('substitute') + '</button>' +
@@ -585,16 +606,11 @@ function renderWorkout(){
   updateFinish();
 }
 
-function snapshotNotes(){
-  const n = {};
-  const day = getDay(session.dayKey);
-  if(day) day.ex.forEach(id => {
-    const el = document.getElementById('note-' + id);
-    if(el) n[id] = el.value;
-  });
-  return n;
-}
-function restoreSession(notes, reps){
+/* Stellt nach einem Neuzeichnen des Trainings wieder her, was nicht im
+   Markup steckt. Notizen brauchen das nicht mehr: sie stehen in
+   session.notes und werden von renderWorkout() direkt ausgegeben – das
+   fruehere snapshotNotes() ist damit ueberfluessig geworden. */
+function restoreSession(reps){
   Object.keys(session.sets).forEach(k => {
     if(session.sets[k]){
       const el = document.getElementById('set-' + k);
@@ -607,11 +623,12 @@ function restoreSession(notes, reps){
       if(l){ l.classList.add('checked'); l.querySelector('input').checked = true; }
     }
   });
-  Object.keys(notes || {}).forEach(id => {
-    const el = document.getElementById('note-' + id); if(el) el.value = notes[id];
-  });
+  /* Gegen null pruefen, nicht gegen Falsy: 0 Wiederholungen sind eine
+     gueltige Eingabe, die setRep() bewusst speichert. Sie verschwand hier
+     und beim Rendern des Feldes bei jedem Neuzeichnen. */
   Object.keys(reps || {}).forEach(k => {
-    const el = document.getElementById('rep-' + k); if(el && reps[k]) el.value = reps[k];
+    const el = document.getElementById('rep-' + k);
+    if(el && reps[k] != null) el.value = reps[k];
   });
   updateFinish();
 }
@@ -626,7 +643,7 @@ function adjustLevel(id, d){
   /* cancelHold() zuerst: sonst laeuft ein Countdown gegen das alte,
      nach renderWorkout() abgehaengte Element weiter und markiert einen
      Satz, den man nicht mehr sieht. */
-  if(session.dayKey){ cancelHold(); const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
+  if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
   toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }));
 }
@@ -653,10 +670,13 @@ async function substituteExercise(id){
   const ei = day.ex.indexOf(id);
   if(ei >= 0) day.ex[ei] = gewaehlt;
   save();
-  const n = snapshotNotes(); const r = session.reps;
+  /* cancelHold() zuerst, wie in adjustLevel(): der Countdown haelt den alten
+     DOM-Knoten fest und lief nach dem Neuzeichnen dagegen weiter – am Ende
+     hakte er einen Satz ab, den es nicht mehr gab, und startete eine Pause. */
+  cancelHold();
   session.sets = {}; session.top = {};
   persistSession();
-  renderWorkout(); restoreSession(n, r);
+  renderWorkout(); restoreSession(session.reps);
   toast(__('substituted', { name: exName(EX_BY_ID[gewaehlt]) }));
 }
 
@@ -701,7 +721,7 @@ function closeExHistory(){
 
 /* ================= Satz-Interaktion ================= */
 function tapSet(id, s){
-  const ex = EX_BY_ID[id];
+  const ex = EX_BY_ID[id]; if(!ex) return;   /* wie in allen Nachbarfunktionen */
   const t = parseTarget(ex.levels[lvlOf(ex)].target);
   const key = id + '-' + s;
   const el = document.getElementById('set-' + key);
@@ -861,7 +881,12 @@ async function finishWorkout(){
 
   exIds.forEach(id => {
     const ex = EX_BY_ID[id]; if(!ex) return;
-    const lvl = state.levels[id] || 0;
+    /* lvlOf() statt roher Zugriff: der gespeicherte Wert kann ueber der
+       Stufenleiter liegen (importiertes Backup, gekuerzte Leiter nach einem
+       Inhalts-Update). Unten greift ex.levels[lvl].target darauf zu und warf
+       dann mitten in dieser Schleife – also nachdem streaks und levels
+       bereits geschrieben waren und bevor save() lief. */
+    const lvl = lvlOf(ex);
     const maxed = lvl >= ex.levels.length - 1;
     if(session.top[id]){
       tops++;
@@ -872,21 +897,18 @@ async function finishWorkout(){
       }
     } else state.streaks[id] = 0;
 
-    const nEl = document.getElementById('note-' + id);
-    if(nEl && nEl.value.trim()){
-      state.notes[id] = { t: nEl.value.trim().slice(0, 160), d: today() };
-    }
+    const notiz = (session.notes[id] || '').trim();
+    if(notiz) state.notes[id] = { t: notiz.slice(0, 160), d: today() };
 
-    /* Per-set rep tracking */
+    /* Bestleistung aus den Wiederholungen der Einheit. Quelle ist
+       session.reps und nicht mehr das Eingabefeld: der Zustand ueberlebt ein
+       Neuzeichnen, das Feld nicht. */
     const t = parseTarget(ex.levels[lvl].target);
     if(!t.isHold && t.maxReps){
       for(let s = 0; s < t.sets; s++){
-        const repEl = document.getElementById('rep-' + id + '-' + s);
-        if(repEl && repEl.value){
-          const v = parseInt(repEl.value, 10);
-          if(v && v > prNumber(state.prs[id])){
-            state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
-          }
+        const v = session.reps[id + '-' + s];
+        if(v && v > prNumber(state.prs[id])){
+          state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
         }
       }
     }
@@ -904,9 +926,16 @@ async function finishWorkout(){
 
   state.log.push(entry);
   if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
+
+  /* clearSession() VOR save(): es nullt state.activeSession nur im
+     Arbeitsspeicher, und danach folgte kein weiterer Schreibvorgang. Im
+     Speicher blieb also die gerade abgeschlossene Einheit stehen, und ein
+     Neuladen am selben Tag holte sie mit allen Haken zurueck ("Einheit
+     wiederhergestellt") – ein zweites "Fertig" schrieb sie ein zweites Mal
+     ins Log. importJSON() und resetAll() hatten die Reihenfolge schon. */
+  clearSession();
   await save();
 
-  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
@@ -944,13 +973,26 @@ function undoWorkout(){
      waere dann der falsche Eintrag. */
   const idx = state.log.lastIndexOf(snap.entry);
   if(idx >= 0) state.log.splice(idx, 1);
-  save();
   clearTimeout(undoTimeout);
   lastWorkoutSnapshot = null;
   document.querySelector('.undo-btn')?.remove();
-  clearSession();
-  document.getElementById('finishBar').style.display = 'none';
-  renderAll();
+
+  /* Die Einheit zurueckholen statt sie wegzuwerfen. Der Snapshot enthaelt
+     sie seit jeher – gelesen wurde das Feld nie, stattdessen lief hier ein
+     clearSession(). Wer versehentlich "Fertig" tippte, verlor damit jeden
+     Haken, jede Wiederholung und jede Notiz und musste die ganze Einheit von
+     Hand neu eintragen. Genau das soll "Rueckgaengig" verhindern. */
+  if(snap.session && snap.session.dayKey){
+    session = snap.session;
+    persistSession();
+    renderAll();                   /* kehrt vor dem Leeren von #content zurueck */
+    renderWorkout(); restoreSession(session.reps);
+  } else {
+    clearSession();
+    save();
+    document.getElementById('finishBar').style.display = 'none';
+    renderAll();
+  }
   toast(__('undoWorkout'));
 }
 
@@ -1390,7 +1432,11 @@ function renderMilestones(){
 async function toggleMilestone(id, on){
   if(on){
     state.milestones[id] = today(); signal(true);
-    toast('Meilenstein: ' + MILESTONES.find(m => m.id === id).name, true);
+    /* Mit Guard und ueber msName(): der Name kam bisher roh aus den deutschen
+       Daten, und ein Eintrag, der aus MILESTONES verschwindet, aber noch in
+       state.milestones steht, liess find() undefined liefern. */
+    const m = MILESTONES.find(x => x.id === id);
+    if(m) toast(__('milestoneToast', { name: msName(m) }), true);
   } else delete state.milestones[id];
   await save(); renderStats(); renderMilestones();
 }
@@ -1597,7 +1643,7 @@ function updateSetting(k, v){
         if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
       });
     }
-    const n = snapshotNotes(); cancelHold(); renderWorkout(); restoreSession(n, session.reps);
+    cancelHold(); renderWorkout(); restoreSession(session.reps);
   }
   renderAll();
 }
@@ -1807,6 +1853,7 @@ export const actions = {
   'day:select':         d => selectDay(d.key),
   'set:tap':            d => tapSet(d.ex, zahl(d.set)),
   'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'note:set':           (d, ev, el) => setNote(d.ex, el.value),
   'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
   'level:adjust':       d => adjustLevel(d.ex, zahl(d.delta)),
   'tips:toggle':        d => toggleTips(d.ex),
