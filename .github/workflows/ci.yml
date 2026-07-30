@@ -1,0 +1,23 @@
+# Beratende Prüfung – bewusst KEIN Deploy-Workflow.
+#
+# Die App wird weiterhin direkt von GitHub Pages aus dem Branch `main`
+# ausgeliefert. Damit bleibt sie per `git push` von überall reparierbar, und
+# eine rote Prüfung hier verhindert nie ein Deploy.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check   # enthält auch den Test gegen Inline-Handler

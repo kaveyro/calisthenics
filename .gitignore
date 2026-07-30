@@ -1,0 +1,10 @@
+# Dev-Werkzeuge (werden zum Ausführen/Deployen der App nicht gebraucht)
+node_modules/
+coverage/
+
+# Archive – die App liegt als Quelltext im Repo, nicht als Zip
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db

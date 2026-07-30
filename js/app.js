@@ -2,78 +2,126 @@
    PROGRESSION – App-Logik
    ========================================================= */
 
+import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, EX_BY_ID } from './exercises.js';
+import { store, STORAGE_KEY } from './storage.js';
+import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
+import { esc, sanitizeDayKey } from './domain/escape.js';
+import { parseTarget as parseTargetPure } from './domain/target.js';
+import { serializeLog, parseLog } from './domain/csv.js';
+import { installDelegation, zahl } from './ui/delegate.js';
+import {
+  __, setLang, getLang, LANGS, applyStaticTexts,
+  catName, exName, exStage, exTips, msName, warmupText,
+  planName, planDesc, dayTitle, daySub
+} from './i18n/index.js';
+
 const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
-  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de'
+  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de',
+  regress: true
 };
 
+/* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
+   hochzaehlen und in migrateState() einen Schritt ergaenzen. */
+const STATE_VERSION = 5;
+
+/* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
+   4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
+   abgeschnitten. Ein Eintrag ist rund 100 Bytes, 2000 bleiben deutlich
+   unter dem localStorage-Budget. */
+const MAX_LOG_ENTRIES = 2000;
+const MAX_SERIES_ENTRIES = 1000;
+
 const DEFAULT_STATE = () => ({
-  v: 4, planId: 'ab4', customPlan: null,
+  v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  streakDays: 0, lastWeek: null, measurements: {},
-  warmupCustom: null, pauseHistory: {}
+  measurements: {}, warmupCustom: null, regressedFor: null
 });
+/* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
+   bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
+   alter Staende einfach weg. */
+
+/* ================= Migration =================
+   Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
+   Stand in der aktuellen Form. Ersetzt das fruehere
+   Object.assign(DEFAULT_STATE(), loaded) – ein FLACHER Merge, bei dem ein
+   "notes": null aus einem alten oder handgeschriebenen Stand den Default {}
+   ueberschrieb und die App beim naechsten Training abstuerzen liess.
+
+   Zwischen v1 und v4 ist keine strukturelle Aenderung dokumentiert oder aus
+   dem Code ableitbar; diese Schritte sind daher reine Normalisierung. v5
+   ergaenzt activeSession und das numerische Feld prs[].n – beides additiv
+   und ueber die Defaults bzw. prNumber() abgedeckt. */
+function migrateState(raw){
+  const def = DEFAULT_STATE();
+  if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
+
+  const out = DEFAULT_STATE();
+  Object.keys(def).forEach(k => {
+    const v = raw[k], d = def[k];
+    if(v === undefined || v === null) return;              /* Default behalten */
+    if(Array.isArray(d)){ if(Array.isArray(v)) out[k] = v; return; }
+    if(d !== null && typeof d === 'object'){
+      if(typeof v === 'object' && !Array.isArray(v)) out[k] = v;
+      return;
+    }
+    if(typeof d === 'number'){ if(typeof v === 'number' && Number.isFinite(v)) out[k] = v; return; }
+    if(typeof d === 'string'){ if(typeof v === 'string') out[k] = v; return; }
+    out[k] = v;                                            /* Defaults mit null */
+  });
+
+  /* Felder mit Default null, die dennoch eine Form haben muessen. */
+  if(out.customPlan && (typeof out.customPlan !== 'object' || !Array.isArray(out.customPlan.days))) out.customPlan = null;
+  if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
+  if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
+  if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
+
+  /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
+  out.log = out.log
+    .filter(l => l && typeof l === 'object' && typeof l.d === 'string')
+    .map(l => ({
+      d: l.d,
+      day: typeof l.day === 'string' ? l.day : 'A',
+      sets: Number(l.sets) || 0,
+      tops: Number(l.tops) || 0,
+      ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
+      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
+    }))
+    .slice(-MAX_LOG_ENTRIES);
+
+  out.weights = out.weights
+    .filter(w => w && typeof w === 'object' && typeof w.d === 'string' && Number.isFinite(Number(w.kg)))
+    .map(w => ({ d: w.d, kg: Number(w.kg) }))
+    .slice(-MAX_SERIES_ENTRIES);
+
+  /* levels/streaks sind id -> Zahl. Ein Nicht-Zahl-Wert wuerde spaeter in
+     Vergleiche und Array-Indizes laufen. */
+  ['levels', 'streaks'].forEach(k => {
+    Object.keys(out[k]).forEach(id => {
+      const n = parseInt(out[k][id], 10);
+      if(Number.isFinite(n) && n >= 0) out[k][id] = n; else delete out[k][id];
+    });
+  });
+
+  /* Nur bekannte Einstellungen uebernehmen. */
+  const settings = {};
+  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
+    if(out.settings[k] !== undefined && out.settings[k] !== null) settings[k] = out.settings[k];
+  });
+  out.settings = settings;
+
+  out.v = STATE_VERSION;
+  return out;
+}
 
 let state = DEFAULT_STATE();
 let session = { dayKey: null, sets: {}, top: {}, reps: {} };
 let holdTimer = null, restTimer = null, wakeLock = null;
-let libFilter = 'all', libOpen = {}, exHistoryOpen = null;
+let libFilter = 'all';
+const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
-
-const LANG = {
-  de: {
-    appName: 'Progression',
-    trainings: 'Trainings', thisWeek: 'Diese Woche', levelUps: 'Level-Ups',
-    goals: 'Ziele', warmup: 'Warm-up (8–10 Min) – vor jeder Einheit',
-    selectDay: 'Wähle oben deinen Trainingstag', pause: 'Pause', tapEnd: 'Tippen beendet',
-    settings: 'Einstellungen', close: 'Schließen', training: 'Training',
-    history: 'Verlauf', exercises: 'Übungen', plan: 'Plan', milestones: 'Ziele',
-    finishWorkout: 'Training abschließen', setsMode: 'Satz-Modus',
-    restBasic: 'Satzpause', perExRest: 'Übungsspezifische Pausen',
-    autoRest: 'Pausen-Timer automatisch', sound: 'Signaltöne',
-    vibration: 'Vibration', levelUpAfter: 'Level-Up nach',
-    weekGoal: 'Wochenziel', deloadRemind: 'Deload-Erinnerung',
-    dataBackup: 'Daten & Backup', downloadBackup: 'Backup herunterladen',
-    importBackup: 'Backup importieren', exportCSV: 'Verlauf als CSV',
-    copyText: 'Als Text kopieren', resetAll: 'Alles zurücksetzen',
-    light: 'Hell', dark: 'Dunkel', standard: 'Standard (3–4)',
-    lightMode: 'Einsteiger (max. 3)', hard: 'Fortgeschritten (+1 Satz)',
-    off: 'Aus', search: 'Übung suchen …', all: 'Alle',
-    inPlan: 'im Plan', noExercises: 'Keine Übung gefunden.',
-    noHistory: 'Noch keine Trainings', noLogs: 'Noch keine Einträge.',
-    noPlanDays: 'Dein Plan hat keine Trainingstage',
-    template: 'Vorlage', customPlan: 'Eigener Plan',
-    addDay: 'Trainingstag hinzufügen', resetToTemplate: 'Auf Vorlage zurücksetzen',
-    addExercise: 'Hinzufügen', rename: 'Umbenennen', remove: 'entfernen',
-    moveUp: 'nach oben', moveDown: 'nach unten',
-    topLimit: 'Oberes Limit in allen Sätzen geschafft',
-    tips: 'Tipps zur Übung', notes: 'Notiz', best: 'Bestleistung',
-    save: 'Speichern', cancel: 'Abbrechen', confirm: 'Bestätigen',
-    level: 'Stufe', sets: 'Sätze', reps: 'Wdh', sec: 'Sek',
-    kg: 'kg', bodyWeight: 'Körpergewicht', weightHint: 'Gewicht in kg',
-    workoutLog: 'Letzte Trainings', perExercise: 'pro Übung',
-    undo: 'Rückgängig', done: 'Erledigt', week: 'Woche',
-    chartWorkouts: 'Trainings pro Woche', chartVolume: 'Sätze pro Woche',
-    totalVolume: 'Gesamtvolumen', measurements: 'Körpermaße',
-    chest: 'Brust', waist: 'Taille', arm: 'Arm', thigh: 'Oberschenkel',
-    plateauDetected: 'Stagnation erkannt', plateauMsg: 'Diese Übung macht seit mehreren Einheiten keine Fortschritte. Vielleicht eine leichtere Variante versuchen oder die Form überprüfen.',
-    regressAfterBreak: 'Nach der Pause eine Stufe zurückgestuft',
-    globalStreak: 'Trainingsserie', days: 'Tage',
-    calendar: 'Kalender', schedule: 'Planübersicht',
-    substitute: 'Ersetzen', superset: 'Supersatz',
-    warmupCustom: 'Warm-up anpassen', milestoneSearch: 'Meilenstein suchen',
-    keyboardHints: 'Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tag',
-    undoWorkout: 'Training rückgängig gemacht',
-    volumeProgress: 'Volumensteigerung',
-    addMeasurement: 'Maß speichern', cm: 'cm'
-  }
-};
-
-let T = LANG.de;
-function setLang(l){ T = LANG[l] || LANG.de; }
-function __(k){ return T[k] || k; }
 
 function cfg(k){
   return (state.settings && state.settings[k] !== undefined) ? state.settings[k] : SETTINGS_DEFAULTS[k];
@@ -81,26 +129,105 @@ function cfg(k){
 
 /* ================= Start ================= */
 (async function boot(){
-  const loaded = await store.load();
-  if(loaded) state = Object.assign(DEFAULT_STATE(), loaded);
-  setLang(cfg('lang'));
-  applyTheme();
-  renderWarmup();
-  renderAll();
-  registerSW();
-  addKeyboardShortcuts();
+  try{
+    const loaded = await store.load();
+    if(loaded){
+      const wasLegacy = store.loadedFrom && store.loadedFrom !== STORAGE_KEY;
+      state = migrateState(loaded);
+      if(wasLegacy || loaded.v !== STATE_VERSION){
+        /* Sofort im aktuellen Schluessel und Format ablegen, danach die
+           Altschluessel entfernen – sonst werden sie bei jedem Kaltstart
+           erneut gelesen. */
+        await save();
+        if(wasLegacy) await store.dropLegacy();
+      }
+    } else if(store.loadError){
+      /* Es lag ein Stand vor, war aber nicht lesbar. storage.js hat das
+         Original unter progression:corrupt:* gesichert. */
+      console.error('[boot] Gespeicherter Stand nicht lesbar:', store.loadError);
+      setTimeout(() => toast(__('storageCorrupt'), true), 400);
+    }
+    setLang(cfg('lang'));
+    applyLanguage();
+    applyTheme();
+    applyRegression();     /* vor dem ersten Rendern, damit die Stufen stimmen */
+    renderWarmup();
+    renderAll();
+    restoreActiveSession();
+    registerSW();
+    installDelegation(actions);
+    installPlanDragAndDrop();
+    addKeyboardShortcuts();
+    addTablistNavigation();
+  }catch(err){
+    /* Ohne diesen Zweig bliebe der Ladehinweis dauerhaft stehen und der
+       Fehler landete nur als unbehandelte Promise-Rejection in der Konsole. */
+    console.error('[boot]', err);
+    const el = document.getElementById('content');
+    if(el) el.innerHTML =
+      '<div class="empty-hint"><b>' + esc(__('bootFailed')) + '</b><br><br>' +
+      esc(String(err && err.message || err)) +
+      '<br><br>' + esc(__('bootHint')) + '</div>';
+  }
 })();
+
+/* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
+   wochenlang weiter, ohne dass etwas ankommt. Der Hinweis bleibt jetzt
+   sichtbar, solange Schreiben fehlschlaegt, und verschwindet von selbst,
+   sobald es wieder klappt. */
+function updateStorageWarning(){
+  const el = document.getElementById('storageWarn');
+  if(el) el.hidden = storageOK;
+}
 
 async function save(){
   try{
     const res = await store.save(state);
     if(!res) throw new Error('no result');
-  }catch(e){
+    if(!storageOK){
+      storageOK = true; updateStorageWarning();
+      toast(__('saveWorksAgain'));
+    }
+  }catch(err){
+    console.error('[save]', err);
     if(storageOK){
-      storageOK = false;
-      toast('Speichern nicht möglich – Fortschritt gilt nur für diese Sitzung.');
+      storageOK = false; updateStorageWarning();
+      toast(__('saveFailed'));
     }
   }
+}
+
+/* ================= Laufende Einheit sichern =================
+   session lebte bisher nur im Arbeitsspeicher. Schickt das Handy die PWA in
+   den Hintergrund und der Browser entlaedt sie, war die halb fertige Einheit
+   weg – beforeunload feuert beim App-Wechsel auf Mobilgeraeten nicht.
+   Deshalb wird sie bei jeder Aenderung mitgeschrieben. */
+function persistSession(){
+  state.activeSession = session.dayKey
+    ? { dayKey: session.dayKey, sets: { ...session.sets }, top: { ...session.top }, reps: { ...session.reps }, d: today() }
+    : null;
+  save();
+}
+function clearSession(){
+  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  state.activeSession = null;
+}
+function restoreActiveSession(){
+  const a = state.activeSession;
+  if(!a || !a.dayKey) return false;
+  /* Eine Einheit von gestern ist keine laufende Einheit mehr. */
+  if(a.d && a.d !== today()){ state.activeSession = null; return false; }
+  if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
+  session = { dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {}, reps: a.reps || {} };
+  renderDaySelect(); renderWorkout(); restoreSession({}, session.reps);
+  toast(__('sessionRestored'));
+  return true;
+}
+
+function setRep(key, value){
+  const n = parseInt(value, 10);
+  session.reps[key] = Number.isFinite(n) ? n : null;
+  persistSession();
 }
 
 function registerSW(){
@@ -111,9 +238,28 @@ function registerSW(){
 
 function renderAll(){
   renderStats(); renderPhase(); renderBanners(); renderDaySelect();
+  /* Ein laufendes Training nicht ueberschreiben. Alle Aufrufer, die eine
+     Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
+  if(session.dayKey) return;
   document.getElementById('content').innerHTML =
-    '<div class="empty-hint">' + __('selectDay') + '.<br><br>' +
-    'Bei Halteübungen startet ein Tipp auf den Satz einen Countdown mit Signal.</div>';
+    '<div class="empty-hint">' + esc(__('selectDay')) + '.<br><br>' +
+    esc(__('selectDayHint')) + '</div>';
+}
+
+/* Setzt alles, was ausserhalb der Render-Funktionen von der Sprache abhaengt. */
+function applyLanguage(){
+  document.documentElement.lang = getLang();
+  document.title = __('appName') + ' – ' + __('appTagline');
+  applyStaticTexts();
+  /* Sprachnamen bleiben in ihrer eigenen Sprache – „Deutsch" heisst auch auf
+     einer englischen Oberflaeche Deutsch. */
+  const sel = document.getElementById('cfg-lang');
+  if(sel) sel.innerHTML = Object.entries(LANGS)
+    .map(([k, name]) => '<option value="' + k + '">' + esc(name) + '</option>').join('');
+  /* Wird sonst nur beim Oeffnen der Einstellungen gesetzt und bliebe nach
+     einem Sprachwechsel in der alten Sprache stehen. */
+  const info = document.getElementById('storageInfo');
+  if(info) info.textContent = __('storageLocation', { mode: __('storageLocal') });
 }
 
 /* ================= Theme ================= */
@@ -139,6 +285,20 @@ function getPlan(){
 function getDays(){ return getPlan().days || []; }
 function getDay(key){ return getDays().find(d => d.key === key); }
 
+/* Anzeigename des Plans. Ein eigener Plan traegt einen vom Nutzer gewaehlten
+   bzw. uebernommenen Namen und wird nicht uebersetzt. */
+function planLabel(){
+  return state.customPlan ? __('customPlan') : planName(state.planId, getPlan().name);
+}
+/* Titel und Untertitel eines Vorlagen-Tages. Bei einem eigenen Plan stammen
+   sie vom Nutzer und bleiben unveraendert. */
+function dayTitleOf(d){
+  return state.customPlan ? d.title : dayTitle(state.planId, d.key, d.title);
+}
+function daySubOf(d){
+  return state.customPlan ? d.sub : daySub(state.planId, d.key, d.sub);
+}
+
 function nextSuggestedKey(){
   const days = getDays();
   if(!days.length) return null;
@@ -150,16 +310,18 @@ function nextSuggestedKey(){
 
 /* ================= Kopfbereich ================= */
 function renderStats(){
-  const ups = Object.values(state.levels).reduce((a, b) => a + b, 0);
+  /* Echte Level-Ups aus dem Log zaehlen. Frueher wurde die Summe der
+     Stufen-Indizes gebildet, sodass jede manuelle Korrektur ueber die
+     +/--Buttons den Zaehler mit aufgeblaeht hat. */
+  const ups = (state.log || []).reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
   const ms = Object.keys(state.milestones || {}).length;
   const thisWeek = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
-  const streak = calcGlobalStreak();
   document.getElementById('stats').innerHTML =
     statBox(state.workouts || 0, __('trainings')) +
     statBox(thisWeek + ' / ' + cfg('weekGoal'), __('thisWeek')) +
     statBox(ups, __('levelUps')) +
     statBox(ms + ' / ' + MILESTONES.length, __('goals'));
-  document.getElementById('planName').textContent = getPlan().name;
+  document.getElementById('planName').textContent = planLabel();
 }
 function statBox(n, l){
   return '<div class="stat"><div class="num">' + n + '</div><div class="lbl">' + l + '</div></div>';
@@ -167,32 +329,22 @@ function statBox(n, l){
 function renderPhase(){
   const perWeek = Math.max(2, cfg('weekGoal'));
   const w = Math.min(8, Math.floor((state.workouts || 0) / perWeek) + 1);
-  let phase = 'Technik & Gewöhnung';
-  if(w >= 3) phase = 'Volumen steigern';
-  if(w >= 5) phase = 'Übungen schwerer machen';
-  if(w >= 7) phase = 'Meilensteine testen';
+  let phase = __('phase1');
+  if(w >= 3) phase = __('phase3');
+  if(w >= 5) phase = __('phase5');
+  if(w >= 7) phase = __('phase7');
   let extra = '';
   const gs = calcGlobalStreak();
-  if(gs >= 7) extra += ' · Serie: <b>' + gs + ' ' + __('days') + '</b>';
+  if(gs >= 7) extra += __('streakLine', { n: gs });
   document.getElementById('phaseLine').innerHTML =
-    'Woche <b>' + w + '</b>/8 · <b>' + phase + '</b>' +
-    (state.lastDate ? ' · zuletzt <b>' + fmtDate(state.lastDate) + '</b>' : '') + extra;
+    __('weekOf', { w, phase: esc(phase) }) +
+    (state.lastDate ? __('lastTrained', { date: fmtDate(state.lastDate) }) : '') + extra;
 }
 
 /* ================= Global Streak & Plateau Detection ================= */
-function calcGlobalStreak(){
-  if(!state.log || !state.log.length) return 0;
-  let streak = 0;
-  const dates = [...new Set(state.log.map(l => l.d))].sort().reverse();
-  for(let i = 0; i < dates.length; i++){
-    const expected = new Date();
-    expected.setDate(expected.getDate() - i);
-    const expectedStr = new Date(expected.getTime() - expected.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    if(dates[i] === expectedStr) streak++;
-    else break;
-  }
-  return streak;
-}
+/* Duenne Huellen um die reinen Funktionen aus js/domain/, damit die vielen
+   Aufrufstellen unveraendert bleiben. */
+function calcGlobalStreak(){ return streakOf(state.log); }
 
 function detectPlateaus(){
   const plateaus = [];
@@ -205,28 +357,43 @@ function detectPlateaus(){
       }).slice(-5);
       if(recent.length >= 4 && !recent.some(l => l.ups && l.ups.length)){
         const lvl = state.levels[id] || 0;
-        if(lvl < ex.levels.length - 1) plateaus.push(ex.name);
+        if(lvl < ex.levels.length - 1) plateaus.push(exName(ex));
       }
     });
   });
   return plateaus;
 }
 
+/* Nach einer laengeren Pause eine Stufe zurueckgehen.
+
+   Die Funktion existierte vollstaendig, wurde aber nie aufgerufen – das
+   Feature war unsichtbar. Zwei Dinge fehlten fuer den produktiven Einsatz:
+   eine Abschaltmoeglichkeit und ein Schutz gegen mehrfaches Ausloesen.
+   Ohne den zweiten wuerde jeder App-Start waehrend derselben Pause erneut
+   eine Stufe abziehen. */
+const REGRESSION_DAYS = 14;
+
 function applyRegression(){
-  if(!state.lastDate) return;
+  if(!cfg('regress') || !state.lastDate) return;
+  /* Pro Pause nur einmal: gemerkt wird das Datum der letzten Einheit. */
+  if(state.regressedFor === state.lastDate) return;
+
   const days = Math.round((new Date(today()) - new Date(state.lastDate)) / 864e5);
-  if(days >= 14){
-    let regressed = false;
-    Object.keys(state.levels).forEach(id => {
-      const ex = EX_BY_ID[id];
-      if(!ex || !state.levels[id]) return;
-      if(days >= 14 && state.levels[id] > 0){
-        state.levels[id] = Math.max(0, state.levels[id] - 1);
-        state.streaks[id] = 0;
-        regressed = true;
-      }
-    });
-    if(regressed) toast(__('regressAfterBreak'), true);
+  if(days < REGRESSION_DAYS) return;
+
+  const namen = [];
+  Object.keys(state.levels).forEach(id => {
+    const ex = EX_BY_ID[id];
+    if(!ex || !(state.levels[id] > 0)) return;
+    state.levels[id] = state.levels[id] - 1;
+    state.streaks[id] = 0;
+    namen.push(exName(ex));
+  });
+
+  state.regressedFor = state.lastDate;
+  if(namen.length){
+    save();
+    setTimeout(() => toast(__('regressedCount', { n: namen.length }), true), 600);
   }
 }
 
@@ -237,16 +404,16 @@ function renderBanners(){
   if(every > 0){
     const due = Math.floor((state.workouts || 0) / every) * every;
     if(due > 0 && due > (state.deloadDismissed || 0)){
-      html += '<div class="banner warn"><b>Deload-Woche empfohlen.</b> Du hast ' + state.workouts +
-        ' Trainings absolviert. Mach diese Woche nur die Hälfte der Sätze mit leichteren Varianten – Sehnen und Gelenke brauchen das, besonders bei Stütz- und Zugarbeit.' +
-        '<br><button onclick="dismissDeload(' + due + ')">Verstanden</button></div>';
+      html += '<div class="banner warn"><b>' + esc(__('deloadTitle')) + '</b> ' +
+        esc(__('deloadBody', { n: state.workouts })) +
+        '<br><button data-action="deload:dismiss" data-due="' + due + '">' + esc(__('understood')) + '</button></div>';
     }
   }
   if(state.lastDate){
     const days = Math.round((new Date(today()) - new Date(state.lastDate)) / 864e5);
     if(days >= 7){
-      html += '<div class="banner info">Letztes Training war vor ' + days +
-        ' Tagen. Steig ruhig eine Stufe niedriger wieder ein – nach einer Pause ist das kein Rückschritt, sondern Verletzungsprophylaxe.</div>';
+      html += '<div class="banner info"><b>' + esc(__('layoffTitle', { n: days })) + '</b> ' +
+        esc(__('layoffBody')) + '</div>';
     }
   }
   const plateaus = detectPlateaus();
@@ -259,11 +426,14 @@ function renderBanners(){
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
 
 function renderWarmup(){
-  const items = state.warmupCustom || WARMUP;
+  /* Nur die Standardliste wird übersetzt – eigene Einträge des Nutzers
+     stehen in state.warmupCustom und bleiben so, wie er sie geschrieben hat. */
+  const items = state.warmupCustom || WARMUP.map((w, i) => warmupText(i, w));
   const el = document.getElementById('warmupList');
   el.innerHTML = items.map((w, i) =>
     '<li' + (w.includes('Pflicht') ? ' class="pflicht"' : '') + '>' +
-    esc(w) + ' <button class="mini-btn" onclick="removeWarmupItem(' + i + ')" title="entfernen" style="font-size:10px;width:20px;height:20px;margin-left:6px">✕</button></li>'
+    esc(w) + ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
+    ' aria-label="Warm-up-Eintrag entfernen: ' + esc(w) + '">✕</button></li>'
   ).join('');
 }
 function removeWarmupItem(i){
@@ -271,11 +441,11 @@ function removeWarmupItem(i){
   state.warmupCustom.splice(i, 1);
   save(); renderWarmup();
 }
-function addWarmupItem(){
-  const t = prompt('Neuen Warm-up-Eintrag:');
-  if(!t) return;
+async function addWarmupItem(){
+  const t = await askText(__('warmupExtend'), __('warmupNew'), '', 80);
+  if(!t || !t.trim()) return;
   if(!state.warmupCustom) state.warmupCustom = [...WARMUP];
-  state.warmupCustom.push(t);
+  state.warmupCustom.push(t.trim());
   save(); renderWarmup();
 }
 
@@ -283,9 +453,17 @@ function addWarmupItem(){
 const TABS = ['train', 'history', 'library', 'plan', 'milestones'];
 function showTab(t){
   TABS.forEach(x => {
-    document.getElementById('view-' + x).hidden = (x !== t);
-    document.getElementById('tab-' + x).classList.toggle('active', x === t);
-    document.getElementById('tab-' + x).ariaSelected = (x === t) ? 'true' : 'false';
+    const sel = (x === t);
+    document.getElementById('view-' + x).hidden = !sel;
+    const tab = document.getElementById('tab-' + x);
+    tab.classList.toggle('active', sel);
+    /* setAttribute statt der IDL-Eigenschaft .ariaSelected: wo die Browser
+       sie nicht reflektieren, entstand dort nur eine Expando-Eigenschaft,
+       waehrend das Attribut im DOM dauerhaft auf false stehen blieb. */
+    tab.setAttribute('aria-selected', sel ? 'true' : 'false');
+    /* Roving tabindex: der Tabulator springt in die Leiste hinein und wieder
+       heraus, zwischen den Tabs navigiert man mit den Pfeiltasten. */
+    tab.tabIndex = sel ? 0 : -1;
   });
   document.getElementById('finishBar').style.display = (t === 'train' && session.dayKey) ? 'block' : 'none';
   if(t === 'history') renderHistory();
@@ -295,10 +473,41 @@ function showTab(t){
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/* Pfeiltasten-Navigation innerhalb der Tableiste (ARIA-Tabs-Muster). */
+function addTablistNavigation(){
+  document.querySelector('.tabs').addEventListener('keydown', e => {
+    const keys = { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
+    if(!(e.key in keys)) return;
+    const cur = TABS.indexOf(e.target.id.replace('tab-', ''));
+    if(cur < 0) return;
+    e.preventDefault();
+    const d = keys[e.key];
+    const next = d === 'first' ? 0
+      : d === 'last' ? TABS.length - 1
+      : (cur + d + TABS.length) % TABS.length;
+    showTab(TABS[next]);
+    document.getElementById('tab-' + TABS[next]).focus();
+  });
+}
+
 /* ================= Tab Keyboard Navigation ================= */
 function addKeyboardShortcuts(){
   document.addEventListener('keydown', e => {
+    /* Escape zuerst und unabhaengig vom Fokus – schliesst den jeweils
+       offenen Dialog, nicht nur die Einstellungen. */
+    if(e.key === 'Escape'){
+      /* Nur die oberste Ebene schliessen. Die askDialog-Overlays behandeln
+         Escape selbst und stoppen die Weitergabe. */
+      if(openDialogEl.current) closeDialog(openDialogEl.current);
+      return;
+    }
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    /* Bei offenem Dialog keine Kuerzel im Hintergrund ausloesen. */
+    if(openDialogEl.current) return;
+    /* Nur auslosen, wenn kein anderes Bedienelement den Fokus hat – sonst
+       schluckt Space die Aktivierung des fokussierten Buttons. */
+    if(e.key === ' ' && e.target.closest('button, a, summary, [tabindex]') &&
+       !e.target.classList.contains('set-dot')) return;
     if(e.key === ' ' && session.dayKey){
       e.preventDefault();
       const active = document.activeElement;
@@ -312,7 +521,7 @@ function addKeyboardShortcuts(){
       else if(session.dayKey){
         const defaultRest = cfg('rest');
         startRest(defaultRest);
-        toast('Pause ' + defaultRest + ' Sek');
+        toast(__('restLabel', { sec: defaultRest }));
       }
       return;
     }
@@ -320,7 +529,6 @@ function addKeyboardShortcuts(){
       const tabs = ['train', 'history', 'library', 'plan', 'milestones'];
       showTab(tabs[parseInt(e.key) - 1]);
     }
-    if(e.key === 'Escape') closeSettings();
   });
 }
 
@@ -328,26 +536,22 @@ function addKeyboardShortcuts(){
 function renderDaySelect(){
   const sug = nextSuggestedKey();
   document.getElementById('daySelect').innerHTML = getDays().map(d =>
-    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') + '" onclick="selectDay(\'' + d.key + '\')">' +
-    (d.key === sug && !session.dayKey ? '<span class="badge">dran</span>' : '') +
-    '<div class="tag">' + esc(d.key) + ' · ' + esc(d.title) + '</div>' +
-    '<div class="sub">' + esc(d.sub || (d.ex.length + ' Übungen')) + '</div></button>'
-  ).join('') || '<div class="empty-hint">' + __('noPlanDays') + ' – lege im Tab „Plan" einen an.</div>';
+    /* Der Tag-Key stammt aus einer Nutzereingabe und darf nicht in einen
+       JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
+       weil der HTML-Parser die Entities vor der JS-Auswertung zurueckwandelt.
+       Deshalb data-key + delegierter Listener (siehe unten). */
+    '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') +
+      '" data-action="day:select" data-key="' + esc(d.key) + '">' +
+    (d.key === sug && !session.dayKey ? '<span class="badge">' + esc(__('upNext')) + '</span>' : '') +
+    '<div class="tag">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</div>' +
+    '<div class="sub">' + esc(daySubOf(d) || __('exercisesCount', { n: d.ex.length })) + '</div></button>'
+  ).join('') || '<div class="empty-hint">' + esc(__('noPlanDays') + __('noPlanDaysHint')) + '</div>';
 }
+/* Der frühere Sonder-Listener für #daySelect ist entfallen – die Tag-Buttons
+   laufen jetzt über dieselbe Aktionstabelle wie alles andere. */
 
 /* ================= Sätze & Ziele berechnen ================= */
-function parseTarget(target){
-  const sm = target.match(/^(\d+)\s*×/);
-  const hm = target.match(/(\d+)(?:–(\d+))?\s*Sek/);
-  const rm = target.match(/(\d+)(?:–(\d+))?$/);
-  let sets = sm ? parseInt(sm[1], 10) : 3;
-  const mode = cfg('setsMode');
-  if(mode === 'light') sets = Math.min(sets, 3);
-  if(mode === 'hard') sets = sets + 1;
-  let minReps = null, maxReps = null;
-  if(rm && !hm){ minReps = parseInt(rm[1], 10); maxReps = rm[2] ? parseInt(rm[2], 10) : minReps; }
-  return { sets, isHold: !!hm, holdSecs: hm ? parseInt(hm[2] || hm[1], 10) : 0, minReps, maxReps };
-}
+function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
 function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
@@ -355,6 +559,7 @@ function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest
 function selectDay(key){
   cancelHold(); stopRest();
   session = { dayKey: key, sets: {}, top: {}, reps: {} };
+  persistSession();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
 
@@ -373,46 +578,64 @@ function renderWorkout(){
     let rungs = '';
     ex.levels.forEach((l, i) => {
       if(i > 0) rungs += '<div class="rung-line' + (i <= lvl ? ' done' : '') + '"></div>';
-      rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(l.stage) + '"></div>';
+      /* title allein wird nicht zuverlaessig angesagt und auf Touch nie
+         angezeigt – die Leiter transportierte ihren Zustand rein farblich. */
+      rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(exStage(ex, i)) + '" aria-hidden="true"></div>';
     });
 
     let dots = '';
     for(let s = 0; s < t.sets; s++){
       const repKey = ex.id + '-' + s;
-      dots += '<button class="set-dot" id="set-' + repKey + '" onclick="tapSet(\'' + ex.id + '\',' + s + ')" aria-label="' + __('sets') + ' ' + (s + 1) + '">' + (s + 1) + '</button>';
+      /* aria-pressed statt reiner Farbcodierung: der Erledigt-Zustand war
+         nur ueber eine CSS-Klasse sichtbar und das Label statisch.
+         aria-live auf dem Punkt, damit der Countdown einer Halteuebung
+         ueberhaupt angesagt wird – er aendert nur den Textinhalt. */
+      dots += '<button class="set-dot" id="set-' + repKey + '"' +
+        ' data-action="set:tap" data-ex="' + ex.id + '" data-set="' + s + '"' +
+        ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
+        (t.isHold ? ' aria-live="polite"' : '') +
+        ' aria-label="' + esc(__('setAria', { ex: exName(ex), n: s + 1, total: t.sets })) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
-        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '" placeholder="' + (t.minReps + '-' + t.maxReps) + '" title="' + __('reps') + '" value="' + ((session.reps || {})[repKey] || '') + '" onchange="session.reps[\'' + repKey + '\']=parseInt(this.value)||null">';
+        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
+          ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
+          ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
+          ' value="' + ((session.reps || {})[repKey] || '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       }
     }
 
     let hint;
-    if(maxed && streak >= need) hint = '<span class="streak-hint hot">Höchste Stufe erreicht – stark!</span>';
-    else if(streak === need - 1 && streak > 0) hint = '<span class="streak-hint hot">' + streak + '/' + need + ' – noch 1× oberes Limit bis zur nächsten Stufe!</span>';
-    else hint = '<span class="streak-hint">' + streak + '/' + need + ' Einheiten am oberen Limit bis zum Aufstieg</span>';
+    if(maxed && streak >= need) hint = '<span class="streak-hint hot">' + esc(__('maxLevelReached')) + '</span>';
+    else if(streak === need - 1 && streak > 0) hint = '<span class="streak-hint hot">' + esc(__('oneMoreToLevel', { n: streak, need })) + '</span>';
+    else hint = '<span class="streak-hint">' + esc(__('towardsLevel', { n: streak, need })) + '</span>';
 
     const note = (state.notes || {})[ex.id];
     const pr = (state.prs || {})[ex.id];
 
     html += '<div class="ex" data-exid="' + ex.id + '">' +
       '<div class="ex-top"><span class="rung-label">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length +
-        ' <span class="cat-chip">' + CATS[ex.cat].name + '</span></span>' +
-        '<span class="lvl-adjust"><button onclick="adjustLevel(\'' + ex.id + '\',-1)" title="Stufe verringern" aria-label="Stufe verringern">−</button>' +
-        '<button onclick="adjustLevel(\'' + ex.id + '\',1)" title="Stufe erhöhen" aria-label="Stufe erhöhen">+</button></span></div>' +
-      '<div class="rungs">' + rungs + '</div>' +
-      '<div class="ex-head"><div class="ex-name">' + esc(ex.name) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
-      '<div class="ex-stage">Aktuell: <b>' + esc(level.stage) + '</b></div>' +
-      (pr ? '<div class="pr-line">' + __('best') + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
-      (note ? '<div class="last-note">Letztes Mal (' + fmtDate(note.d) + '): „' + esc(note.t) + '"</div>' : '') +
+        ' <span class="cat-chip">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span></span>' +
+        '<span class="lvl-adjust"><button data-action="level:adjust" data-ex="' + ex.id +
+        '" data-delta="-1" title="' + esc(__('levelDown')) + '" aria-label="' + esc(__('levelDown')) + '">−</button>' +
+        '<button data-action="level:adjust" data-ex="' + ex.id +
+        '" data-delta="1" title="' + esc(__('levelUp')) + '" aria-label="' + esc(__('levelUp')) + '">+</button></span></div>' +
+      '<div class="rungs" role="img" aria-label="' +
+        esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
+        '">' + rungs + '</div>' +
+      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
+      '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
+      (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
+      (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
-      (t.isHold ? '<span class="hold-hint">Tipp auf einen Satz startet den ' + t.holdSecs + '-Sek-Timer · Pause ' + restFor(ex) + ' Sek</span>'
-                : '<span class="hold-hint">Pause ' + restFor(ex) + ' Sek</span>') +
-      '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" onchange="toggleTop(\'' + ex.id + '\',this.checked)"><span>' + __('topLimit') + '</span></label>' +
+      '<span class="hold-hint">' +
+        (t.isHold ? esc(__('holdHint', { sec: t.holdSecs })) + ' · ' : '') +
+        esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
+      '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"><span>' + __('topLimit') + '</span></label>' +
       hint +
       '<textarea class="note-input" id="note-' + ex.id + '" rows="1" placeholder="' + __('notes') + ' (z. B. „6 Sek Negativ geschafft") – optional"></textarea>' +
-      '<button class="tip-btn" onclick="toggleTips(\'' + ex.id + '\')">' + __('tips') + '</button>' +
-      '<ul class="tips" id="tips-' + ex.id + '">' + ex.tips.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-      '<button class="sub-btn" onclick="substituteExercise(\'' + ex.id + '\')">↻ ' + __('substitute') + '</button>' +
-      '<button class="tip-btn" onclick="showExHistory(\'' + ex.id + '\')">📊 ' + __('perExercise') + '</button>' +
+      '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
+      '<ul class="tips" id="tips-' + ex.id + '">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + ex.id + '">↻ ' + __('substitute') + '</button>' +
+      '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div>';
   });
 
@@ -432,7 +655,10 @@ function snapshotNotes(){
 }
 function restoreSession(notes, reps){
   Object.keys(session.sets).forEach(k => {
-    if(session.sets[k]){ const el = document.getElementById('set-' + k); if(el) el.classList.add('done'); }
+    if(session.sets[k]){
+      const el = document.getElementById('set-' + k);
+      if(el){ el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); }
+    }
   });
   Object.keys(session.top).forEach(id => {
     if(session.top[id]){
@@ -456,31 +682,41 @@ function adjustLevel(id, d){
   if(next === cur) return;
   state.levels[id] = next; state.streaks[id] = 0;
   save(); renderStats();
-  if(session.dayKey){ const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
+  /* cancelHold() zuerst: sonst laeuft ein Countdown gegen das alte,
+     nach renderWorkout() abgehaengte Element weiter und markiert einen
+     Satz, den man nicht mehr sieht. */
+  if(session.dayKey){ cancelHold(); const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
-  toast(ex.name + ': Stufe "' + ex.levels[next].stage + '"');
+  toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }));
 }
 
 /* ================= Substitute Exercise ================= */
-function substituteExercise(id){
+async function substituteExercise(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
   const sameCat = EXERCISES.filter(e => e.cat === ex.cat && e.id !== id);
-  if(!sameCat.length){ toast('Keine Alternative in dieser Kategorie gefunden.'); return; }
-  const names = sameCat.map((e, i) => (i + 1) + '. ' + e.name).join('\n');
-  const choice = prompt('Ersatz für "' + ex.name + '" wählen:\n\n' + names + '\n\nNummer eingeben:');
-  if(!choice) return;
-  const idx = parseInt(choice, 10) - 1;
-  if(isNaN(idx) || idx < 0 || idx >= sameCat.length){ toast('Ungültige Auswahl.'); return; }
+  if(!sameCat.length){ toast(__('noAlternative')); return; }
+
+  /* Frueher wurde die Liste in ein prompt() gerendert und der Nutzer musste
+     eine Nummer eintippen. Jetzt eine anklickbare Auswahl mit der jeweils
+     aktuellen Stufe als Zusatzinfo. */
+  const gewaehlt = await askChoice(__('substituteFor', { name: exName(ex) }), sameCat.map(e => ({
+    value: e.id,
+    name: exName(e),
+    sub: exStage(e, lvlOf(e)) + ' · ' + e.levels[lvlOf(e)].target
+  })));
+  if(!gewaehlt) return;
+
   const p = ensureCustom();
   const day = p.days.find(d => d.key === session.dayKey);
   if(!day) return;
   const ei = day.ex.indexOf(id);
-  if(ei >= 0) day.ex[ei] = sameCat[idx].id;
+  if(ei >= 0) day.ex[ei] = gewaehlt;
   save();
   const n = snapshotNotes(); const r = session.reps;
   session.sets = {}; session.top = {};
+  persistSession();
   renderWorkout(); restoreSession(n, r);
-  toast(sameCat[idx].name + ' als Ersatz eingetragen.');
+  toast(__('substituted', { name: exName(EX_BY_ID[gewaehlt]) }));
 }
 
 /* ================= Per-Exercise History ================= */
@@ -490,13 +726,19 @@ function showExHistory(id){
     const day = getDay(l.day);
     return day && day.ex.includes(id);
   }).slice(-15).reverse();
-  let html = '<div class="modal" style="max-width:400px;padding:16px"><div class="modal-head">' +
-    esc(ex.name) + ' · Verlauf<button onclick="closeExHistory()">✕</button></div>';
-  if(!logEntries.length) html += '<div class="muted">Noch keine Einträge.</div>';
+  /* role/aria-modal fehlten hier komplett – anders als beim statischen
+     Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
+  let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '"' +
+    ' style="max-width:400px;padding:16px"><div class="modal-head">' +
+    esc(__('exerciseHistory', { name: exName(ex) })) +
+    '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">✕</button></div>';
+  if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
   else {
-    html += '<table style="width:100%;font-size:13px"><tr><th>Datum</th><th>Sätze</th><th>Top</th><th>Level</th></tr>';
+    /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
+       Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
+    html += '<table style="width:100%;font-size:13px"><tr><th>' + esc(__('colDate')) + '</th><th>' +
+      esc(__('colSets')) + '</th><th>' + esc(__('colTop')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
     logEntries.forEach(l => {
-      const lvl = state.levels[id] || 0;
       html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
         (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</td></tr>';
     });
@@ -509,9 +751,12 @@ function showExHistory(id){
     document.body.appendChild(o); return o;
   })();
   overlay.innerHTML = html;
-  overlay.classList.add('open');
+  openDialog(overlay);
 }
-function closeExHistory(){ const o = document.getElementById('exHistoryOverlay'); if(o) o.classList.remove('open'); }
+function closeExHistory(){
+  const o = document.getElementById('exHistoryOverlay');
+  if(o) closeDialog(o);
+}
 
 /* ================= Satz-Interaktion ================= */
 function tapSet(id, s){
@@ -524,8 +769,8 @@ function tapSet(id, s){
 
   if(session.sets[key]){
     session.sets[key] = false;
-    el.classList.remove('done'); el.textContent = s + 1;
-    updateFinish(); return;
+    el.classList.remove('done'); el.setAttribute('aria-pressed', 'false'); el.textContent = s + 1;
+    updateFinish(); persistSession(); return;
   }
 
   if(t.isHold){
@@ -547,8 +792,8 @@ function tapSet(id, s){
 }
 function markDone(key, el, s, ex){
   session.sets[key] = true;
-  el.classList.add('done'); el.textContent = s + 1;
-  updateFinish();
+  el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
+  updateFinish(); persistSession();
   if(cfg('autoRest')) startRest(restFor(ex));
 }
 function cancelHold(){
@@ -561,13 +806,24 @@ function cancelHold(){
 function toggleTop(id, on){
   session.top[id] = on;
   document.getElementById('top-' + id).classList.toggle('checked', on);
+  persistSession();
 }
 function toggleTips(id){ document.getElementById('tips-' + id).classList.toggle('open'); }
 
+/* Die Uebungen der laufenden Einheit. Faellt auf die Session selbst zurueck,
+   wenn der Trainingstag zwischenzeitlich aus dem Plan geloescht wurde –
+   sonst geht die halb fertige Einheit verloren. */
+function sessionExerciseIds(){
+  const day = getDay(session.dayKey);
+  if(day) return day.ex;
+  const fromSets = Object.keys(session.sets).map(k => k.slice(0, k.lastIndexOf('-')));
+  return [...new Set(Object.keys(session.top).concat(fromSets))].filter(id => EX_BY_ID[id]);
+}
+
 function updateFinish(){
-  const day = getDay(session.dayKey); if(!day) return;
+  const ids = sessionExerciseIds(); if(!ids.length) return;
   const done = Object.values(session.sets).filter(Boolean).length;
-  const total = day.ex.reduce((a, id) => {
+  const total = ids.reduce((a, id) => {
     const ex = EX_BY_ID[id];
     return ex ? a + parseTarget(ex.levels[lvlOf(ex)].target).sets : a;
   }, 0);
@@ -584,7 +840,7 @@ function startRest(secs){
   out.textContent = f(rem); chip.style.display = 'block';
   restTimer = setInterval(() => {
     rem--;
-    if(rem <= 0){ stopRest(); signal(false); toast('Pause vorbei – nächster Satz!'); }
+    if(rem <= 0){ stopRest(); signal(false); toast(__('restOver')); }
     else out.textContent = f(rem);
   }, 1000);
 }
@@ -597,11 +853,17 @@ function stopRest(){
 let audioCtx = null;
 function signal(double){
   if(cfg('vibrate') && navigator.vibrate){
-    try{ navigator.vibrate(double ? [120, 80, 120] : 150); }catch(e){}
+    /* Vibration ist auf Desktop und in manchen Browsern nicht verfuegbar –
+       ein Fehlschlag darf das Signal nicht abbrechen. */
+    try{ navigator.vibrate(double ? [120, 80, 120] : 150); }catch{ /* nicht unterstuetzt */ }
   }
   if(!cfg('sound')) return;
   try{
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    /* Ein ausserhalb einer Nutzergeste erzeugter Kontext bleibt "suspended";
+       ohne resume() blieb jeder Timer-Ton lautlos – genau dann, wenn er
+       gebraucht wird, naemlich beim automatischen Ablauf der Pause. */
+    if(audioCtx.state === 'suspended') audioCtx.resume();
     const play = (t, f) => {
       const o = audioCtx.createOscillator(), g = audioCtx.createGain();
       o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination);
@@ -611,7 +873,7 @@ function signal(double){
       o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + .3);
     };
     play(0, 880); if(double) play(.35, 1174);
-  }catch(e){}
+  }catch{ /* Web Audio blockiert oder nicht verfuegbar – dann eben stumm */ }
 }
 
 /* ================= Bildschirm wach halten ================= */
@@ -621,19 +883,42 @@ async function requestWakeLock(){
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     }
-  }catch(e){}
+  }catch{ /* Wake Lock nicht unterstuetzt oder vom System verweigert */ }
 }
-function releaseWakeLock(){ if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; } }
+function releaseWakeLock(){
+  if(wakeLock){
+    try{ wakeLock.release(); }catch{ /* bereits freigegeben */ }
+    wakeLock = null;
+  }
+}
 
 /* ================= Training abschließen mit Undo ================= */
 async function finishWorkout(){
   cancelHold(); stopRest(); releaseWakeLock();
-  const day = getDay(session.dayKey);
+  const exIds = sessionExerciseIds();
+  if(!exIds.length){ toast(__('nothingToSave')); return; }
   const need = cfg('streak');
   const ups = [];
   let tops = 0;
 
-  day.ex.forEach(id => {
+  /* Snapshot VOR der Mutationsschleife. Er wurde frueher danach gezogen und
+     enthielt damit bereits die neuen Werte – levels, streaks, prs und notes
+     liessen sich also gar nicht zurueckrollen, obwohl undoWorkout() sie
+     zuzuweisen schien. */
+  lastWorkoutSnapshot = {
+    levels: JSON.parse(JSON.stringify(state.levels)),
+    streaks: JSON.parse(JSON.stringify(state.streaks)),
+    prs: JSON.parse(JSON.stringify(state.prs)),
+    notes: JSON.parse(JSON.stringify(state.notes)),
+    byDay: JSON.parse(JSON.stringify(state.byDay || {})),
+    session: JSON.parse(JSON.stringify(session)),
+    workouts: state.workouts || 0,
+    lastDate: state.lastDate,
+    deloadDismissed: state.deloadDismissed,
+    entry: null            /* wird nach dem Anlegen des Log-Eintrags gesetzt */
+  };
+
+  exIds.forEach(id => {
     const ex = EX_BY_ID[id]; if(!ex) return;
     const lvl = state.levels[id] || 0;
     const maxed = lvl >= ex.levels.length - 1;
@@ -642,7 +927,7 @@ async function finishWorkout(){
       state.streaks[id] = (state.streaks[id] || 0) + 1;
       if(!maxed && state.streaks[id] >= need){
         state.levels[id] = lvl + 1; state.streaks[id] = 0;
-        ups.push(ex.name + ' → ' + ex.levels[lvl + 1].stage);
+        ups.push(exName(ex) + ' → ' + exStage(ex, lvl + 1));
       }
     } else state.streaks[id] = 0;
 
@@ -658,8 +943,8 @@ async function finishWorkout(){
         const repEl = document.getElementById('rep-' + id + '-' + s);
         if(repEl && repEl.value){
           const v = parseInt(repEl.value, 10);
-          if(v && (!state.prs[id] || v > parseInt(state.prs[id].v, 10))){
-            state.prs[id] = { v: v + ' ' + __('reps'), d: today() };
+          if(v && v > prNumber(state.prs[id])){
+            state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
           }
         }
       }
@@ -670,75 +955,65 @@ async function finishWorkout(){
   const now = today();
   const entry = { d: now, day: session.dayKey, sets, tops, ups, reps: { ...session.reps } };
 
-  lastWorkoutSnapshot = {
-    levels: JSON.parse(JSON.stringify(state.levels)),
-    streaks: JSON.parse(JSON.stringify(state.streaks)),
-    prs: JSON.parse(JSON.stringify(state.prs)),
-    notes: JSON.parse(JSON.stringify(state.notes)),
-    session: JSON.parse(JSON.stringify(session)),
-    entry
-  };
+  lastWorkoutSnapshot.entry = entry;
 
   state.workouts = (state.workouts || 0) + 1;
   state.byDay[session.dayKey] = (state.byDay[session.dayKey] || 0) + 1;
   state.lastDate = now;
 
-  /* Global streak */
-  const gs = calcGlobalStreak();
-  state.streakDays = gs + 1;
-
   state.log.push(entry);
-  if(state.log.length > 500) state.log = state.log.slice(-500);
+  if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
   await save();
 
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
-  if(ups.length){ signal(true); toast('LEVEL-UP! ' + ups.join(' · '), true); }
-  else toast('Training gespeichert – ' + state.workouts + ' Einheiten insgesamt.');
+  if(ups.length){ signal(true); toast(__('levelUpToast', { list: ups.join(' · ') }), true); }
+  else toast(__('workoutSaved', { n: state.workouts }));
 
   /* Offer undo for 5 seconds */
   clearTimeout(undoTimeout);
-  undoTimeout = setTimeout(() => { lastWorkoutSnapshot = null; }, 5000);
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
   undoBtn.textContent = '↩ ' + __('undo');
-  undoBtn.onclick = undoWorkout;
+  undoBtn.dataset.action = 'workout:undo';
   document.getElementById('content').appendChild(undoBtn);
+  /* Den Button zusammen mit dem Snapshot entfernen – sonst bleibt eine
+     Schaltflaeche stehen, die nach 5 s wortlos nichts mehr tut. */
+  undoTimeout = setTimeout(() => {
+    lastWorkoutSnapshot = null;
+    undoBtn.remove();
+  }, 5000);
 }
 
 function undoWorkout(){
-  if(!lastWorkoutSnapshot) return;
-  state.levels = lastWorkoutSnapshot.levels;
-  state.streaks = lastWorkoutSnapshot.streaks;
-  state.prs = lastWorkoutSnapshot.prs;
-  state.notes = lastWorkoutSnapshot.notes;
-  state.workouts = Math.max(0, state.workouts - 1);
-  const idx = state.log.findIndex(l =>
-    l.d === lastWorkoutSnapshot.entry.d &&
-    l.day === lastWorkoutSnapshot.entry.day
-  );
+  const snap = lastWorkoutSnapshot;
+  if(!snap) return;
+  state.levels = snap.levels;
+  state.streaks = snap.streaks;
+  state.prs = snap.prs;
+  state.notes = snap.notes;
+  state.byDay = snap.byDay;
+  state.workouts = snap.workouts;
+  state.lastDate = snap.lastDate;
+  state.deloadDismissed = snap.deloadDismissed;
+  /* Identitaetsvergleich statt Suche ueber (Datum, Tag): zwei Einheiten
+     desselben Tages am selben Datum sind zulaessig, und der Suchtreffer
+     waere dann der falsche Eintrag. */
+  const idx = state.log.lastIndexOf(snap.entry);
   if(idx >= 0) state.log.splice(idx, 1);
-  state.lastDate = state.log.length ? state.log[state.log.length - 1].d : null;
   save();
   clearTimeout(undoTimeout);
   lastWorkoutSnapshot = null;
   document.querySelector('.undo-btn')?.remove();
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
   toast(__('undoWorkout'));
 }
 
 /* ================= Verlauf ================= */
-function isoWeek(iso){
-  const d = new Date(iso + 'T12:00:00');
-  const day = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - day + 3);
-  const firstThu = new Date(d.getFullYear(), 0, 4);
-  return d.getFullYear() + '-KW' + String(1 + Math.round((d - firstThu) / 6048e5)).padStart(2, '0');
-}
 function weekLabel(w){ return w.split('-')[1]; }
 
 function renderHistory(){
@@ -754,22 +1029,35 @@ function renderHistory(){
 
   const wc = document.getElementById('weekChart');
   if(!weeks.length){
-    wc.innerHTML = '<div class="empty-hint" style="width:100%">' + __('noHistory') + ' – dein erstes abgeschlossenes Training erscheint hier.</div>';
+    wc.innerHTML = '<div class="empty-hint" style="width:100%">' + esc(__('noHistory') + __('noHistoryHint')) + '</div>';
     document.getElementById('weekLegend').textContent = '';
     document.getElementById('volChart').innerHTML = '';
   } else {
+    /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
+       steckte allein in der Balkenfarbe. Jeder Balken bekommt daher ein
+       sprechendes Label, das Diagramm selbst eine Rolle und Beschriftung. */
     const max = Math.max(goal, ...weeks.map(w => byWeek[w]));
+    wc.setAttribute('role', 'img');
+    wc.setAttribute('aria-label', __('chartWorkoutsAria', {
+      range: weeks.length === 1 ? __('lastWeekSingular') : __('lastWeeksPlural', { n: weeks.length }),
+      data: weeks.map(w => weekLabel(w) + ' ' + byWeek[w] + (byWeek[w] >= goal ? __('goalMet') : '')).join(', ')
+    }));
     wc.innerHTML = weeks.map(w => {
       const n = byWeek[w];
-      return '<div class="bar-col"><span class="bar-num">' + n + '</span>' +
+      return '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + n + '</span>' +
         '<div class="bar' + (n >= goal ? ' goal-met' : '') + '" style="height:' + Math.round(n / max * 100) + '%"></div>' +
         '<span class="bar-lbl">' + weekLabel(w) + '</span></div>';
     }).join('');
-    document.getElementById('weekLegend').textContent = 'Grün = Wochenziel von ' + goal + ' Trainings erreicht.';
+    document.getElementById('weekLegend').textContent = __('weekLegend', { n: goal });
 
     const vmax = Math.max(...weeks.map(w => volWeek[w]), 1);
-    document.getElementById('volChart').innerHTML = weeks.map(w =>
-      '<div class="bar-col"><span class="bar-num">' + volWeek[w] + '</span>' +
+    const vc = document.getElementById('volChart');
+    vc.setAttribute('role', 'img');
+    vc.setAttribute('aria-label', __('chartVolumeAria', {
+      data: weeks.map(w => weekLabel(w) + ' ' + volWeek[w]).join(', ')
+    }));
+    vc.innerHTML = weeks.map(w =>
+      '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + volWeek[w] + '</span>' +
       '<div class="bar" style="height:' + Math.round(volWeek[w] / vmax * 100) + '%"></div>' +
       '<span class="bar-lbl">' + weekLabel(w) + '</span></div>').join('');
   }
@@ -782,7 +1070,7 @@ function renderHistory(){
   list.innerHTML = log.length ? log.map(l => {
     const d = getDay(l.day);
     return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
-      '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(d.title) : '') + '</span>' +
+      '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
       '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top</span>' +
       '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
@@ -806,16 +1094,22 @@ function renderCalendar(){
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
-  let html = '<div class="section-title">' + __('calendar') + ' ' + now.toLocaleDateString('de', { month: 'long', year: 'numeric' }) + '</div>' +
-    '<div class="calendar-grid">';
-  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header">' + d + '</div>'; });
+  const monatsName = now.toLocaleDateString('de', { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title">' + __('calendar') + ' ' + monatsName + '</div>' +
+    '<div class="calendar-grid" role="list" aria-label="Trainingstage im ' + monatsName + '">';
+  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + d + '</div>'; });
   const offset = (first + 6) % 7;
-  for(let i = 0; i < offset; i++) html += '<div class="cal-day empty"></div>';
+  for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
   for(let d = 1; d <= daysInMonth; d++){
     const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     const isWorkout = workoutDays.has(dateStr);
     const isToday = dateStr === today();
-    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '">' + d + '</div>';
+    /* Trainingstage waren nur gruen eingefaerbt – ohne Datum, ohne Label.
+       Jetzt tragen sie den vollen Tag samt Zustand als Textalternative. */
+    const label = __('calendarDay', { d, month: monatsName }) +
+      (isWorkout ? __('calendarTrained') : '') + (isToday ? __('calendarToday') : '');
+    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '"' +
+      ' role="listitem" aria-label="' + label + '"><span aria-hidden="true">' + d + '</span></div>';
   }
   html += '</div>';
   cal.innerHTML = html;
@@ -832,9 +1126,9 @@ async function addMeasurement(){
     const v = parseFloat(el?.value);
     if(v && v > 0 && v < 200) entry[p] = v;
   });
-  if(Object.keys(entry).length < 2){ toast('Bitte mindestens ein Maß eingeben.'); return; }
+  if(Object.keys(entry).length < 2){ toast(__('measurementEmpty')); return; }
   m._dates.push(entry);
-  if(m._dates.length > 200) m._dates = m._dates.slice(-200);
+  if(m._dates.length > MAX_SERIES_ENTRIES) m._dates = m._dates.slice(-MAX_SERIES_ENTRIES);
   state.measurements = m;
   parts.forEach(p => { const el = document.getElementById('meas-' + p); if(el) el.value = ''; });
   await save(); renderMeasurements(); toast(__('addMeasurement') + '.');
@@ -859,7 +1153,7 @@ function renderMeasurements(){
     const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
     html += '<div style="flex:1"><small>' + esc(labels[p]) + '</small><input id="meas-' + p + '" type="number" step="0.5" min="0" max="200" placeholder="' + esc(last) + ' ' + __('cm') + '" style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
   });
-  html += '<button onclick="addMeasurement()" style="align-self:flex-end">' + __('save') + '</button>';
+  html += '<button data-action="measurement:add" style="align-self:flex-end">' + __('save') + '</button>';
   html += '</div>';
 
   if(dates.length){
@@ -871,7 +1165,9 @@ function renderMeasurements(){
     html += fmtDate(last.d);
     html += '</div>';
     if(dates.length > 1){
-      html += '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none">';
+      /* Die Zahlen stehen direkt darüber im Text – die Kurve ist reine
+         Dekoration und wird deshalb ausgeblendet statt doppelt vorgelesen. */
+      html += '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">';
       parts.forEach((p, pi) => {
         const vals = dates.map(d => d[p]).filter(v => v);
         if(vals.length < 2) return;
@@ -892,41 +1188,43 @@ function renderMeasurements(){
 async function addWeight(){
   const inp = document.getElementById('weightInput');
   const v = parseFloat(String(inp.value).replace(',', '.'));
-  if(!v || v < 30 || v > 250){ toast('Bitte ein plausibles Gewicht in kg eingeben.'); return; }
+  if(!v || v < 30 || v > 250){ toast(__('weightImplausible')); return; }
   state.weights.push({ d: today(), kg: Math.round(v * 10) / 10 });
-  if(state.weights.length > 200) state.weights = state.weights.slice(-200);
+  if(state.weights.length > MAX_SERIES_ENTRIES) state.weights = state.weights.slice(-MAX_SERIES_ENTRIES);
   inp.value = '';
-  await save(); renderWeight(); toast('Gewicht gespeichert.');
+  await save(); renderWeight(); toast(__('weightSaved'));
 }
 function renderWeight(){
   const svg = document.getElementById('weightSpark'), meta = document.getElementById('weightMeta');
   const ws = state.weights || [];
   if(!ws.length){
     svg.innerHTML = '';
-    meta.innerHTML = 'Noch kein Eintrag. Trag dein Gewicht etwa 1× pro Woche ein – bei Hebel-Skills wie der Planche entscheidet das Verhältnis von Kraft zu Körpergewicht.';
+    meta.textContent = __('weightEmpty');
     return;
   }
   if(ws.length === 1){
     svg.innerHTML = '';
-    meta.innerHTML = 'Start: <b>' + ws[0].kg + ' kg</b> (' + fmtDate(ws[0].d) + ') – ab dem zweiten Eintrag entsteht hier deine Kurve.';
+    meta.innerHTML = __('weightFirst', { kg: ws[0].kg, date: fmtDate(ws[0].d) });
     return;
   }
   const kgs = ws.map(w => w.kg);
   const min = Math.min(...kgs) - 1, max = Math.max(...kgs) + 1;
   const pts = ws.map((w, i) =>
     (i / (ws.length - 1) * 296 + 2).toFixed(1) + ',' + (66 - (w.kg - min) / (max - min) * 62).toFixed(1)).join(' ');
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  /* var(--accent) statt des aufgeloesten Wertes: sonst bleibt die Kurve nach
+     einem Theme-Wechsel in der alten Farbe, bis zufaellig neu gerendert wird.
+     Die Messwert-Kurve daneben macht es bereits so. */
+  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   const delta = Math.round((kgs[kgs.length - 1] - kgs[0]) * 10) / 10;
-  meta.innerHTML = 'Aktuell <b>' + kgs[kgs.length - 1] + ' kg</b> · seit Start <b>' + (delta > 0 ? '+' : '') + delta + ' kg</b> · ' + ws.length + ' Einträge';
+  meta.innerHTML = __('weightMeta', { kg: kgs[kgs.length - 1], delta: (delta > 0 ? '+' : '') + delta, n: ws.length });
 }
 
 /* ================= Bibliothek ================= */
 function renderCatFilter(){
   const cats = ['all'].concat(Object.keys(CATS));
   document.getElementById('catFilter').innerHTML = cats.map(c =>
-    '<button class="chip' + (libFilter === c ? ' active' : '') + '" onclick="setLibFilter(\'' + c + '\')">' +
-    (c === 'all' ? __('all') : CATS[c].name) + '</button>').join('');
+    '<button class="chip' + (libFilter === c ? ' active' : '') + '" data-action="library:filter" data-cat="' + c + '">' +
+    esc(c === 'all' ? __('all') : catName(c, CATS[c].name)) + '</button>').join('');
 }
 function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
 
@@ -934,7 +1232,8 @@ function renderLibrary(){
   const q = (document.getElementById('libSearch').value || '').toLowerCase().trim();
   const list = EXERCISES.filter(e =>
     (libFilter === 'all' || e.cat === libFilter) &&
-    (!q || e.name.toLowerCase().includes(q) || e.levels.some(l => l.stage.toLowerCase().includes(q))));
+    (!q || exName(e).toLowerCase().includes(q) ||
+          e.levels.some((l, i) => exStage(e, i).toLowerCase().includes(q))));
 
   const planIds = new Set(getDays().flatMap(d => d.ex));
 
@@ -942,31 +1241,50 @@ function renderLibrary(){
     const lvl = lvlOf(ex), open = libOpen[ex.id];
     const pr = (state.prs || {})[ex.id];
     return '<div class="lib-item">' +
-      '<div class="lib-head" onclick="toggleLib(\'' + ex.id + '\')">' +
-        '<span class="lib-name">' + esc(ex.name) + (planIds.has(ex.id) ? ' <span class="cat-chip">' + __('inPlan') + '</span>' : '') + '</span>' +
-        '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' ' + (open ? '−' : '+') + '</span>' +
-      '</div>' +
+      /* Echter Button statt eines klickbaren div: der Kopf ist die
+         Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
+      '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
+        ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
+        '<span class="lib-name">' + esc(exName(ex)) + (planIds.has(ex.id) ? ' <span class="cat-chip">' + esc(__('inPlan')) + '</span>' : '') + '</span>' +
+        '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
+      '</button>' +
       '<div class="lib-body' + (open ? ' open' : '') + '" id="libbody-' + ex.id + '">' +
-        '<div class="muted">' + CATS[ex.cat].name + ' · Equipment: ' + ex.equip.map(eq => EQUIP_NAMES[eq] || eq).join(', ') +
-          (ex.rest ? ' · Pause ' + ex.rest + ' Sek' : '') + '</div>' +
+        '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(ex.equip.map(equipName).join(', ')) +
+          (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') + '</div>' +
         '<ul class="lvl-list">' + ex.levels.map((l, i) =>
-          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(l.stage) + '</span><span class="t">' + esc(l.target) + '</span></li>').join('') + '</ul>' +
-        '<div class="inline-row"><button onclick="adjustLevel(\'' + ex.id + '\',-1)">− ' + __('level') + '</button>' +
-          '<button onclick="adjustLevel(\'' + ex.id + '\',1)">+ ' + __('level') + '</button></div>' +
-        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + __('best') + ', z. B. 24 Sek oder 7 Wdh" value="' + (pr ? esc(pr.v) : '') + '">' +
-          '<button onclick="savePR(\'' + ex.id + '\')">' + __('save') + '</button></div>' +
+          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(l.target) + '</span></li>').join('') + '</ul>' +
+        '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
+          '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
+        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '" value="' + (pr ? esc(pr.v) : '') + '">' +
+          '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
         (pr ? '<div class="pr-line">Zuletzt aktualisiert: ' + fmtDate(pr.d) + '</div>' : '') +
-        '<ul class="tips open" style="margin-top:10px">' + ex.tips.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
-        '<button class="tip-btn" onclick="showExHistory(\'' + ex.id + '\')">📊 ' + __('perExercise') + '</button>' +
+        '<ul class="tips open" style="margin-top:10px">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
   }).join('') : '<div class="empty-hint">' + __('noExercises') + '</div>';
 }
-const EQUIP_NAMES = { none: 'kein Gerät', parallettes: 'Parallettes', bar: 'Klimmzugstange', chair: 'Stuhl/Tisch' };
+const EQUIP_KEYS = { none: 'equipNone', parallettes: 'equipParallettes', bar: 'equipBar', chair: 'equipChair' };
+const equipName = eq => EQUIP_KEYS[eq] ? __(EQUIP_KEYS[eq]) : eq;
 function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
+/* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar ist.
+   Das Feld erlaubt Freitext ("sauber!"); frueher lieferte parseInt() dann NaN
+   und jeder Vergleich  v > NaN  war false – die automatische PR-Erfassung war
+   fuer diese Uebung dauerhaft tot. Ein nicht lesbarer Wert darf nicht blockieren. */
+function prNumber(pr){
+  if(!pr) return -Infinity;
+  const n = typeof pr.n === 'number' ? pr.n : parseInt(pr.v, 10);
+  return Number.isFinite(n) ? n : -Infinity;
+}
+
 async function savePR(id){
   const v = (document.getElementById('pr-' + id).value || '').trim().slice(0, 40);
-  if(!v){ delete state.prs[id]; } else { state.prs[id] = { v, d: today() }; }
-  await save(); renderLibrary(); toast(v ? 'Bestleistung gespeichert.' : 'Bestleistung gelöscht.');
+  if(!v){
+    delete state.prs[id];
+  } else {
+    const n = parseInt(v, 10);
+    state.prs[id] = Number.isFinite(n) ? { v, n, d: today() } : { v, d: today() };
+  }
+  await save(); renderLibrary(); toast(v ? __('bestSaved') : __('bestDeleted'));
 }
 
 /* ================= Plan-Editor mit Drag & Drop ================= */
@@ -977,33 +1295,68 @@ function renderPlanTab(){
   sel.innerHTML = Object.entries(PLAN_TEMPLATES).map(([k, v]) =>
     '<option value="' + k + '"' + (!state.customPlan && state.planId === k ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') +
     (state.customPlan ? '<option value="custom" selected>' + __('customPlan') + '</option>' : '');
-  document.getElementById('planDesc').textContent = state.customPlan ? __('customPlan') : (PLAN_TEMPLATES[state.planId] || {}).desc || '';
+  document.getElementById('planDesc').textContent = state.customPlan
+    ? __('customPlanDesc')
+    : planDesc(state.planId, (PLAN_TEMPLATES[state.planId] || {}).desc || '');
 
   const days = getDays();
   document.getElementById('planEditor').innerHTML = days.map((d, di) =>
     '<div class="plan-day">' +
-      '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(d.title) + '</span>' +
-        '<span><button class="mini-btn" onclick="renameDay(' + di + ')" title="' + __('rename') + '">✎</button> ' +
-        '<button class="mini-btn danger" onclick="removeDay(' + di + ')" title="' + __('remove') + '">✕</button></span></div>' +
+      '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</span>' +
+        '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '">✎</button> ' +
+        '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '">✕</button></span></div>' +
       d.ex.map((id, ei) => {
         const ex = EX_BY_ID[id];
-        return '<div class="plan-ex" draggable="true" ondragstart="dragStart(' + di + ',' + ei + ')" ondragover="dragOver(event)" ondrop="dragDrop(' + di + ',' + ei + ')" ondragend="dragEnd()">' +
+        /* Drag & Drop laeuft ueber einen eigenen, auf #planEditor begrenzten
+           Listener statt ueber die allgemeine Aktionstabelle: dragover feuert
+           ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
+           gehoert nicht durch einen Namens-Lookup am document. */
+        return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '">' +
           '<span class="drag-handle">⠿</span>' +
-          '<span class="nm">' + (ex ? esc(ex.name) : '<i>unbekannt: ' + esc(id) + '</i>') +
-          '</span><button class="mini-btn" onclick="moveEx(' + di + ',' + ei + ',-1)" title="' + __('moveUp') + '">↑</button>' +
-          '<button class="mini-btn" onclick="moveEx(' + di + ',' + ei + ',1)" title="' + __('moveDown') + '">↓</button>' +
-          '<button class="mini-btn danger" onclick="removeEx(' + di + ',' + ei + ')" title="' + __('remove') + '">✕</button></div>';
+          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
+          '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '">↑</button>' +
+          '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '">↓</button>' +
+          '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '">✕</button></div>';
       }).join('') +
       '<div class="inline-row"><select id="add-' + di + '">' +
-        Object.keys(CATS).map(c => '<optgroup label="' + CATS[c].name + '">' +
-          EXERCISES.filter(e => e.cat === c).map(e => '<option value="' + e.id + '">' + esc(e.name) + '</option>').join('') +
+        Object.keys(CATS).map(c => '<optgroup label="' + esc(catName(c, CATS[c].name)) + '">' +
+          EXERCISES.filter(e => e.cat === c).map(e => '<option value="' + e.id + '">' + esc(exName(e)) + '</option>').join('') +
           '</optgroup>').join('') +
-      '</select><button onclick="addEx(' + di + ')">' + __('addExercise') + '</button></div>' +
+      '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
 }
 
-function dragStart(di, ei){ dragSrcId = di; dragSrcIdx = ei; event.dataTransfer.effectAllowed = 'move'; }
-function dragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+/* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
+   data-day und data-i; das Event kommt als Parameter statt aus dem
+   impliziten globalen window.event (nicht standardisiert, in Firefox nicht
+   vorhanden und unter Modulen ohnehin nicht verfuegbar). */
+function installPlanDragAndDrop(){
+  const editor = document.getElementById('planEditor');
+  const zeile = ev => ev.target.closest('.plan-ex[data-day]');
+
+  editor.addEventListener('dragstart', ev => {
+    const el = zeile(ev); if(!el) return;
+    dragSrcId = zahl(el.dataset.day); dragSrcIdx = zahl(el.dataset.i);
+    ev.dataTransfer.effectAllowed = 'move';
+    /* Firefox startet einen Drag nur, wenn Daten gesetzt sind. */
+    ev.dataTransfer.setData('text/plain', dragSrcId + ':' + dragSrcIdx);
+  });
+
+  editor.addEventListener('dragover', ev => {
+    if(!zeile(ev) || dragSrcId === null) return;
+    ev.preventDefault();                       /* macht die Zeile erst ablegbar */
+    ev.dataTransfer.dropEffect = 'move';
+  });
+
+  editor.addEventListener('drop', ev => {
+    const el = zeile(ev); if(!el) return;
+    ev.preventDefault();
+    dragDrop(zahl(el.dataset.day), zahl(el.dataset.i));
+  });
+
+  editor.addEventListener('dragend', () => { dragSrcId = null; dragSrcIdx = null; });
+}
+
 function dragDrop(di, ei){
   if(dragSrcId === null || dragSrcIdx === null) return;
   if(dragSrcId === di && dragSrcIdx === ei) return;
@@ -1015,7 +1368,6 @@ function dragDrop(di, ei){
   dragSrcId = null; dragSrcIdx = null;
   save(); renderPlanTab();
 }
-function dragEnd(){ dragSrcId = null; dragSrcIdx = null; }
 
 function ensureCustom(){
   if(!state.customPlan){
@@ -1028,39 +1380,48 @@ function changePlan(v){
   if(v === 'custom'){ ensureCustom(); }
   else { state.customPlan = null; state.planId = v; }
   save(); renderPlanTab(); renderStats(); renderDaySelect();
-  toast('Plan gewechselt: ' + getPlan().name);
+  toast(__('planChanged', { name: planLabel() }));
 }
-function resetPlan(){
-  if(!confirm('Plan auf die gewählte Vorlage zurücksetzen? Deine eigenen Änderungen am Plan gehen verloren (Fortschritt bleibt).')) return;
-  state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast('Plan zurückgesetzt.');
+async function resetPlan(){
+  const ok = await askConfirm(__('planResetTitle'), __('planResetBody'), __('reset'), true);
+  if(!ok) return;
+  state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast(__('planReset'));
 }
-function addPlanDay(){
+async function addPlanDay(){
   const p = ensureCustom();
-  const key = prompt('Kurzbezeichnung des Tages (z. B. C):', String.fromCharCode(65 + p.days.length));
+  const key = sanitizeDayKey(await askText(__('addDay'), __('dayKeyLabel'),
+    String.fromCharCode(65 + p.days.length), 6));
   if(!key) return;
-  const title = prompt('Titel des Tages:', __('addDay')) || __('addDay');
-  p.days.push({ key: key.slice(0, 6), title: title.slice(0, 40), sub: '', ex: [] });
+  const title = (await askText(__('addDay'), __('dayTitle'), __('addDay'), 40)) || __('addDay');
+  p.days.push({ key, title: title.slice(0, 40), sub: '', ex: [] });
   save(); renderPlanTab(); renderDaySelect();
 }
-function renameDay(di){
+async function renameDay(di){
   const p = ensureCustom(), d = p.days[di];
-  const key = prompt('Kurzbezeichnung:', d.key); if(key === null) return;
-  const title = prompt('Titel:', d.title); if(title === null) return;
-  const sub = prompt('Untertitel (optional):', d.sub || '');
-  d.key = key.slice(0, 6) || d.key; d.title = title.slice(0, 40) || d.title; d.sub = (sub || '').slice(0, 60);
+  const key = await askText(__('renameDayTitle'), __('dayKeyShort'), d.key, 6);
+  if(key === null) return;
+  const title = await askText(__('renameDayTitle'), __('dayTitle'), d.title, 40);
+  if(title === null) return;
+  const sub = await askText(__('renameDayTitle'), __('daySub'), d.sub || '', 60);
+  if(sub === null) return;
+  d.key = sanitizeDayKey(key) || d.key;
+  d.title = title.slice(0, 40) || d.title;
+  d.sub = sub.slice(0, 60);
   save(); renderPlanTab(); renderDaySelect();
 }
-function removeDay(di){
+async function removeDay(di){
   const p = ensureCustom();
-  if(!confirm('Trainingstag "' + p.days[di].title + '" entfernen?')) return;
+  const ok = await askConfirm(__('removeDayTitle'),
+    __('removeDayBody', { name: p.days[di].title }), __('remove'), true);
+  if(!ok) return;
   p.days.splice(di, 1); save(); renderPlanTab(); renderDaySelect();
 }
 function addEx(di){
   const p = ensureCustom();
   const id = document.getElementById('add-' + di).value;
-  if(p.days[di].ex.includes(id)){ toast('Übung ist an diesem Tag schon enthalten.'); return; }
+  if(p.days[di].ex.includes(id)){ toast(__('exerciseAlreadyIn')); return; }
   p.days[di].ex.push(id); save(); renderPlanTab();
-  toast(EX_BY_ID[id].name + ' hinzugefügt.');
+  toast(__('exerciseAdded', { name: exName(EX_BY_ID[id]) }));
 }
 function removeEx(di, ei){
   const p = ensureCustom(); p.days[di].ex.splice(ei, 1); save(); renderPlanTab();
@@ -1076,12 +1437,12 @@ function moveEx(di, ei, d){
 function renderMilestones(){
   const search = (document.getElementById('msSearch')?.value || '').toLowerCase();
   let list = MILESTONES;
-  if(search) list = list.filter(m => m.name.toLowerCase().includes(search));
+  if(search) list = list.filter(m => msName(m).toLowerCase().includes(search));
 
   document.getElementById('msList').innerHTML = list.map(m => {
     const d = (state.milestones || {})[m.id];
     return '<label class="ms' + (d ? ' done' : '') + '"><input type="checkbox" ' + (d ? 'checked' : '') +
-      ' onchange="toggleMilestone(\'' + m.id + '\',this.checked)"><span><span class="ms-name">' + esc(m.name) + '</span>' +
+      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span><span class="ms-name">' + esc(msName(m)) + '</span>' +
       (d ? '<br><span class="ms-date">geschafft am ' + fmtDate(d) + '</span>' : '') + '</span></label>';
   }).join('');
 }
@@ -1098,29 +1459,194 @@ function renderRoadmap(){
     const lvl = lvlOf(ex);
     const pct = Math.round(lvl / (ex.levels.length - 1) * 100);
     return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">' +
-      '<div class="lib-head" style="cursor:default"><span class="lib-name">' + esc(ex.name) + '</span>' +
+      '<div class="lib-head" style="cursor:default"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
       '<span class="lib-meta">' + pct + '%</span></div>' +
-      '<div class="muted">Aktuell: ' + esc(ex.levels[lvl].stage) + ' → nächste Stufe: ' +
-      (lvl < ex.levels.length - 1 ? esc(ex.levels[lvl + 1].stage) : 'Ziel erreicht') + '</div></div>';
+      '<div class="muted">' + esc(__('nextStage', { name: exStage(ex, lvl), stage: '' })).replace(/\s*$/, ' ') +
+      (lvl < ex.levels.length - 1 ? esc(exStage(ex, lvl + 1)) : esc(__('maxLevelReached'))) + '</div></div>';
   }).join('');
 }
 
 /* ================= Einstellungen ================= */
+/* ================= Dialog-Fokus =================
+   Beide Overlays haben bisher nur eine CSS-Klasse umgeschaltet: der Fokus
+   wanderte nie hinein, wurde nicht gefangen und beim Schliessen nicht
+   zurueckgegeben. Ein Screenreader lief am Dialog vorbei in die Seite
+   dahinter, und mit der Tabulatortaste landete man hinter dem Dialog. */
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/* Ein Stapel, kein einzelner Dialog: eine Rueckfrage kann ueber dem
+   Einstellungsdialog liegen ("Backup importieren?"). Mit nur einer Variablen
+   haette das Schliessen der oberen Ebene inert vom Hintergrund genommen und
+   den Fokus an der falschen Stelle abgelegt, waehrend die untere noch offen
+   ist. */
+const dialogStack = [];
+const openDialogEl = { get current(){ return dialogStack.length ? dialogStack[dialogStack.length - 1].el : null; } };
+
+function trapTab(e){
+  const top = dialogStack[dialogStack.length - 1];
+  if(e.key !== 'Tab' || !top) return;
+  const items = [...top.el.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+  if(!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+
+function openDialog(overlay){
+  const unten = dialogStack[dialogStack.length - 1];
+  /* Die darunterliegende Ebene wird selbst unerreichbar. */
+  if(unten) unten.el.setAttribute('inert', '');
+  else document.querySelector('.wrap')?.setAttribute('inert', '');
+
+  dialogStack.push({ el: overlay, rueckfokus: document.activeElement });
+  overlay.classList.add('open');
+  const first = overlay.querySelector(FOCUSABLE);
+  if(first) first.focus();
+  if(dialogStack.length === 1) document.addEventListener('keydown', trapTab, true);
+}
+
+function closeDialog(overlay){
+  const i = dialogStack.findIndex(d => d.el === overlay);
+  if(i < 0){ overlay.classList.remove('open'); return; }
+  const [eintrag] = dialogStack.splice(i, 1);
+  overlay.classList.remove('open');
+
+  const unten = dialogStack[dialogStack.length - 1];
+  if(unten) unten.el.removeAttribute('inert');
+  else {
+    document.querySelector('.wrap')?.removeAttribute('inert');
+    document.removeEventListener('keydown', trapTab, true);
+  }
+  /* Fokus dorthin zurueck, wo er herkam. */
+  if(eintrag.rueckfokus && document.contains(eintrag.rueckfokus)) eintrag.rueckfokus.focus();
+}
+
+/* ================= Eigene Dialoge =================
+   Ersetzt prompt() und confirm(). Diese blockieren den Browser, sind in
+   plattformübergreifenden PWAs unterschiedlich zuverlaessig, lassen sich
+   nicht gestalten und waren hier der Grund fuer eine Auswahl per
+   eingetippter Nummer. Alle drei Funktionen liefern ein Promise und nutzen
+   dasselbe Fokus-Management wie die uebrigen Dialoge. */
+
+function askDialog(build){
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    let done = false;
+    const finish = wert => {
+      if(done) return;
+      done = true;
+      closeDialog(overlay);
+      overlay.remove();
+      resolve(wert);
+    };
+
+    overlay.innerHTML = '<div class="modal" role="dialog" aria-modal="true"></div>';
+    const modal = overlay.firstChild;
+    build(modal, finish);
+
+    overlay.addEventListener('click', e => { if(e.target === overlay) finish(null); });
+    overlay.addEventListener('keydown', e => { if(e.key === 'Escape'){ e.stopPropagation(); finish(null); } });
+    document.body.appendChild(overlay);
+    openDialog(overlay);
+  });
+}
+
+function dialogKopf(titel){
+  return '<div class="modal-head"><span>' + esc(titel) + '</span>' +
+    '<button data-dlg="abbrechen" aria-label="' + esc(__('close')) + '">✕</button></div>';
+}
+function dialogFuss(okText, gefahr){
+  return '<div class="dlg-actions">' +
+    '<button data-dlg="abbrechen">' + esc(__('cancel')) + '</button>' +
+    '<button data-dlg="ok" class="primary' + (gefahr ? ' danger' : '') + '">' + esc(okText) + '</button></div>';
+}
+
+/* Freitexteingabe – Ersatz fuer prompt() */
+function askText(titel, label, vorgabe = '', maxLen = 80){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<label class="dlg-label" for="dlg-input">' + esc(label) + '</label>' +
+      '<input id="dlg-input" class="dlg-input" maxlength="' + maxLen + '" value="' + esc(vorgabe) + '">' +
+      dialogFuss(__('apply'));
+    const input = modal.querySelector('#dlg-input');
+    const ok = () => finish(input.value);
+    modal.querySelector('[data-dlg=ok]').onclick = ok;
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+    input.onkeydown = e => { if(e.key === 'Enter') ok(); };
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  });
+}
+
+/* Rueckfrage – Ersatz fuer confirm() */
+function askConfirm(titel, text, okText = 'OK', gefahr = false){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<p class="dlg-text">' + esc(text).replace(/\n/g, '<br>') + '</p>' +
+      dialogFuss(okText, gefahr);
+    modal.querySelector('[data-dlg=ok]').onclick = () => finish(true);
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(false); });
+  });
+}
+
+/* Auswahlliste – ersetzt die frühere Eingabe einer Nummer per prompt() */
+function askChoice(titel, optionen){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<div class="dlg-list" role="group">' +
+      optionen.map((o, i) =>
+        '<button class="dlg-choice" data-i="' + i + '"><span class="dlg-choice-name">' + esc(o.name) + '</span>' +
+        (o.sub ? '<span class="dlg-choice-sub">' + esc(o.sub) + '</span>' : '') + '</button>').join('') +
+      '</div><div class="dlg-actions"><button data-dlg="abbrechen">' + esc(__('cancel')) + '</button></div>';
+    modal.querySelectorAll('.dlg-choice').forEach(b => {
+      b.onclick = () => finish(optionen[parseInt(b.dataset.i, 10)].value);
+    });
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+  });
+}
+
+/* Nur-Lese-Text zum Markieren und Kopieren */
+function showTextDialog(titel, text){
+  return askDialog((modal, finish) => {
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<textarea class="dlg-area" readonly rows="12"></textarea>' +
+      '<div class="dlg-actions"><button data-dlg="abbrechen" class="primary">' + esc(__('close')) + '</button></div>';
+    modal.querySelector('.dlg-area').value = text;
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+    setTimeout(() => { const a = modal.querySelector('.dlg-area'); a.focus(); a.select(); }, 0);
+  });
+}
+
 function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload'].forEach(k => {
+  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'lang'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
-  document.getElementById('storageInfo').textContent = 'Speicherort: ' + store.mode + '.';
-  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('storageInfo').textContent = __('storageLocation', { mode: __('storageLocal') });
+  openDialog(document.getElementById('settingsOverlay'));
 }
-function closeSettings(){ document.getElementById('settingsOverlay').classList.remove('open'); }
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeSettings(); });
+function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
+/* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
+   hat closeSettings() pro Tastendruck doppelt aufgerufen. */
 
 function updateSetting(k, v){
   state.settings[k] = v; save();
-  if(k === 'lang'){ setLang(v); document.title = __('appName') + ' – Calisthenics Tracker'; }
-  renderStats(); renderPhase(); renderBanners();
+  if(k === 'lang'){
+    setLang(v);
+    applyLanguage();
+    /* Alle Ansichten neu aufbauen, nicht nur die sichtbare: die verborgenen
+       Tabs behielten sonst die alte Sprache, bis man sie zufaellig neu
+       rendert. */
+    renderWarmup(); renderCatFilter(); renderLibrary();
+    renderPlanTab(); renderMilestones(); renderRoadmap(); renderHistory();
+  }
   if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest'].includes(k)){
     if(k === 'setsMode'){
       Object.keys(session.sets).forEach(key => {
@@ -1130,7 +1656,7 @@ function updateSetting(k, v){
         if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
       });
     }
-    const n = snapshotNotes(); renderWorkout(); restoreSession(n, session.reps);
+    const n = snapshotNotes(); cancelHold(); renderWorkout(); restoreSession(n, session.reps);
   }
   renderAll();
 }
@@ -1146,116 +1672,180 @@ function download(name, content, type){
 function exportJSON(){
   try{
     download('progression-backup-' + today() + '.json', JSON.stringify(state, null, 2), 'application/json');
-    toast('Backup heruntergeladen.');
-  }catch(e){ toast('Export fehlgeschlagen.'); }
+    toast(__('backupDownloaded'));
+  }catch(err){ console.error('[exportJSON]', err); toast(__('exportFailed')); }
 }
 function exportCSV(){
-  const rows = [['Datum', 'Tag', 'Saetze', 'TopSaetze', 'LevelUps']].concat(
-    (state.log || []).map(l => [l.d, l.day, l.sets, l.tops, (l.ups || []).join(' | ')]));
-  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
-  download('progression-verlauf-' + today() + '.csv', '\uFEFF' + csv, 'text/csv');
-  toast('CSV heruntergeladen.');
+  download('progression-verlauf-' + today() + '.csv', '\uFEFF' + serializeLog(state.log), 'text/csv');
+  toast(__('csvDownloaded'));
 }
 function exportText(){
-  const lines = ['PROGRESSION · Stand ' + fmtDate(today()),
-    'Plan: ' + getPlan().name, 'Trainings: ' + (state.workouts || 0), '', '— Aktuelle Stufen —'];
+  const lines = [__('textHeader', { date: fmtDate(today()) }),
+    __('textPlan', { name: planLabel() }),
+    __('textWorkouts', { n: state.workouts || 0 }), '', __('textLevels')];
   getDays().forEach(d => {
     lines.push('', '[' + d.key + '] ' + d.title);
     d.ex.forEach(id => {
       const ex = EX_BY_ID[id]; if(!ex) return;
       const l = lvlOf(ex);
-      lines.push('  ' + ex.name + ': Stufe ' + (l + 1) + '/' + ex.levels.length + ' – ' + ex.levels[l].stage + ' (' + ex.levels[l].target + ')');
+      lines.push('  ' + exName(ex) + ': ' + __('level') + ' ' + (l + 1) + '/' + ex.levels.length +
+        ' – ' + exStage(ex, l) + ' (' + ex.levels[l].target + ')');
     });
   });
   const ms = Object.keys(state.milestones || {});
   if(ms.length){
-    lines.push('', '— Meilensteine —');
-    ms.forEach(id => { const m = MILESTONES.find(x => x.id === id); if(m) lines.push('  ✔ ' + m.name + ' (' + fmtDate(state.milestones[id]) + ')'); });
+    lines.push('', __('textMilestones'));
+    ms.forEach(id => { const m = MILESTONES.find(x => x.id === id); if(m) lines.push('  ✔ ' + msName(m) + ' (' + fmtDate(state.milestones[id]) + ')'); });
   }
   const ws = state.weights || [];
-  if(ws.length) lines.push('', 'Gewicht: ' + ws[0].kg + ' kg → ' + ws[ws.length - 1].kg + ' kg');
+  if(ws.length) lines.push('', __('textWeight', { from: ws[0].kg, to: ws[ws.length - 1].kg }));
   const text = lines.join('\n');
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(() => toast('In die Zwischenablage kopiert.'))
-      .catch(() => prompt('Zum Kopieren markieren:', text));
-  } else prompt('Zum Kopieren markieren:', text);
+    navigator.clipboard.writeText(text).then(() => toast(__('copiedToClipboard')))
+      .catch(() => showTextDialog(__('copyDialogTitle'), text));
+  } else showTextDialog(__('copyDialogTitle'), text);
 }
+const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+
+/* Beschneidet ein importiertes Backup auf die bekannte Form.
+   Bewusst kappen statt ablehnen: ein Validator, der die eigenen aelteren
+   Backups des Nutzers zurueckweist, waere ein Datenverlust-Bug. */
+function clampBackup(data){
+  const known = Object.keys(DEFAULT_STATE());
+  const out = {};
+  known.forEach(k => { if(data[k] !== undefined && data[k] !== null) out[k] = data[k]; });
+
+  if(out.customPlan && typeof out.customPlan === 'object'){
+    const days = Array.isArray(out.customPlan.days) ? out.customPlan.days : [];
+    out.customPlan.days = days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => ({
+      key: sanitizeDayKey(d.key) || '?',
+      title: String(d.title == null ? '' : d.title).slice(0, 40),
+      sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
+      ex: (Array.isArray(d.ex) ? d.ex : []).filter(id => EX_BY_ID[id]).slice(0, 30)
+    }));
+  }
+  if(Array.isArray(out.warmupCustom)){
+    out.warmupCustom = out.warmupCustom.slice(0, 30).map(w => String(w == null ? '' : w).slice(0, 80));
+  }
+  if(out.notes && typeof out.notes === 'object'){
+    Object.keys(out.notes).forEach(id => {
+      const n = out.notes[id];
+      if(!n || typeof n !== 'object'){ delete out.notes[id]; return; }
+      n.t = String(n.t == null ? '' : n.t).slice(0, 160);
+    });
+  }
+  if(out.prs && typeof out.prs === 'object'){
+    Object.keys(out.prs).forEach(id => {
+      const p = out.prs[id];
+      if(!p || typeof p !== 'object'){ delete out.prs[id]; return; }
+      p.v = String(p.v == null ? '' : p.v).slice(0, 40);
+    });
+  }
+  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-MAX_LOG_ENTRIES);
+  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-MAX_SERIES_ENTRIES);
+  return out;
+}
+
 function importJSON(input){
   const file = input.files && input.files[0]; if(!file) return;
+  if(file.size > MAX_BACKUP_BYTES){
+    toast(__('fileTooBig')); input.value = ''; return;
+  }
   const r = new FileReader();
   r.onload = async e => {
     try{
       const data = JSON.parse(e.target.result);
-      if(!data || typeof data !== 'object' || (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
-      if(!confirm('Backup importieren? Der aktuelle Stand auf diesem Gerät wird überschrieben.')){ input.value = ''; return; }
+      if(!data || typeof data !== 'object' || Array.isArray(data) ||
+         (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
+      const ok = await askConfirm(__('importTitle'), __('importBody'), __('importAction'), true);
+      if(!ok){ input.value = ''; return; }
       cancelHold(); stopRest();
-      state = Object.assign(DEFAULT_STATE(), data);
+      state = Object.assign(DEFAULT_STATE(), clampBackup(data));
+      clearSession();          /* vor dem Speichern: sonst landet eine aus dem
+                                  Backup stammende Einheit kurz im Speicher */
       await save();
-      session = { dayKey: null, sets: {}, top: {}, reps: {} };
       document.getElementById('finishBar').style.display = 'none';
       applyTheme(); closeSettings(); showTab('train'); renderAll();
-      toast('Backup importiert – willkommen zurück!', true);
-    }catch(err){ toast('Import fehlgeschlagen – keine gültige Backup-Datei.'); }
+      toast(__('imported'), true);
+    }catch(err){
+      console.error('[importJSON]', err);
+      toast(__('importFailed'));
+    }
     input.value = '';
   };
-  r.onerror = () => { toast('Datei konnte nicht gelesen werden.'); input.value = ''; };
+  r.onerror = () => { toast(__('fileUnreadable')); input.value = ''; };
   r.readAsText(file);
 }
 
 /* ================= CSV Import ================= */
+
+/* Echter CSV-Parser fuer das von exportCSV() erzeugte Format:
+   Semikolon-getrennt, Felder in Anfuehrungszeichen, "" als maskiertes ".
+   Der frueher genutzte line.split(';') + replace(/"/g,'') zerlegte jede
+   Zeile falsch, sobald ein Feld selbst ein Semikolon enthielt – der
+   Roundtrip des eigenen Exports war damit nicht verlustfrei. */
 function importCSV(input){
   const file = input.files && input.files[0]; if(!file) return;
+  if(file.size > MAX_BACKUP_BYTES){
+    toast(__('fileTooBig')); input.value = ''; return;
+  }
   const r = new FileReader();
-  r.onload = e => {
+  r.onload = async e => {
     try{
-      const text = e.target.result;
-      const lines = text.split('\n').filter(l => l.trim());
-      if(lines.length < 2) throw new Error('empty');
-      const header = lines[0].split(';').map(h => h.replace(/"/g, '').trim());
-      const dateIdx = header.indexOf('Datum'), dayIdx = header.indexOf('Tag');
-      if(dateIdx < 0) throw new Error('missing date column');
-      const imported = [];
-      lines.slice(1).forEach(line => {
-        const cols = line.split(';').map(c => c.replace(/"/g, '').trim());
-        const entry = { d: cols[dateIdx] || today(), day: cols[dayIdx] || 'A', sets: parseInt(cols[2]) || 0, tops: parseInt(cols[3]) || 0, ups: [] };
-        if(entry.d && entry.sets > 0){ imported.push(entry); }
-      });
-      if(!imported.length) throw new Error('no data');
-      if(!confirm(imported.length + ' Einträge importieren? Doppelte werden übersprungen.')) return;
+      const { entries: imported, skipped } = parseLog(e.target.result, sanitizeDayKey);
+      if(!imported.length) throw new Error(__('csvNoValidRows'));
+
+      const msg = __('csvImportBody', { n: imported.length }) +
+        (skipped ? __('csvSkipped', { n: skipped }) : '');
+      if(!await askConfirm(__('csvImportTitle'), msg, __('importAction'))) return;
+
       const existing = new Set((state.log || []).map(l => l.d + '-' + l.day));
-      imported.forEach(e => {
-        const key = e.d + '-' + e.day;
-        if(!existing.has(key)){ state.log.push(e); existing.add(key); }
+      let added = 0;
+      imported.forEach(en => {
+        const key = en.d + '-' + en.day;
+        if(!existing.has(key)){ state.log.push(en); existing.add(key); added++; }
       });
       state.log.sort((a, b) => a.d.localeCompare(b.d));
-      if(state.log.length > 500) state.log = state.log.slice(-500);
-      save(); renderHistory(); toast(imported.length + ' Einträge importiert.');
-    }catch(err){ toast('CSV-Import fehlgeschlagen: ' + err.message); }
-    input.value = '';
+      if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
+      save(); renderAll(); renderHistory();
+      toast(__('csvImported', { added, total: imported.length }));
+    }catch(err){
+      toast(__('csvImportFailed', { msg: err.message }));
+    }finally{
+      /* Immer zuruecksetzen – bei einem return im try-Block blieb der Wert
+         sonst stehen und dieselbe Datei loeste kein change-Event mehr aus. */
+      input.value = '';
+    }
   };
+  r.onerror = () => { toast(__('fileUnreadable')); input.value = ''; };
   r.readAsText(file);
 }
 
 async function resetAll(){
-  if(!confirm('Wirklich alles zurücksetzen? Stufen, Verlauf, Notizen, Bestleistungen, Meilensteine, Gewichtsdaten und Maße werden gelöscht. Einstellungen und Design bleiben.')) return;
+  const ok = await askConfirm(__('resetAllTitle'), __('resetAllBody'), __('resetAllAction'), true);
+  if(!ok) return;
   cancelHold(); stopRest();
   const keep = { theme: state.theme, settings: state.settings, planId: state.planId, customPlan: state.customPlan };
-  await store.clear();
+  /* Ohne catch bricht ein Fehler in store.clear() die async-Funktion mitten
+     im Zuruecksetzen ab – ohne Meldung und mit halb geleertem Speicher. */
+  try{
+    await store.clear();
+  }catch(err){
+    console.error('[resetAll]', err);
+    toast(__('resetFailed'));
+    return;
+  }
   state = Object.assign(DEFAULT_STATE(), keep);
+  clearSession();
   await save();
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
   document.getElementById('finishBar').style.display = 'none';
   closeSettings(); showTab('train'); renderAll();
-  toast('Fortschritt zurückgesetzt – neuer Zyklus!');
+  toast(__('resetDone'));
 }
 
 /* ================= Helfer ================= */
-function today(){
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-function fmtDate(iso){ if(!iso) return ''; const p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
-function esc(s){ return String(s).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#39;'); }
+/* today(), isoDaysAgo(), fmtDate(), esc() und sanitizeDayKey() liegen in
+   js/domain/ und werden oben importiert. */
 
 let toastTimer = null;
 function toast(msg, big){
@@ -1274,11 +1864,79 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-/* ================= IndexedDB fallback & build hint ================= */
-/* Die App nutzt localStorage, was für 500 Workouts ausreicht.
-   Sollte der Speicher knapp werden, kann in storage.js auf IndexedDB
-   umgestellt werden (siehe Kommentare dort). */
+/* =========================================================
+   AKTIONEN
+   Die einzige Verbindung zwischen Markup und Logik. Jeder Eintrag bekommt
+   (dataset, event, element). dataset-Werte sind immer Strings – die
+   Umwandlung passiert hier an der Grenze, nicht im Markup.
+   ========================================================= */
+export const actions = {
+  /* Kopfbereich und Navigation */
+  'settings:open':      () => openSettings(),
+  'settings:close':     () => closeSettings(),
+  /* Nur schliessen, wenn wirklich der Hintergrund getroffen wurde. Aus einem
+     Listener am document heraus waere stopPropagation() wirkungslos, deshalb
+     ist dieser Vergleich hier tragend und nicht mehr beilaeufig. */
+  'settings:closeOnBackdrop': (d, ev, el) => { if(ev.target === el) closeSettings(); },
+  'theme:toggle':       () => toggleTheme(),
+  'tab:show':           d => showTab(d.tab),
 
-/* Unit tests: run via "npx vitest run" after installing vitest.
-   Test config ist in package.json (muss erstellt werden).
-   Oder öffne test.html im Browser für einfache Tests. */
+  /* Training */
+  'day:select':         d => selectDay(d.key),
+  'set:tap':            d => tapSet(d.ex, zahl(d.set)),
+  'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
+  'level:adjust':       d => adjustLevel(d.ex, zahl(d.delta)),
+  'tips:toggle':        d => toggleTips(d.ex),
+  'exercise:substitute': d => substituteExercise(d.ex),
+  'exercise:history':   d => showExHistory(d.ex),
+  'exHistory:close':    () => closeExHistory(),
+  'workout:finish':     () => finishWorkout(),
+  'workout:undo':       () => undoWorkout(),
+  'rest:stop':          () => stopRest(),
+  'deload:dismiss':     d => dismissDeload(zahl(d.due)),
+
+  /* Warm-up */
+  'warmup:add':         () => addWarmupItem(),
+  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),
+
+  /* Verlauf */
+  'weight:add':         () => addWeight(),
+  'measurement:add':    () => addMeasurement(),
+
+  /* Bibliothek */
+  'library:filter':     d => setLibFilter(d.cat),
+  'library:toggle':     d => toggleLib(d.ex),
+  'library:search':     () => renderLibrary(),
+  'pr:save':            d => savePR(d.ex),
+
+  /* Plan */
+  'plan:change':        (d, ev, el) => changePlan(el.value),
+  'plan:reset':         () => resetPlan(),
+  'planDay:add':        () => addPlanDay(),
+  'planDay:rename':     d => renameDay(zahl(d.day)),
+  'planDay:remove':     d => removeDay(zahl(d.day)),
+  'planEx:add':         d => addEx(zahl(d.day)),
+  'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
+  'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
+
+  /* Ziele */
+  'milestone:toggle':   (d, ev, el) => toggleMilestone(d.id, el.checked),
+  'milestone:search':   () => renderMilestones(),
+
+  /* Einstellungen */
+  'setting:update':     (d, ev, el) => {
+    const wert = el.type === 'checkbox' ? el.checked
+      : d.type === 'int' ? zahl(el.value)
+      : el.value;
+    updateSetting(d.key, wert);
+  },
+
+  /* Backup */
+  'backup:exportJSON':  () => exportJSON(),
+  'backup:exportCSV':   () => exportCSV(),
+  'backup:exportText':  () => exportText(),
+  'backup:importJSON':  (d, ev, el) => importJSON(el),
+  'backup:importCSV':   (d, ev, el) => importCSV(el),
+  'backup:resetAll':    () => resetAll()
+};

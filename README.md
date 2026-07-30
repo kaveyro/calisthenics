@@ -1,6 +1,6 @@
 # Progression – Calisthenics Tracker
 
-Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten – alle Daten bleiben auf deinem Gerät.
+Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten zur Laufzeit – alle Daten bleiben auf deinem Gerät, und es geht keine einzige Anfrage an einen fremden Server. Auch die Schriften liegen lokal (`fonts/`, SIL OFL 1.1).
 
 **Funktionen:** automatische Progression über Stufen · Halte- und Pausen-Timer mit Signal · 36 Übungen mit 141 Progressionsstufen · vier Plan-Vorlagen plus eigener Plan-Editor · Verlauf mit Diagrammen · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 16 Meilensteine · Skill-Fahrplan · Deload-Erinnerung · Dark Mode · Backup als JSON/CSV.
 
@@ -8,18 +8,34 @@ Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt u
 
 ## 1. Lokal ausprobieren
 
-Einfach `index.html` im Browser öffnen. Es funktioniert alles außer dem Service Worker (Offline-Cache) – der braucht `http(s)`.
-
-Mit lokalem Server (empfohlen, dann läuft auch der Offline-Modus):
+Die App braucht einen lokalen Server. Ein direkter Doppelklick auf `index.html` reicht nicht: ES-Module werden über `file://` von den Browsern blockiert, und der Service Worker (Offline-Cache) braucht ohnehin `http(s)`.
 
 ```bash
-# Python
+npm start
+```
+
+Alternativ ohne Node:
+
+```bash
 python3 -m http.server 8080
-# oder Node
-npx serve .
 ```
 
 Dann `http://localhost:8080` aufrufen.
+
+### Entwicklung
+
+Zum *Ausführen* und *Veröffentlichen* der App wird nichts installiert – sie besteht aus statischen Dateien ohne Build-Schritt. Die folgenden Werkzeuge sind reine Entwicklungshilfen; `node_modules/` kann jederzeit gelöscht werden, ohne dass sich an der App etwas ändert.
+
+```bash
+npm install        # einmalig, nur für die Werkzeuge
+npm run check      # Linting, Tests und Prüfung des Offline-Manifests
+```
+
+| Befehl | Zweck |
+| --- | --- |
+| `npm test` | Unit-Tests der reinen Logik in `js/domain/` |
+| `npm run lint` | ESLint, inklusive der Schichtgrenzen |
+| `npm run sw:manifest` | Offline-Dateiliste neu erzeugen (siehe Abschnitt 7) |
 
 ---
 
@@ -73,17 +89,41 @@ Die Daten liegen im `localStorage` des Browsers, gebunden an die Adresse (Origin
 
 ```
 progression/
-├── index.html          Struktur & alle Ansichten
+├── index.html          Struktur & alle Ansichten (ohne Inline-Handler)
 ├── manifest.json       PWA-Metadaten (Name, Icons, Farben)
 ├── sw.js               Service Worker (Offline-Cache)
+├── sw-manifest.js      GENERIERT – Dateiliste & Cache-Version
 ├── css/
-│   └── style.css       Alles Visuelle, Themes über CSS-Variablen
+│   └── style.css       Alles Visuelle, @font-face, Themes über CSS-Variablen
 ├── js/
 │   ├── exercises.js    ► ÜBUNGSDATEN & PLAN-VORLAGEN (hier erweitern)
-│   ├── storage.js      Speicher-Adapter + Migration alter Versionen
-│   └── app.js          Logik, Rendering, Timer, Backup
+│   ├── storage.js      Speicher-Adapter (localStorage, Altschlüssel)
+│   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
+│   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
+│   │                   dates · escape · target · csv
+│   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
+│   ├── data/
+│   │   └── content.en.js  Englische Übungsinhalte
+│   └── ui/
+│       └── delegate.js Event-Delegation (data-action)
+├── fonts/              Selbst gehostete woff2 + SIL-OFL-Lizenz
+├── test/               Unit-Tests (vitest)
+├── tools/              gen-sw-manifest.js
 └── icons/              App-Icons (192, 512, maskable)
 ```
+
+**Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart. Genau diese Schicht ist getestet.
+
+**Keine Inline-Event-Handler.** Markup und Logik hängen ausschließlich über `data-action` zusammen, aufgelöst durch eine Tabelle in `app.js`. Das ist die Voraussetzung für die Content-Security-Policy ohne `'unsafe-inline'` und verhindert zugleich, dass Werte in JavaScript-Strings innerhalb von Attributen landen. Ein Test prüft, dass jede verwendete Aktion existiert und keine Handler zurückkehren.
+
+**Zweisprachig (Deutsch/Englisch).** Umschaltbar in den Einstellungen, übersetzt sind Oberfläche *und* Inhalte – Übungsnamen, alle 141 Stufen, Ausführungshinweise, Meilensteine und Plan-Vorlagen.
+
+- Oberflächentexte: `js/i18n/strings.js`. Platzhalter in geschweiften Klammern (`'{n} Sätze'`) statt zusammengesetzter Strings – die Wortstellung unterscheidet sich zwischen Sprachen.
+- Statisches Markup: `data-i18n="schlüssel"` am Element, `data-i18n-placeholder` / `-aria-label` / `-title` für Attribute.
+- Übungsinhalte: `js/data/content.en.js`, zugeordnet über die IDs. `js/exercises.js` bleibt die deutsche Quelle und die Rückfallsprache.
+- Eigene Einträge des Nutzers (angepasster Plan, eigene Warm-up-Punkte, Notizen) werden nie übersetzt.
+
+Vier Tests halten das dicht: gleiche Schlüssel und gleiche Platzhalter in beiden Sprachen, eine Entsprechung für jede Übung, Stufe, Tipp, Meilenstein und Planvorlage, kein sichtbarer deutscher Text ohne `data-i18n`, und kein deutscher Rest im englischen Block. **Eine neue Übung braucht daher immer beide Sprachen** – sonst schlägt `npm test` fehl.
 
 ---
 
@@ -115,6 +155,8 @@ Endet die Angabe auf `Sek`, erkennt die App eine Halteübung und stellt automati
 
 Neue Übung in einen Trainingstag bringen: entweder direkt in `PLAN_TEMPLATES` bei `ex: [...]` eintragen, oder einfach in der App im Tab **Plan** hinzufügen.
 
+> Fünf Übungen sind bewusst in keiner Vorlage enthalten und nur über den Plan-Editor oder die Bibliothek erreichbar: `archer_push`, `dragon_flag`, `lsit_hs`, `bridge` und `hip_mob`. Sie sind entweder sehr fortgeschritten oder als Ergänzung nach Bedarf gedacht.
+
 Eigene Plan-Vorlage anlegen:
 
 ```js
@@ -132,19 +174,21 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Version in `DEFAULT_STATE()` (`v: 3`) hochzählen und in `storage.js` bei Bedarf eine Migration ergänzen. `LEGACY_KEYS` zeigt, wie ältere Stände übernommen werden.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/app.js` hochzählen und in `migrateState()` einen Schritt ergänzen. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 
 ## 7. Nach Änderungen: Cache aktualisieren
 
-Der Service Worker cached die Dateien. Damit ein Update sicher bei allen ankommt, in `sw.js` die Version hochzählen:
+Dateiliste und Cache-Version stehen in `sw-manifest.js` und werden erzeugt, nicht von Hand gepflegt:
 
-```js
-const CACHE = 'progression-v2';   // vorher v1
+```bash
+npm run sw:manifest
 ```
 
-Neue Dateien zusätzlich in die `ASSETS`-Liste eintragen.
+Die Version leitet sich aus dem Inhalt aller Dateien ab – sie kann also nicht vergessen werden, und jede Änderung erzeugt automatisch einen neuen Cache. `npm run sw:check` schlägt fehl, wenn das Manifest veraltet ist; das gehört vor jeden Deploy.
+
+Der Grund für die Automatik: `cache.add()` schlägt pro Datei fehl, und die frühere `addAll()`-Variante brach **atomar** ab, sobald ein einziger Eintrag fehlte. Ein vergessener Dateiname legte damit den kompletten Offline-Betrieb still – ohne jede Fehlermeldung.
 
 ---
 

@@ -17,7 +17,7 @@
      tips      Array mit Ausführungshinweisen
    ========================================================= */
 
-const CATS = {
+export const CATS = {
   push:     { name: 'Drücken',   icon: '↑' },
   pull:     { name: 'Ziehen',    icon: '↓' },
   legs:     { name: 'Beine',     icon: '⌃' },
@@ -26,7 +26,7 @@ const CATS = {
   mobility: { name: 'Mobility',  icon: '~' }
 };
 
-const EXERCISES = [
+export const EXERCISES = [
 
   /* ================= DRÜCKEN ================= */
   {
@@ -546,7 +546,7 @@ const EXERCISES = [
    PLAN-VORLAGEN
    Jede Vorlage besteht aus Trainingstagen mit Übungs-IDs.
    ========================================================= */
-const PLAN_TEMPLATES = {
+export const PLAN_TEMPLATES = {
   ab4: {
     name: 'A/B Split · 4× pro Woche',
     desc: 'Der empfohlene Einstieg: Mo/Di/Do/Fr im Wechsel A–B–A–B.',
@@ -598,7 +598,7 @@ const PLAN_TEMPLATES = {
 };
 
 /* Meilensteine */
-const MILESTONES = [
+export const MILESTONES = [
   { id: 'pushup5', name: '5 volle Liegestütze am Stück' },
   { id: 'pushup15', name: '15 volle Liegestütze am Stück' },
   { id: 'hang60', name: '60 Sekunden Dead Hang' },
@@ -618,7 +618,7 @@ const MILESTONES = [
 ];
 
 /* Warm-up-Bausteine (fest, vor jeder Einheit) */
-const WARMUP = [
+export const WARMUP = [
   '2–3 Min lockeres Aufwärmen (Hampelmänner, Marschieren, Seilspringen)',
   'Armkreisen vor- und rückwärts – je 10×',
   'Scapula Push-ups – 2 × 8',
@@ -628,5 +628,5 @@ const WARMUP = [
 ];
 
 /* Nachschlagewerk: Übung per ID finden */
-const EX_BY_ID = {};
+export const EX_BY_ID = {};
 EXERCISES.forEach(e => { EX_BY_ID[e.id] = e; });

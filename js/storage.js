@@ -1,57 +1,80 @@
 /* =========================================================
    SPEICHER-ADAPTER
-   Nutzt localStorage im normalen Browser und window.storage,
-   falls die App in einer Claude-Umgebung läuft.
+   Kapselt localStorage hinter einer async API, damit ein
+   spaeterer Wechsel auf IndexedDB nur diese Datei betrifft.
    ========================================================= */
 
-const STORAGE_KEY = 'progression:v3';
+export const STORAGE_KEY = 'progression:v3';
 const LEGACY_KEYS = ['ct:progress:v2', 'ct:progress:v1'];
+/* Hierhin wird ein nicht lesbarer Stand gesichert, statt ihn zu verwerfen. */
+const CORRUPT_KEY = 'progression:corrupt';
 
-const store = {
-  cloud: (typeof window !== 'undefined' && window.storage) ? window.storage : null,
-  get mode(){ return this.cloud ? 'Claude-Speicher' : 'Browser-Speicher (localStorage)'; },
+export const store = {
+  /* Woher der zuletzt geladene Stand kam – die Migration raeumt danach auf. */
+  loadedFrom: null,
+  /* Gesetzt, wenn ein vorhandener Stand nicht gelesen werden konnte. */
+  loadError: null,
+
+  get mode(){ return 'Browser-Speicher (localStorage)'; },
 
   async get(key){
-    if(this.cloud) return this.cloud.get(key);
     const v = localStorage.getItem(key);
     return v !== null ? { key, value: v } : null;
   },
   async set(key, value){
-    if(this.cloud) return this.cloud.set(key, value);
     localStorage.setItem(key, value);
     return { key, value };
   },
   async remove(key){
-    if(this.cloud) return this.cloud.delete(key);
     localStorage.removeItem(key);
     return { key, deleted: true };
   },
 
-  /* Lädt den Stand und migriert ältere Formate mit */
+  /* Laedt den Rohstand. Faellt auf aeltere Schluessel zurueck und meldet
+     ueber loadedFrom, welcher es war. Gibt null zurueck, wenn nichts da ist. */
   async load(){
-    let raw = null;
-    try{
-      const res = await this.get(STORAGE_KEY);
-      if(res && res.value) raw = res.value;
-    }catch(e){ /* Schlüssel existiert noch nicht */ }
+    this.loadedFrom = null;
+    this.loadError = null;
 
-    if(!raw){
-      for(const k of LEGACY_KEYS){
-        try{
-          const old = await this.get(k);
-          if(old && old.value){ raw = old.value; break; }
-        }catch(e){ /* weiter */ }
+    for(const key of [STORAGE_KEY, ...LEGACY_KEYS]){
+      let raw = null;
+      try{
+        const res = await this.get(key);
+        if(res && res.value) raw = res.value;
+      }catch(err){
+        /* Zugriff verweigert (privater Modus, blockierte Cookies).
+           Das ist etwas anderes als "kein Stand vorhanden". */
+        this.loadError = err;
+        return null;
+      }
+      if(!raw) continue;
+
+      try{
+        const parsed = JSON.parse(raw);
+        this.loadedFrom = key;
+        return parsed;
+      }catch(err){
+        /* Kaputtes JSON nicht stillschweigend verwerfen – sonst startet der
+           Nutzer kommentarlos bei null und der einzige Stand ist weg. */
+        this.loadError = err;
+        try{ localStorage.setItem(CORRUPT_KEY + ':' + key, raw); }catch{ /* kein Platz */ }
+        return null;
       }
     }
-    if(!raw) return null;
-    try{ return JSON.parse(raw); }catch(e){ return null; }
+    return null;
   },
 
   async save(state){
     return this.set(STORAGE_KEY, JSON.stringify(state));
   },
+
+  /* Entfernt die Altschluessel, nachdem ihr Inhalt uebernommen wurde. */
+  async dropLegacy(){
+    for(const k of LEGACY_KEYS){ try{ await this.remove(k); }catch{ /* egal */ } }
+  },
+
   async clear(){
     await this.remove(STORAGE_KEY);
-    for(const k of LEGACY_KEYS){ try{ await this.remove(k); }catch(e){} }
+    await this.dropLegacy();
   }
 };
