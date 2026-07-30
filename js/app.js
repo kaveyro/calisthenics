@@ -9,113 +9,16 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
+import {
+  SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
+  DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
+} from './domain/state.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
   catName, exName, exStage, exTips, msName, warmupText,
   planName, planDesc, dayTitle, daySub
 } from './i18n/index.js';
-
-const SETTINGS_DEFAULTS = {
-  rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
-  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de',
-  regress: true
-};
-
-/* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
-   hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-const STATE_VERSION = 5;
-
-/* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
-   4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
-   abgeschnitten. Ein Eintrag ist rund 100 Bytes, 2000 bleiben deutlich
-   unter dem localStorage-Budget. */
-const MAX_LOG_ENTRIES = 2000;
-const MAX_SERIES_ENTRIES = 1000;
-
-const DEFAULT_STATE = () => ({
-  v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
-  levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
-  weights: [], log: [], workouts: 0, byDay: {},
-  lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  measurements: {}, warmupCustom: null, regressedFor: null
-});
-/* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
-   bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
-   alter Staende einfach weg. */
-
-/* ================= Migration =================
-   Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
-   Stand in der aktuellen Form. Ersetzt das fruehere
-   Object.assign(DEFAULT_STATE(), loaded) – ein FLACHER Merge, bei dem ein
-   "notes": null aus einem alten oder handgeschriebenen Stand den Default {}
-   ueberschrieb und die App beim naechsten Training abstuerzen liess.
-
-   Zwischen v1 und v4 ist keine strukturelle Aenderung dokumentiert oder aus
-   dem Code ableitbar; diese Schritte sind daher reine Normalisierung. v5
-   ergaenzt activeSession und das numerische Feld prs[].n – beides additiv
-   und ueber die Defaults bzw. prNumber() abgedeckt. */
-function migrateState(raw){
-  const def = DEFAULT_STATE();
-  if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
-
-  const out = DEFAULT_STATE();
-  Object.keys(def).forEach(k => {
-    const v = raw[k], d = def[k];
-    if(v === undefined || v === null) return;              /* Default behalten */
-    if(Array.isArray(d)){ if(Array.isArray(v)) out[k] = v; return; }
-    if(d !== null && typeof d === 'object'){
-      if(typeof v === 'object' && !Array.isArray(v)) out[k] = v;
-      return;
-    }
-    if(typeof d === 'number'){ if(typeof v === 'number' && Number.isFinite(v)) out[k] = v; return; }
-    if(typeof d === 'string'){ if(typeof v === 'string') out[k] = v; return; }
-    out[k] = v;                                            /* Defaults mit null */
-  });
-
-  /* Felder mit Default null, die dennoch eine Form haben muessen. */
-  if(out.customPlan && (typeof out.customPlan !== 'object' || !Array.isArray(out.customPlan.days))) out.customPlan = null;
-  if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
-  if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
-  if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
-
-  /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
-  out.log = out.log
-    .filter(l => l && typeof l === 'object' && typeof l.d === 'string')
-    .map(l => ({
-      d: l.d,
-      day: typeof l.day === 'string' ? l.day : 'A',
-      sets: Number(l.sets) || 0,
-      tops: Number(l.tops) || 0,
-      ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
-      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
-    }))
-    .slice(-MAX_LOG_ENTRIES);
-
-  out.weights = out.weights
-    .filter(w => w && typeof w === 'object' && typeof w.d === 'string' && Number.isFinite(Number(w.kg)))
-    .map(w => ({ d: w.d, kg: Number(w.kg) }))
-    .slice(-MAX_SERIES_ENTRIES);
-
-  /* levels/streaks sind id -> Zahl. Ein Nicht-Zahl-Wert wuerde spaeter in
-     Vergleiche und Array-Indizes laufen. */
-  ['levels', 'streaks'].forEach(k => {
-    Object.keys(out[k]).forEach(id => {
-      const n = parseInt(out[k][id], 10);
-      if(Number.isFinite(n) && n >= 0) out[k][id] = n; else delete out[k][id];
-    });
-  });
-
-  /* Nur bekannte Einstellungen uebernehmen. */
-  const settings = {};
-  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
-    if(out.settings[k] !== undefined && out.settings[k] !== null) settings[k] = out.settings[k];
-  });
-  out.settings = settings;
-
-  out.v = STATE_VERSION;
-  return out;
-}
 
 let state = DEFAULT_STATE();
 let session = { dayKey: null, sets: {}, top: {}, reps: {} };
@@ -1745,44 +1648,9 @@ function exportText(){
 }
 const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
-/* Beschneidet ein importiertes Backup auf die bekannte Form.
-   Bewusst kappen statt ablehnen: ein Validator, der die eigenen aelteren
-   Backups des Nutzers zurueckweist, waere ein Datenverlust-Bug. */
-function clampBackup(data){
-  const known = Object.keys(DEFAULT_STATE());
-  const out = {};
-  known.forEach(k => { if(data[k] !== undefined && data[k] !== null) out[k] = data[k]; });
-
-  if(out.customPlan && typeof out.customPlan === 'object'){
-    const days = Array.isArray(out.customPlan.days) ? out.customPlan.days : [];
-    out.customPlan.days = days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => ({
-      key: sanitizeDayKey(d.key) || '?',
-      title: String(d.title == null ? '' : d.title).slice(0, 40),
-      sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
-      ex: (Array.isArray(d.ex) ? d.ex : []).filter(id => EX_BY_ID[id]).slice(0, 30)
-    }));
-  }
-  if(Array.isArray(out.warmupCustom)){
-    out.warmupCustom = out.warmupCustom.slice(0, 30).map(w => String(w == null ? '' : w).slice(0, 80));
-  }
-  if(out.notes && typeof out.notes === 'object'){
-    Object.keys(out.notes).forEach(id => {
-      const n = out.notes[id];
-      if(!n || typeof n !== 'object'){ delete out.notes[id]; return; }
-      n.t = String(n.t == null ? '' : n.t).slice(0, 160);
-    });
-  }
-  if(out.prs && typeof out.prs === 'object'){
-    Object.keys(out.prs).forEach(id => {
-      const p = out.prs[id];
-      if(!p || typeof p !== 'object'){ delete out.prs[id]; return; }
-      p.v = String(p.v == null ? '' : p.v).slice(0, 40);
-    });
-  }
-  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-MAX_LOG_ENTRIES);
-  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-MAX_SERIES_ENTRIES);
-  return out;
-}
+/* Der Uebungsbestand ist die einzige Aussenabhaengigkeit von clampBackup und
+   wird ihm deshalb hereingereicht – die Domaenenschicht importiert nichts. */
+const clampBackup = data => clampBackupPure(data, EX_BY_ID);
 
 function importJSON(input){
   const file = input.files && input.files[0]; if(!file) return;
@@ -1798,7 +1666,12 @@ function importJSON(input){
       const ok = await askConfirm(__('importTitle'), __('importBody'), __('importAction'), true);
       if(!ok){ input.value = ''; return; }
       cancelHold(); stopRest();
-      state = Object.assign(DEFAULT_STATE(), clampBackup(data));
+      /* Durch BEIDE Stufen: clampBackup kappt Laengen und Fremdfelder,
+         migrateState normalisiert Typen und setzt die Version. Frueher stand
+         hier ein Object.assign(DEFAULT_STATE(), …) – also genau der flache
+         Merge, den migrateState ersetzt hat. Boot- und Importpfad pruefen
+         seitdem unterschiedlich streng, obwohl es dieselben Daten sind. */
+      state = migrateState(clampBackup(data));
       clearSession();          /* vor dem Speichern: sonst landet eine aus dem
                                   Backup stammende Einheit kurz im Speicher */
       await save();
