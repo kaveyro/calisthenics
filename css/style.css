@@ -358,6 +358,7 @@ details.acc li{margin-bottom:5px}
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--toast-bg);color:var(--toast-fg);padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;transition:transform .3s ease;z-index:50;max-width:90vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.levelup{background:var(--success);color:#fff}
+.toast-btn{margin-left:12px;min-height:32px;padding:6px 12px;border:0;border-radius:8px;background:var(--toast-fg);color:var(--toast-bg);font:inherit;font-weight:700;cursor:pointer}
 
 /* ---------- History Modal Table ---------- */
 .modal table{width:100%;border-collapse:collapse;margin-top:8px}

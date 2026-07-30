@@ -32,11 +32,18 @@ const registriert = new Set([...tabelle.matchAll(/^\s{2}'([a-zA-Z:]+)':/gm)].map
 
 /* Alle im Markup verwendeten Namen – aus index.html und aus den in app.js
    erzeugten HTML-Strings. Zusätzlich per dataset gesetzte Namen, etwa beim
-   dynamisch erzeugten Undo-Button. */
+   dynamisch erzeugten Undo-Button, und als Option übergebene Namen wie bei
+   der Schaltfläche im Update-Hinweis: toast(text, big, { action: '…' }).
+
+   Die dritte Form ist bewusst eng gefasst. Sie erkennt eine weitere Art, wie
+   ein Aktionsname an ein Element gelangt – die Prüfung bleibt in beide
+   Richtungen scharf: ein Tippfehler dort schlägt als "verwendet, aber nicht
+   registriert" auf. */
 function verwendeteNamen(text){
   return [
     ...[...text.matchAll(/data-action(?:-change|-input)?="([a-zA-Z:]+)"/g)].map(m => m[1]),
-    ...[...text.matchAll(/dataset\.action(?:Change|Input)?\s*=\s*'([a-zA-Z:]+)'/g)].map(m => m[1])
+    ...[...text.matchAll(/dataset\.action(?:Change|Input)?\s*=\s*'([a-zA-Z:]+)'/g)].map(m => m[1]),
+    ...[...text.matchAll(/\baction:\s*'([a-zA-Z]+:[a-zA-Z]+)'/g)].map(m => m[1])
   ];
 }
 const verwendet = new Set([...verwendeteNamen(html), ...verwendeteNamen(appQuelltext)]);

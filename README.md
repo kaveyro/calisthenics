@@ -190,6 +190,8 @@ Die Version leitet sich aus dem Inhalt aller Dateien ab – sie kann also nicht 
 
 Der Grund für die Automatik: `cache.add()` schlägt pro Datei fehl, und die frühere `addAll()`-Variante brach **atomar** ab, sobald ein einziger Eintrag fehlte. Ein vergessener Dateiname legte damit den kompletten Offline-Betrieb still – ohne jede Fehlermeldung.
 
+**Wie ein Deploy beim Nutzer ankommt.** Die neue Version installiert sich im Hintergrund und *wartet*. Die App meldet „Neue Version verfügbar" mit einer Schaltfläche; erst der Klick übergibt ihr die Kontrolle und lädt die Seite einmal neu. Vorher übernahm sie sofort – ab dem Wechsel lieferte der neue Cache die Dateien, während im Dokument noch das alte `app.js` lief. Deshalb werden auch Navigationen aus dem Cache bedient: ein frisches `index.html` vom Netz hätte weiterhin auf die alten, nicht gehashten Dateinamen verwiesen.
+
 ---
 
 ## 8. Wie die Progression funktioniert

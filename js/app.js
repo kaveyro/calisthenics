@@ -220,10 +220,72 @@ function setNote(id, value){
   persistSessionSpaeter();
 }
 
+/* ================= Service Worker und Update-Zustellung =================
+   Die neue Version uebernimmt nicht mehr von selbst, sondern meldet sich und
+   wartet. Erst der Klick auf "Neu laden" schickt ihr SKIP_WAITING; das
+   anschliessende controllerchange laedt die Seite genau einmal neu.
+
+   Ohne diesen Weg lief die App nach einem Deploy mit neuem Cache und altem
+   JavaScript weiter, ohne dass irgendetwas darauf hingewiesen haette. */
+let swWartend = null;
+let swLaedtNeu = false;
+let swLetztePruefung = 0;
+const SW_PRUEFABSTAND = 30 * 60 * 1000;
+
 function registerSW(){
-  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
+  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+
+  /* updateViaCache: 'none' – sonst gilt der Standard 'imports', und
+     ausgerechnet sw-manifest.js, in dem die Version ueberhaupt erst steht,
+     kaeme bei der Update-Pruefung aus dem HTTP-Cache. Auf GitHub Pages
+     verzoegert das die Erkennung um dessen max-age. */
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    swLetztePruefung = Date.now();
+    if(reg.waiting && navigator.serviceWorker.controller) updateAnbieten(reg.waiting);
+
+    reg.addEventListener('updatefound', () => {
+      const neu = reg.installing;
+      if(!neu) return;
+      neu.addEventListener('statechange', () => {
+        /* Ohne die Pruefung auf controller meldet auch die Erstinstallation
+           ein "Update" – dort gibt es aber keine alte Version. */
+        if(neu.state === 'installed' && navigator.serviceWorker.controller) updateAnbieten(neu);
+      });
+    });
+  }).catch(() => { /* Ohne Service Worker laeuft die App weiter, nur ohne Offline-Cache */ });
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(!swLaedtNeu) return;      /* Schutz vor einer Neulade-Schleife */
+    swLaedtNeu = false;
+    location.reload();
+  });
+}
+
+function updateAnbieten(worker){
+  swWartend = worker;
+  toast(__('updateAvailable'), true, { text: __('updateReload'), action: 'sw:update' });
+}
+
+function updateAnwenden(){
+  if(!swWartend) return;
+  swLaedtNeu = true;
+  swWartend.postMessage({ type: 'SKIP_WAITING' });
+  swWartend = null;
+}
+
+/* Eine installierte PWA wird tagelang nicht neu geladen und erfaehrt sonst
+   nie von einem Deploy. Beim Zurueckkehren nachsehen, hoechstens halbstuendlich. */
+function swPruefen(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if(!reg) return;
+    /* Einen bereits wartenden Worker erneut anbieten – der Hinweis kann
+       waehrend der Abwesenheit weggeblendet worden sein. */
+    if(reg.waiting && navigator.serviceWorker.controller) updateAnbieten(reg.waiting);
+    if(Date.now() - swLetztePruefung < SW_PRUEFABSTAND) return;
+    swLetztePruefung = Date.now();
+    return reg.update();
+  }).catch(() => {});
 }
 
 function renderAll(){
@@ -1864,13 +1926,24 @@ async function resetAll(){
    js/domain/ und werden oben importiert. */
 
 let toastTimer = null;
-function toast(msg, big){
+/* aktion: optional { text, action } – haengt eine Schaltflaeche an, die ueber
+   die Aktionstabelle laeuft wie jedes andere Element auch. Bewusst
+   createElement statt innerHTML: so stellt sich die Frage nach dem Escapen
+   gar nicht erst. */
+function toast(msg, big, aktion){
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.toggle('levelup', !!big);
+  if(aktion){
+    const b = document.createElement('button');
+    b.className = 'toast-btn';
+    b.textContent = aktion.text;
+    b.dataset.action = aktion.action;
+    t.appendChild(b);
+  }
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), big ? 5000 : 3200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
 }
 
 /* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
@@ -1891,6 +1964,8 @@ document.addEventListener('visibilitychange', () => {
      dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
      wieder ein. requestWakeLock() ist idempotent. */
   if(session.dayKey) requestWakeLock();
+
+  swPruefen();
 });
 
 /* Ungespeichertes Training beim Verlassen abfangen */
@@ -1932,6 +2007,7 @@ export const actions = {
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
   'rest:stop':          () => { stopRest(); persistSession(); },
+  'sw:update':          () => updateAnwenden(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
 
   /* Warm-up */
