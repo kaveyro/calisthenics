@@ -202,14 +202,61 @@ async function save(){
    session lebte bisher nur im Arbeitsspeicher. Schickt das Handy die PWA in
    den Hintergrund und der Browser entlaedt sie, war die halb fertige Einheit
    weg – beforeunload feuert beim App-Wechsel auf Mobilgeraeten nicht.
-   Deshalb wird sie bei jeder Aenderung mitgeschrieben. */
-function persistSession(){
+   Deshalb wird sie bei jeder Aenderung mitgeschrieben.
+
+   Geschrieben wird ueber drei Wege:
+     persistSession()        sofort – fuer einzelne Interaktionen
+     persistSessionSpaeter() entprellt – fuer Tastendruck-Ereignisse
+     flushSession()          holt einen ausstehenden Schreibvorgang nach
+*/
+const SCHREIB_VERZOEGERUNG = 500;
+let schreibTimer = null;
+
+/* Uebertraegt die Session in den Zustand, ohne zu schreiben. */
+function spiegleSession(){
   state.activeSession = session.dayKey
     ? { dayKey: session.dayKey, sets: { ...session.sets }, top: { ...session.top }, reps: { ...session.reps }, d: today() }
     : null;
+}
+
+function persistSession(){
+  spiegleSession();
+  /* Ein noch anstehender entprellter Schreibvorgang ist damit erledigt –
+     sonst folgte gleich ein zweiter mit demselben Inhalt. */
+  clearTimeout(schreibTimer);
+  schreibTimer = null;
   save();
 }
+
+/* Entprellte Variante fuer haeufige Ereignisse.
+
+   setRep() haengt am input-Ereignis, feuert also bei JEDEM Tastendruck.
+   Jeder davon serialisierte bisher den kompletten Zustand und schrieb ihn
+   synchron in localStorage – bei bis zu 2000 Log-Eintraegen spuerbar.
+
+   Der Zustand wird weiterhin sofort aktualisiert, damit ein Re-Render den
+   Wert sieht; nur das Schreiben wartet. */
+function persistSessionSpaeter(){
+  spiegleSession();
+  clearTimeout(schreibTimer);
+  schreibTimer = setTimeout(() => { schreibTimer = null; save(); }, SCHREIB_VERZOEGERUNG);
+}
+
+/* Ausstehendes Schreiben sofort ausfuehren. Muss vor jedem Ersetzen oder
+   Auslesen des Zustands laufen – sonst geht genau die letzte Eingabe
+   verloren, die die Persistenz retten soll. */
+function flushSession(){
+  if(schreibTimer === null) return;
+  clearTimeout(schreibTimer);
+  schreibTimer = null;
+  save();
+}
+
 function clearSession(){
+  /* Verwerfen, nicht ausspuelen: der Zustand wird ohnehin gleich ersetzt,
+     ein ausstehender Schreibvorgang wuerde die alte Session zurueckholen. */
+  clearTimeout(schreibTimer);
+  schreibTimer = null;
   session = { dayKey: null, sets: {}, top: {}, reps: {} };
   state.activeSession = null;
 }
@@ -228,7 +275,10 @@ function restoreActiveSession(){
 function setRep(key, value){
   const n = parseInt(value, 10);
   session.reps[key] = Number.isFinite(n) ? n : null;
-  persistSession();
+  /* Einzige entprellte Stelle: hier feuert jeder Tastendruck. Satz-Tap,
+     Top-Haekchen und Tagwechsel schreiben weiterhin sofort – dort ist ein
+     Schreibvorgang pro Interaktion angemessen. */
+  persistSessionSpaeter();
 }
 
 function registerSW(){
@@ -1845,8 +1895,19 @@ function toast(msg, big){
   toastTimer = setTimeout(() => t.classList.remove('show'), big ? 5000 : 3200);
 }
 
+/* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
+
+   visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
+   Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
+   registriert, weil visibilitychange beim reinen Schliessen am Desktop
+   nicht garantiert ist. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') flushSession();
+});
+
 /* Ungespeichertes Training beim Verlassen abfangen */
 window.addEventListener('beforeunload', e => {
+  flushSession();
   if(session.dayKey && Object.values(session.sets).some(Boolean)){
     e.preventDefault(); e.returnValue = '';
   }
