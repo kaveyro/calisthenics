@@ -26,8 +26,21 @@ self.addEventListener('install', e => {
     results.forEach((r, i) => {
       if(r.status === 'rejected') console.error('[sw] nicht cachebar:', ASSETS[i], r.reason);
     });
-    await self.skipWaiting();
+    /* Hier stand ein bedingungsloses skipWaiting(). Die neue Version uebernahm
+       damit die LAUFENDE Seite: ab dem Wechsel lieferte der neue Cache die
+       Dateien, waehrend im Dokument noch das alte app.js lief – und der alte
+       Cache war schon geloescht. Alles, was erst spaeter geholt wurde (eine
+       Schrift unter font-display:swap, ein Icon), kam aus der neuen Version.
+       Gesagt wurde dem Nutzer nichts.
+
+       Jetzt wartet die neue Version, bis die App danach fragt. */
   })());
+});
+
+/* Die Seite bittet um die Uebernahme, nachdem der Nutzer zugestimmt hat.
+   Danach laedt sie sich bei controllerchange selbst neu. */
+self.addEventListener('message', e => {
+  if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -45,18 +58,27 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if(url.origin !== self.location.origin) return;   /* Fremde Hosts nicht anfassen */
 
-  /* Navigationen: Netzwerk zuerst, damit ein Deploy zügig ankommt. */
+  /* Navigationen: Cache zuerst, genau wie alle anderen Dateien.
+
+     Vorher stand hier Netzwerk-zuerst, „damit ein Deploy zügig ankommt". Das
+     ging nicht auf: die Dateinamen tragen keinen Hash, nur der Cache-Name
+     hängt am Inhalt. Ein frisches index.html vom Netz verwies also weiterhin
+     auf js/app.js und css/style.css, die der Cache-first-Zweig aus dem ALTEN
+     Cache bediente – neues HTML mit altem JavaScript, schlechter als
+     durchgehend alt. Die Zustellung neuer Versionen läuft jetzt über den
+     Update-Hinweis in der App, nicht über diesen Zweig.
+
+     Nur hier ist index.html die richtige Ersatzantwort – früher wurde sie bei
+     JEDEM fehlgeschlagenen Request geliefert, auch für Bilder und JSON. */
   if(req.mode === 'navigate'){
     e.respondWith(
-      fetch(req)
-        .then(res => {
+      caches.match(req)
+        .then(hit => hit || fetch(req).then(res => {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy)).catch(() => { /* Cache voll */ });
           return res;
-        })
-        /* Nur hier ist index.html die richtige Antwort – früher wurde sie bei
-           JEDEM fehlgeschlagenen Request geliefert, auch für Bilder und JSON. */
-        .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+        }))
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }

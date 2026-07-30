@@ -2,13 +2,17 @@
    PROGRESSION – App-Logik
    ========================================================= */
 
-import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, EX_BY_ID } from './exercises.js';
+import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX_BY_ID } from './exercises.js';
 import { store, STORAGE_KEY } from './storage.js';
-import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
+import { today, fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
+import {
+  SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
+  DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
+} from './domain/state.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -16,110 +20,19 @@ import {
   planName, planDesc, dayTitle, daySub
 } from './i18n/index.js';
 
-const SETTINGS_DEFAULTS = {
-  rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
-  setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de',
-  regress: true
-};
-
-/* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
-   hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-const STATE_VERSION = 5;
-
-/* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
-   4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
-   abgeschnitten. Ein Eintrag ist rund 100 Bytes, 2000 bleiben deutlich
-   unter dem localStorage-Budget. */
-const MAX_LOG_ENTRIES = 2000;
-const MAX_SERIES_ENTRIES = 1000;
-
-const DEFAULT_STATE = () => ({
-  v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
-  levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
-  weights: [], log: [], workouts: 0, byDay: {},
-  lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  measurements: {}, warmupCustom: null, regressedFor: null
-});
-/* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
-   bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
-   alter Staende einfach weg. */
-
-/* ================= Migration =================
-   Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
-   Stand in der aktuellen Form. Ersetzt das fruehere
-   Object.assign(DEFAULT_STATE(), loaded) – ein FLACHER Merge, bei dem ein
-   "notes": null aus einem alten oder handgeschriebenen Stand den Default {}
-   ueberschrieb und die App beim naechsten Training abstuerzen liess.
-
-   Zwischen v1 und v4 ist keine strukturelle Aenderung dokumentiert oder aus
-   dem Code ableitbar; diese Schritte sind daher reine Normalisierung. v5
-   ergaenzt activeSession und das numerische Feld prs[].n – beides additiv
-   und ueber die Defaults bzw. prNumber() abgedeckt. */
-function migrateState(raw){
-  const def = DEFAULT_STATE();
-  if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
-
-  const out = DEFAULT_STATE();
-  Object.keys(def).forEach(k => {
-    const v = raw[k], d = def[k];
-    if(v === undefined || v === null) return;              /* Default behalten */
-    if(Array.isArray(d)){ if(Array.isArray(v)) out[k] = v; return; }
-    if(d !== null && typeof d === 'object'){
-      if(typeof v === 'object' && !Array.isArray(v)) out[k] = v;
-      return;
-    }
-    if(typeof d === 'number'){ if(typeof v === 'number' && Number.isFinite(v)) out[k] = v; return; }
-    if(typeof d === 'string'){ if(typeof v === 'string') out[k] = v; return; }
-    out[k] = v;                                            /* Defaults mit null */
-  });
-
-  /* Felder mit Default null, die dennoch eine Form haben muessen. */
-  if(out.customPlan && (typeof out.customPlan !== 'object' || !Array.isArray(out.customPlan.days))) out.customPlan = null;
-  if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
-  if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
-  if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
-
-  /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
-  out.log = out.log
-    .filter(l => l && typeof l === 'object' && typeof l.d === 'string')
-    .map(l => ({
-      d: l.d,
-      day: typeof l.day === 'string' ? l.day : 'A',
-      sets: Number(l.sets) || 0,
-      tops: Number(l.tops) || 0,
-      ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
-      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
-    }))
-    .slice(-MAX_LOG_ENTRIES);
-
-  out.weights = out.weights
-    .filter(w => w && typeof w === 'object' && typeof w.d === 'string' && Number.isFinite(Number(w.kg)))
-    .map(w => ({ d: w.d, kg: Number(w.kg) }))
-    .slice(-MAX_SERIES_ENTRIES);
-
-  /* levels/streaks sind id -> Zahl. Ein Nicht-Zahl-Wert wuerde spaeter in
-     Vergleiche und Array-Indizes laufen. */
-  ['levels', 'streaks'].forEach(k => {
-    Object.keys(out[k]).forEach(id => {
-      const n = parseInt(out[k][id], 10);
-      if(Number.isFinite(n) && n >= 0) out[k][id] = n; else delete out[k][id];
-    });
-  });
-
-  /* Nur bekannte Einstellungen uebernehmen. */
-  const settings = {};
-  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
-    if(out.settings[k] !== undefined && out.settings[k] !== null) settings[k] = out.settings[k];
-  });
-  out.settings = settings;
-
-  out.v = STATE_VERSION;
-  return out;
-}
-
 let state = DEFAULT_STATE();
-let session = { dayKey: null, sets: {}, top: {}, reps: {} };
+/* Alles, was zur laufenden Einheit gehoert – an einer Stelle, damit keine
+   Sammlung beim Zuruecksetzen vergessen wird. */
+const leereSession = () => ({ dayKey: null, sets: {}, top: {}, reps: {}, notes: {} });
+let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
+/* Beide Timer richten sich nach einem absoluten Zielzeitpunkt statt nach
+   heruntergezaehlten Ticks. Browser drosseln setInterval im Hintergrund auf
+   mindestens eine Sekunde und frieren ihn auf Mobilgeraeten ganz ein: eine
+   90-Sekunden-Pause, waehrend der das Handy gesperrt war, ging vorher um
+   genau die Sperrzeit nach. Der Tick zeichnet nur noch. */
+const TAKT = 250;
+let restEnde = 0;
 let libFilter = 'all';
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
@@ -215,7 +128,14 @@ let schreibTimer = null;
 /* Uebertraegt die Session in den Zustand, ohne zu schreiben. */
 function spiegleSession(){
   state.activeSession = session.dayKey
-    ? { dayKey: session.dayKey, sets: { ...session.sets }, top: { ...session.top }, reps: { ...session.reps }, d: today() }
+    ? {
+      dayKey: session.dayKey, d: today(),
+      sets: { ...session.sets }, top: { ...session.top },
+      reps: { ...session.reps }, notes: { ...session.notes },
+      /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
+         uebersteht – eine Restdauer waere nach dem Laden wertlos. */
+      restEnde: restEnde || null
+    }
     : null;
 }
 
@@ -257,7 +177,7 @@ function clearSession(){
      ein ausstehender Schreibvorgang wuerde die alte Session zurueckholen. */
   clearTimeout(schreibTimer);
   schreibTimer = null;
-  session = { dayKey: null, sets: {}, top: {}, reps: {} };
+  session = leereSession();
   state.activeSession = null;
 }
 function restoreActiveSession(){
@@ -266,8 +186,19 @@ function restoreActiveSession(){
   /* Eine Einheit von gestern ist keine laufende Einheit mehr. */
   if(a.d && a.d !== today()){ state.activeSession = null; return false; }
   if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
-  session = { dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {}, reps: a.reps || {} };
-  renderDaySelect(); renderWorkout(); restoreSession({}, session.reps);
+  session = {
+    dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
+    reps: a.reps || {}, notes: a.notes || {}
+  };
+  renderDaySelect(); renderWorkout(); restoreSession(session.reps);
+
+  /* Eine Pause, die beim Neuladen noch lief, laeuft weiter. Die Obergrenze
+     faengt einen verbogenen Zeitstempel ab: ohne sie stuende dort eine
+     Pause ueber Stunden. */
+  const offen = Number(a.restEnde) - Date.now();
+  if(Number.isFinite(offen) && offen > 0 && offen <= 60 * 60 * 1000) restBis(Number(a.restEnde));
+
+  requestWakeLock();
   toast(__('sessionRestored'));
   return true;
 }
@@ -275,16 +206,86 @@ function restoreActiveSession(){
 function setRep(key, value){
   const n = parseInt(value, 10);
   session.reps[key] = Number.isFinite(n) ? n : null;
-  /* Einzige entprellte Stelle: hier feuert jeder Tastendruck. Satz-Tap,
-     Top-Haekchen und Tagwechsel schreiben weiterhin sofort – dort ist ein
-     Schreibvorgang pro Interaktion angemessen. */
+  /* Entprellt: hier feuert jeder Tastendruck. Satz-Tap, Top-Haekchen und
+     Tagwechsel schreiben weiterhin sofort – dort ist ein Schreibvorgang pro
+     Interaktion angemessen. */
   persistSessionSpaeter();
 }
 
+/* Notizen gehoeren zur laufenden Einheit wie Saetze und Wiederholungen.
+   Bisher lebten sie ausschliesslich im Textfeld: eine wiederhergestellte
+   Einheit kam ohne sie zurueck, und ein Undo warf sie weg. */
+function setNote(id, value){
+  session.notes[id] = value;
+  persistSessionSpaeter();
+}
+
+/* ================= Service Worker und Update-Zustellung =================
+   Die neue Version uebernimmt nicht mehr von selbst, sondern meldet sich und
+   wartet. Erst der Klick auf "Neu laden" schickt ihr SKIP_WAITING; das
+   anschliessende controllerchange laedt die Seite genau einmal neu.
+
+   Ohne diesen Weg lief die App nach einem Deploy mit neuem Cache und altem
+   JavaScript weiter, ohne dass irgendetwas darauf hingewiesen haette. */
+let swWartend = null;
+let swLaedtNeu = false;
+let swLetztePruefung = 0;
+const SW_PRUEFABSTAND = 30 * 60 * 1000;
+
 function registerSW(){
-  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
+  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+
+  /* updateViaCache: 'none' – sonst gilt der Standard 'imports', und
+     ausgerechnet sw-manifest.js, in dem die Version ueberhaupt erst steht,
+     kaeme bei der Update-Pruefung aus dem HTTP-Cache. Auf GitHub Pages
+     verzoegert das die Erkennung um dessen max-age. */
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    swLetztePruefung = Date.now();
+    if(reg.waiting && navigator.serviceWorker.controller) updateAnbieten(reg.waiting);
+
+    reg.addEventListener('updatefound', () => {
+      const neu = reg.installing;
+      if(!neu) return;
+      neu.addEventListener('statechange', () => {
+        /* Ohne die Pruefung auf controller meldet auch die Erstinstallation
+           ein "Update" – dort gibt es aber keine alte Version. */
+        if(neu.state === 'installed' && navigator.serviceWorker.controller) updateAnbieten(neu);
+      });
+    });
+  }).catch(() => { /* Ohne Service Worker laeuft die App weiter, nur ohne Offline-Cache */ });
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(!swLaedtNeu) return;      /* Schutz vor einer Neulade-Schleife */
+    swLaedtNeu = false;
+    location.reload();
+  });
+}
+
+function updateAnbieten(worker){
+  swWartend = worker;
+  toast(__('updateAvailable'), true, { text: __('updateReload'), action: 'sw:update' });
+}
+
+function updateAnwenden(){
+  if(!swWartend) return;
+  swLaedtNeu = true;
+  swWartend.postMessage({ type: 'SKIP_WAITING' });
+  swWartend = null;
+}
+
+/* Eine installierte PWA wird tagelang nicht neu geladen und erfaehrt sonst
+   nie von einem Deploy. Beim Zurueckkehren nachsehen, hoechstens halbstuendlich. */
+function swPruefen(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if(!reg) return;
+    /* Einen bereits wartenden Worker erneut anbieten – der Hinweis kann
+       waehrend der Abwesenheit weggeblendet worden sein. */
+    if(reg.waiting && navigator.serviceWorker.controller) updateAnbieten(reg.waiting);
+    if(Date.now() - swLetztePruefung < SW_PRUEFABSTAND) return;
+    swLetztePruefung = Date.now();
+    return reg.update();
+  }).catch(() => {});
 }
 
 function renderAll(){
@@ -469,9 +470,13 @@ function renderWarmup(){
   const items = state.warmupCustom || WARMUP.map((w, i) => warmupText(i, w));
   const el = document.getElementById('warmupList');
   el.innerHTML = items.map((w, i) =>
-    '<li' + (w.includes('Pflicht') ? ' class="pflicht"' : '') + '>' +
+    /* Merkmal aus den Daten statt aus einem deutschen Teilstring – die
+       fruehere Pruefung w.includes('Pflicht') fiel auf Englisch stumm aus.
+       Bei einer selbst zusammengestellten Liste laesst sich die Zuordnung
+       nicht halten, dort entfaellt die Hervorhebung. */
+    '<li' + (!state.warmupCustom && WARMUP_PFLICHT.has(i) ? ' class="pflicht"' : '') + '>' +
     esc(w) + ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
-    ' aria-label="Warm-up-Eintrag entfernen: ' + esc(w) + '">✕</button></li>'
+    ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">✕</button></li>'
   ).join('');
 }
 function removeWarmupItem(i){
@@ -508,7 +513,7 @@ function showTab(t){
   if(t === 'library') { renderCatFilter(); renderLibrary(); }
   if(t === 'plan') renderPlanTab();
   if(t === 'milestones') { renderMilestones(); renderRoadmap(); }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: wenigerBewegung() ? 'auto' : 'smooth' });
 }
 
 /* Pfeiltasten-Navigation innerhalb der Tableiste (ARIA-Tabs-Muster). */
@@ -555,10 +560,12 @@ function addKeyboardShortcuts(){
       return;
     }
     if(e.key === 'r' || e.key === 'R'){
-      if(document.getElementById('restChip').style.display === 'block') stopRest();
-      else if(session.dayKey){
+      if(document.getElementById('restChip').style.display === 'block'){
+        stopRest(); persistSession();
+      } else if(session.dayKey){
         const defaultRest = cfg('rest');
         startRest(defaultRest);
+        persistSession();
         toast(__('restLabel', { sec: defaultRest }));
       }
       return;
@@ -590,13 +597,38 @@ function renderDaySelect(){
 
 /* ================= Sätze & Ziele berechnen ================= */
 function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
+/* Zielangaben wie '4 × 10–20 Sek' fuer die Anzeige uebersetzen.
+
+   Nicht in content.en.js gespiegelt, und zwar mit Absicht: parseTarget()
+   erkennt Halteuebungen an 'Sek' (js/domain/target.js). Uebersetzte Ziele in
+   den Daten wuerden die Satz- und Halteerkennung fuer alle 141 Stufen
+   zerlegen. Sprachabhaengig sind ohnehin nur die zwei Einheitenwoerter –
+   '×' und '–' sind neutral. Also nur beim Ausgeben ersetzen, waehrend
+   parseTarget() weiterhin die deutsche Quelle bekommt. */
+function zielText(target){
+  return String(target == null ? '' : target)
+    .replace(/\bSek\b/g, __('secShort'))
+    .replace(/\bVersuche\b/g, __('attempts'));
+}
+
+/* Wochentagskuerzel in der Sprache der Oberflaeche, Montag zuerst. */
+function wochentage(){
+  const f = new Intl.DateTimeFormat(getLang(), { weekday: 'short' });
+  /* 2024-01-01 war ein Montag. */
+  return Array.from({ length: 7 }, (_, i) => f.format(new Date(Date.UTC(2024, 0, 1 + i))));
+}
+
+/* Datum in der Sprache der Oberflaeche. Die Domaenenschicht kennt die
+   aktuelle Sprache nicht, also wird sie hier hereingereicht. */
+function fmtDate(iso){ return fmtDatePure(iso, getLang()); }
+
 function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
 /* ================= Workout rendern ================= */
 function selectDay(key){
   cancelHold(); stopRest();
-  session = { dayKey: key, sets: {}, top: {}, reps: {} };
+  session = { ...leereSession(), dayKey: key };
   persistSession();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
@@ -626,18 +658,20 @@ function renderWorkout(){
       const repKey = ex.id + '-' + s;
       /* aria-pressed statt reiner Farbcodierung: der Erledigt-Zustand war
          nur ueber eine CSS-Klasse sichtbar und das Label statisch.
-         aria-live auf dem Punkt, damit der Countdown einer Halteuebung
-         ueberhaupt angesagt wird – er aendert nur den Textinhalt. */
+
+         Hier stand zusaetzlich aria-live="polite" fuer Halteuebungen, damit
+         der Countdown ueberhaupt angesagt wird. Angesagt wurde damit aber
+         JEDE einzelne Sekunde. Beginn und Ende meldet jetzt melde() ueber
+         #srStatus, der Punkt selbst bleibt still. */
       dots += '<button class="set-dot" id="set-' + repKey + '"' +
         ' data-action="set:tap" data-ex="' + ex.id + '" data-set="' + s + '"' +
         ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
-        (t.isHold ? ' aria-live="polite"' : '') +
         ' aria-label="' + esc(__('setAria', { ex: exName(ex), n: s + 1, total: t.sets })) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
         dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
           ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
-          ' value="' + ((session.reps || {})[repKey] || '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
+          ' value="' + (session.reps[repKey] ?? '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       }
     }
 
@@ -659,7 +693,7 @@ function renderWorkout(){
       '<div class="rungs" role="img" aria-label="' +
         esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
         '">' + rungs + '</div>' +
-      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(level.target) + '</div></div>' +
+      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
@@ -669,7 +703,10 @@ function renderWorkout(){
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
       '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"><span>' + __('topLimit') + '</span></label>' +
       hint +
-      '<textarea class="note-input" id="note-' + ex.id + '" rows="1" placeholder="' + __('notes') + ' (z. B. „6 Sek Negativ geschafft") – optional"></textarea>' +
+      '<textarea class="note-input" id="note-' + ex.id + '" rows="1"' +
+        ' data-action-input="note:set" data-ex="' + ex.id + '"' +
+        ' placeholder="' + esc(__('notePlaceholder')) + '">' +
+        esc(session.notes[ex.id] || '') + '</textarea>' +
       '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
       '<ul class="tips" id="tips-' + ex.id + '">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
       '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + ex.id + '">↻ ' + __('substitute') + '</button>' +
@@ -682,16 +719,11 @@ function renderWorkout(){
   updateFinish();
 }
 
-function snapshotNotes(){
-  const n = {};
-  const day = getDay(session.dayKey);
-  if(day) day.ex.forEach(id => {
-    const el = document.getElementById('note-' + id);
-    if(el) n[id] = el.value;
-  });
-  return n;
-}
-function restoreSession(notes, reps){
+/* Stellt nach einem Neuzeichnen des Trainings wieder her, was nicht im
+   Markup steckt. Notizen brauchen das nicht mehr: sie stehen in
+   session.notes und werden von renderWorkout() direkt ausgegeben – das
+   fruehere snapshotNotes() ist damit ueberfluessig geworden. */
+function restoreSession(reps){
   Object.keys(session.sets).forEach(k => {
     if(session.sets[k]){
       const el = document.getElementById('set-' + k);
@@ -704,11 +736,12 @@ function restoreSession(notes, reps){
       if(l){ l.classList.add('checked'); l.querySelector('input').checked = true; }
     }
   });
-  Object.keys(notes || {}).forEach(id => {
-    const el = document.getElementById('note-' + id); if(el) el.value = notes[id];
-  });
+  /* Gegen null pruefen, nicht gegen Falsy: 0 Wiederholungen sind eine
+     gueltige Eingabe, die setRep() bewusst speichert. Sie verschwand hier
+     und beim Rendern des Feldes bei jedem Neuzeichnen. */
   Object.keys(reps || {}).forEach(k => {
-    const el = document.getElementById('rep-' + k); if(el && reps[k]) el.value = reps[k];
+    const el = document.getElementById('rep-' + k);
+    if(el && reps[k] != null) el.value = reps[k];
   });
   updateFinish();
 }
@@ -723,7 +756,7 @@ function adjustLevel(id, d){
   /* cancelHold() zuerst: sonst laeuft ein Countdown gegen das alte,
      nach renderWorkout() abgehaengte Element weiter und markiert einen
      Satz, den man nicht mehr sieht. */
-  if(session.dayKey){ cancelHold(); const n = snapshotNotes(); const r = session.reps; renderWorkout(); restoreSession(n, r); }
+  if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
   toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }));
 }
@@ -740,7 +773,7 @@ async function substituteExercise(id){
   const gewaehlt = await askChoice(__('substituteFor', { name: exName(ex) }), sameCat.map(e => ({
     value: e.id,
     name: exName(e),
-    sub: exStage(e, lvlOf(e)) + ' · ' + e.levels[lvlOf(e)].target
+    sub: exStage(e, lvlOf(e)) + ' · ' + zielText(e.levels[lvlOf(e)].target)
   })));
   if(!gewaehlt) return;
 
@@ -750,10 +783,13 @@ async function substituteExercise(id){
   const ei = day.ex.indexOf(id);
   if(ei >= 0) day.ex[ei] = gewaehlt;
   save();
-  const n = snapshotNotes(); const r = session.reps;
+  /* cancelHold() zuerst, wie in adjustLevel(): der Countdown haelt den alten
+     DOM-Knoten fest und lief nach dem Neuzeichnen dagegen weiter – am Ende
+     hakte er einen Satz ab, den es nicht mehr gab, und startete eine Pause. */
+  cancelHold();
   session.sets = {}; session.top = {};
   persistSession();
-  renderWorkout(); restoreSession(n, r);
+  renderWorkout(); restoreSession(session.reps);
   toast(__('substituted', { name: exName(EX_BY_ID[gewaehlt]) }));
 }
 
@@ -798,7 +834,7 @@ function closeExHistory(){
 
 /* ================= Satz-Interaktion ================= */
 function tapSet(id, s){
-  const ex = EX_BY_ID[id];
+  const ex = EX_BY_ID[id]; if(!ex) return;   /* wie in allen Nachbarfunktionen */
   const t = parseTarget(ex.levels[lvlOf(ex)].target);
   const key = id + '-' + s;
   const el = document.getElementById('set-' + key);
@@ -813,26 +849,46 @@ function tapSet(id, s){
 
   if(t.isHold){
     cancelHold();
-    let rem = t.holdSecs;
-    el.classList.add('running'); el.textContent = rem;
-    holdTimer = { key, el, id, s, interval: setInterval(() => {
-      rem--;
-      if(rem <= 0){
-        clearInterval(holdTimer.interval); holdTimer = null;
-        el.classList.remove('running');
-        markDone(key, el, s, ex);
-        signal(true);
-      } else el.textContent = rem;
-    }, 1000) };
+    el.classList.add('running');
+    holdTimer = { key, el, id, s, ex, ende: Date.now() + t.holdSecs * 1000, interval: null };
+    haltenAnzeigen();
+    holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
+    melde(__('holdStarted', { sec: t.holdSecs }));
   } else {
     markDone(key, el, s, ex);
   }
 }
+
+/* Zeigt die Restzeit der Haltezeit an und schliesst den Satz ab, sobald der
+   Zielzeitpunkt erreicht ist.
+
+   Bewusst so: ist der Zeitpunkt waehrend eines App-Wechsels verstrichen,
+   gilt die Haltezeit als geschafft. Die Uhr lief weiter, und ein Tipp auf
+   den Punkt bricht jederzeit ab. Das ist KEIN Fehler – bitte nicht in ein
+   Weiterzaehlen ab dem eingefrorenen Stand zurueckbauen. */
+function haltenAnzeigen(){
+  if(!holdTimer) return;
+  const rem = Math.ceil((holdTimer.ende - Date.now()) / 1000);
+  if(rem > 0){
+    if(holdTimer.el.textContent !== String(rem)) holdTimer.el.textContent = rem;
+    return;
+  }
+  const { key, el, s, ex } = holdTimer;
+  clearInterval(holdTimer.interval);
+  holdTimer = null;
+  el.classList.remove('running');
+  markDone(key, el, s, ex);
+  signal(true);
+  melde(__('holdOver'));
+}
+
 function markDone(key, el, s, ex){
   session.sets[key] = true;
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
-  updateFinish(); persistSession();
+  /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
+     Schreibvorgang mitgeht statt einen zweiten zu erzwingen. */
   if(cfg('autoRest')) startRest(restFor(ex));
+  updateFinish(); persistSession();
 }
 function cancelHold(){
   if(!holdTimer) return;
@@ -869,22 +925,47 @@ function updateFinish(){
   document.getElementById('finishBtn').disabled = done === 0;
 }
 
-/* ================= Pausen-Timer ================= */
+/* ================= Pausen-Timer =================
+   Wie die Haltezeit an einem absoluten Zielzeitpunkt haengend. Der Tick
+   zeichnet nur noch, er zaehlt nicht mehr. */
 function startRest(secs){
+  restBis(Date.now() + (secs || cfg('rest')) * 1000);
+}
+function restBis(ende){
   stopRest();
-  let rem = secs || cfg('rest');
-  const chip = document.getElementById('restChip'), out = document.getElementById('restTime');
-  const f = n => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
-  out.textContent = f(rem); chip.style.display = 'block';
-  restTimer = setInterval(() => {
-    rem--;
-    if(rem <= 0){ stopRest(); signal(false); toast(__('restOver')); }
-    else out.textContent = f(rem);
-  }, 1000);
+  restEnde = ende;
+  pauseAnzeigen();
+  if(!restEnde) return;
+  restTimer = setInterval(pauseAnzeigen, TAKT);
+  /* Der Chip erscheint sichtbar; ohne Ansage bliebe der Beginn der Pause
+     fuer einen Screenreader unbemerkt. Das Ende meldet ohnehin ein Toast. */
+  melde(__('restStarted', { sec: Math.ceil((restEnde - Date.now()) / 1000) }));
+}
+function pauseAnzeigen(){
+  const rem = Math.ceil((restEnde - Date.now()) / 1000);
+  if(rem <= 0){
+    stopRest();
+    persistSession();
+    signal(false); toast(__('restOver'));
+    return;
+  }
+  const out = document.getElementById('restTime');
+  const txt = Math.floor(rem / 60) + ':' + String(rem % 60).padStart(2, '0');
+  if(out.textContent !== txt) out.textContent = txt;
+  document.getElementById('restChip').style.display = 'block';
 }
 function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
+  restEnde = 0;
   document.getElementById('restChip').style.display = 'none';
+}
+
+/* Nach der Rueckkehr aus dem Hintergrund stimmen beide Anzeigen sofort, und
+   ein waehrenddessen verstrichener Zielzeitpunkt wird jetzt abgearbeitet –
+   nicht erst nach so vielen gedrosselten Ticks, wie er zurueckliegt. */
+function zeitgeberAbgleichen(){
+  if(holdTimer) haltenAnzeigen();
+  if(restTimer) pauseAnzeigen();
 }
 
 /* ================= Signal (Ton + Vibration) ================= */
@@ -958,7 +1039,12 @@ async function finishWorkout(){
 
   exIds.forEach(id => {
     const ex = EX_BY_ID[id]; if(!ex) return;
-    const lvl = state.levels[id] || 0;
+    /* lvlOf() statt roher Zugriff: der gespeicherte Wert kann ueber der
+       Stufenleiter liegen (importiertes Backup, gekuerzte Leiter nach einem
+       Inhalts-Update). Unten greift ex.levels[lvl].target darauf zu und warf
+       dann mitten in dieser Schleife – also nachdem streaks und levels
+       bereits geschrieben waren und bevor save() lief. */
+    const lvl = lvlOf(ex);
     const maxed = lvl >= ex.levels.length - 1;
     if(session.top[id]){
       tops++;
@@ -969,21 +1055,18 @@ async function finishWorkout(){
       }
     } else state.streaks[id] = 0;
 
-    const nEl = document.getElementById('note-' + id);
-    if(nEl && nEl.value.trim()){
-      state.notes[id] = { t: nEl.value.trim().slice(0, 160), d: today() };
-    }
+    const notiz = (session.notes[id] || '').trim();
+    if(notiz) state.notes[id] = { t: notiz.slice(0, 160), d: today() };
 
-    /* Per-set rep tracking */
+    /* Bestleistung aus den Wiederholungen der Einheit. Quelle ist
+       session.reps und nicht mehr das Eingabefeld: der Zustand ueberlebt ein
+       Neuzeichnen, das Feld nicht. */
     const t = parseTarget(ex.levels[lvl].target);
     if(!t.isHold && t.maxReps){
       for(let s = 0; s < t.sets; s++){
-        const repEl = document.getElementById('rep-' + id + '-' + s);
-        if(repEl && repEl.value){
-          const v = parseInt(repEl.value, 10);
-          if(v && v > prNumber(state.prs[id])){
-            state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
-          }
+        const v = session.reps[id + '-' + s];
+        if(v && v > prNumber(state.prs[id])){
+          state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
         }
       }
     }
@@ -1001,9 +1084,16 @@ async function finishWorkout(){
 
   state.log.push(entry);
   if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
+
+  /* clearSession() VOR save(): es nullt state.activeSession nur im
+     Arbeitsspeicher, und danach folgte kein weiterer Schreibvorgang. Im
+     Speicher blieb also die gerade abgeschlossene Einheit stehen, und ein
+     Neuladen am selben Tag holte sie mit allen Haken zurueck ("Einheit
+     wiederhergestellt") – ein zweites "Fertig" schrieb sie ein zweites Mal
+     ins Log. importJSON() und resetAll() hatten die Reihenfolge schon. */
+  clearSession();
   await save();
 
-  clearSession();
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
@@ -1041,18 +1131,33 @@ function undoWorkout(){
      waere dann der falsche Eintrag. */
   const idx = state.log.lastIndexOf(snap.entry);
   if(idx >= 0) state.log.splice(idx, 1);
-  save();
   clearTimeout(undoTimeout);
   lastWorkoutSnapshot = null;
   document.querySelector('.undo-btn')?.remove();
-  clearSession();
-  document.getElementById('finishBar').style.display = 'none';
-  renderAll();
+
+  /* Die Einheit zurueckholen statt sie wegzuwerfen. Der Snapshot enthaelt
+     sie seit jeher – gelesen wurde das Feld nie, stattdessen lief hier ein
+     clearSession(). Wer versehentlich "Fertig" tippte, verlor damit jeden
+     Haken, jede Wiederholung und jede Notiz und musste die ganze Einheit von
+     Hand neu eintragen. Genau das soll "Rueckgaengig" verhindern. */
+  if(snap.session && snap.session.dayKey){
+    session = snap.session;
+    persistSession();
+    renderAll();                   /* kehrt vor dem Leeren von #content zurueck */
+    renderWorkout(); restoreSession(session.reps);
+  } else {
+    clearSession();
+    save();
+    document.getElementById('finishBar').style.display = 'none';
+    renderAll();
+  }
   toast(__('undoWorkout'));
 }
 
 /* ================= Verlauf ================= */
-function weekLabel(w){ return w.split('-')[1]; }
+/* '2026-KW31' -> 'KW31' bzw. 'W31'. Der Schluessel bleibt deutsch, weil er
+   in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
+function weekLabel(w){ return __('weekShort') + w.split('-')[1].replace('KW', ''); }
 
 function renderHistory(){
   /* Week chart */
@@ -1132,10 +1237,12 @@ function renderCalendar(){
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
-  const monatsName = now.toLocaleDateString('de', { month: 'long', year: 'numeric' });
-  let html = '<div class="section-title">' + __('calendar') + ' ' + monatsName + '</div>' +
-    '<div class="calendar-grid" role="list" aria-label="Trainingstage im ' + monatsName + '">';
-  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + d + '</div>'; });
+  /* Monatsname und Wochentage aus Intl statt fest verdrahtet – sonst steht
+     im englischen Kalender "Juli" und darueber "Mo Di Mi". */
+  const monatsName = now.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title">' + esc(__('calendar')) + ' ' + esc(monatsName) + '</div>' +
+    '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
+  wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
   const offset = (first + 6) % 7;
   for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
   for(let d = 1; d <= daysInMonth; d++){
@@ -1189,7 +1296,12 @@ function renderMeasurements(){
   html += '<div class="inline-row">';
   parts.forEach(p => {
     const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
-    html += '<div style="flex:1"><small>' + esc(labels[p]) + '</small><input id="meas-' + p + '" type="number" step="0.5" min="0" max="200" placeholder="' + esc(last) + ' ' + __('cm') + '" style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
+    /* <small> ist keine Beschriftung – ein Screenreader las hier bisher
+       nur "Eingabefeld". */
+    html += '<div style="flex:1"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
+      '<input id="meas-' + p + '" type="number" step="0.5" min="0" max="200"' +
+      ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '"' +
+      ' style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
   });
   html += '<button data-action="measurement:add" style="align-self:flex-end">' + __('save') + '</button>';
   html += '</div>';
@@ -1290,12 +1402,16 @@ function renderLibrary(){
         '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(ex.equip.map(equipName).join(', ')) +
           (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') + '</div>' +
         '<ul class="lvl-list">' + ex.levels.map((l, i) =>
-          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(l.target) + '</span></li>').join('') + '</ul>' +
+          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(zielText(l.target)) + '</span></li>').join('') + '</ul>' +
         '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
           '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
-        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '" value="' + (pr ? esc(pr.v) : '') + '">' +
+        /* Der Platzhalter war die einzige Beschriftung; er verschwindet beim
+           Tippen und wird nicht von jedem Screenreader angesagt. */
+        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '"' +
+          ' aria-label="' + esc(__('bestAria', { name: exName(ex) })) + '"' +
+          ' value="' + (pr ? esc(pr.v) : '') + '">' +
           '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
-        (pr ? '<div class="pr-line">Zuletzt aktualisiert: ' + fmtDate(pr.d) + '</div>' : '') +
+        (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
         '<ul class="tips open" style="margin-top:10px">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
         '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
@@ -1410,7 +1526,7 @@ function dragDrop(di, ei){
 function ensureCustom(){
   if(!state.customPlan){
     const base = PLAN_TEMPLATES[state.planId] || PLAN_TEMPLATES.ab4;
-    state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: 'Von dir angepasst', days: base.days }));
+    state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: __('customPlanDesc'), days: base.days }));
   }
   return state.customPlan;
 }
@@ -1481,13 +1597,17 @@ function renderMilestones(){
     const d = (state.milestones || {})[m.id];
     return '<label class="ms' + (d ? ' done' : '') + '"><input type="checkbox" ' + (d ? 'checked' : '') +
       ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span><span class="ms-name">' + esc(msName(m)) + '</span>' +
-      (d ? '<br><span class="ms-date">geschafft am ' + fmtDate(d) + '</span>' : '') + '</span></label>';
+      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') + '</span></label>';
   }).join('');
 }
 async function toggleMilestone(id, on){
   if(on){
     state.milestones[id] = today(); signal(true);
-    toast('Meilenstein: ' + MILESTONES.find(m => m.id === id).name, true);
+    /* Mit Guard und ueber msName(): der Name kam bisher roh aus den deutschen
+       Daten, und ein Eintrag, der aus MILESTONES verschwindet, aber noch in
+       state.milestones steht, liess find() undefined liefern. */
+    const m = MILESTONES.find(x => x.id === id);
+    if(m) toast(__('milestoneToast', { name: msName(m) }), true);
   } else delete state.milestones[id];
   await save(); renderStats(); renderMilestones();
 }
@@ -1694,7 +1814,7 @@ function updateSetting(k, v){
         if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
       });
     }
-    const n = snapshotNotes(); cancelHold(); renderWorkout(); restoreSession(n, session.reps);
+    cancelHold(); renderWorkout(); restoreSession(session.reps);
   }
   renderAll();
 }
@@ -1727,7 +1847,7 @@ function exportText(){
       const ex = EX_BY_ID[id]; if(!ex) return;
       const l = lvlOf(ex);
       lines.push('  ' + exName(ex) + ': ' + __('level') + ' ' + (l + 1) + '/' + ex.levels.length +
-        ' – ' + exStage(ex, l) + ' (' + ex.levels[l].target + ')');
+        ' – ' + exStage(ex, l) + ' (' + zielText(ex.levels[l].target) + ')');
     });
   });
   const ms = Object.keys(state.milestones || {});
@@ -1745,44 +1865,9 @@ function exportText(){
 }
 const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
-/* Beschneidet ein importiertes Backup auf die bekannte Form.
-   Bewusst kappen statt ablehnen: ein Validator, der die eigenen aelteren
-   Backups des Nutzers zurueckweist, waere ein Datenverlust-Bug. */
-function clampBackup(data){
-  const known = Object.keys(DEFAULT_STATE());
-  const out = {};
-  known.forEach(k => { if(data[k] !== undefined && data[k] !== null) out[k] = data[k]; });
-
-  if(out.customPlan && typeof out.customPlan === 'object'){
-    const days = Array.isArray(out.customPlan.days) ? out.customPlan.days : [];
-    out.customPlan.days = days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => ({
-      key: sanitizeDayKey(d.key) || '?',
-      title: String(d.title == null ? '' : d.title).slice(0, 40),
-      sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
-      ex: (Array.isArray(d.ex) ? d.ex : []).filter(id => EX_BY_ID[id]).slice(0, 30)
-    }));
-  }
-  if(Array.isArray(out.warmupCustom)){
-    out.warmupCustom = out.warmupCustom.slice(0, 30).map(w => String(w == null ? '' : w).slice(0, 80));
-  }
-  if(out.notes && typeof out.notes === 'object'){
-    Object.keys(out.notes).forEach(id => {
-      const n = out.notes[id];
-      if(!n || typeof n !== 'object'){ delete out.notes[id]; return; }
-      n.t = String(n.t == null ? '' : n.t).slice(0, 160);
-    });
-  }
-  if(out.prs && typeof out.prs === 'object'){
-    Object.keys(out.prs).forEach(id => {
-      const p = out.prs[id];
-      if(!p || typeof p !== 'object'){ delete out.prs[id]; return; }
-      p.v = String(p.v == null ? '' : p.v).slice(0, 40);
-    });
-  }
-  if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-MAX_LOG_ENTRIES);
-  if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-MAX_SERIES_ENTRIES);
-  return out;
-}
+/* Der Uebungsbestand ist die einzige Aussenabhaengigkeit von clampBackup und
+   wird ihm deshalb hereingereicht – die Domaenenschicht importiert nichts. */
+const clampBackup = data => clampBackupPure(data, EX_BY_ID);
 
 function importJSON(input){
   const file = input.files && input.files[0]; if(!file) return;
@@ -1798,7 +1883,12 @@ function importJSON(input){
       const ok = await askConfirm(__('importTitle'), __('importBody'), __('importAction'), true);
       if(!ok){ input.value = ''; return; }
       cancelHold(); stopRest();
-      state = Object.assign(DEFAULT_STATE(), clampBackup(data));
+      /* Durch BEIDE Stufen: clampBackup kappt Laengen und Fremdfelder,
+         migrateState normalisiert Typen und setzt die Version. Frueher stand
+         hier ein Object.assign(DEFAULT_STATE(), …) – also genau der flache
+         Merge, den migrateState ersetzt hat. Boot- und Importpfad pruefen
+         seitdem unterschiedlich streng, obwohl es dieselben Daten sind. */
+      state = migrateState(clampBackup(data));
       clearSession();          /* vor dem Speichern: sonst landet eine aus dem
                                   Backup stammende Einheit kurz im Speicher */
       await save();
@@ -1885,14 +1975,89 @@ async function resetAll(){
 /* today(), isoDaysAgo(), fmtDate(), esc() und sanitizeDayKey() liegen in
    js/domain/ und werden oben importiert. */
 
+/* Ansage nur fuer Screenreader. Fuer Ereignisse, die sichtbar ohnehin
+   erkennbar sind und deshalb keinen Toast rechtfertigen. */
+function melde(text){
+  const el = document.getElementById('srStatus');
+  if(!el) return;
+  /* Zweimal derselbe Text wuerde sonst nicht erneut vorgelesen. */
+  el.textContent = '';
+  setTimeout(() => { el.textContent = text; }, 30);
+}
+
+/* Haelt den Fokus ueber ein Neuzeichnen hinweg.
+
+   Die Render-Funktionen ersetzen ganze Container per innerHTML. Das gerade
+   betaetigte Element ist danach weg und der Fokus faellt auf <body> – bei
+   Tastatur- und Screenreader-Bedienung reisst die Navigation jedes Mal ab.
+   Fuer Dialoge gibt es laengst einen Fokus-Trap mit Rueckgabe; fuer Renders
+   gab es nichts.
+
+   Bewusst an den Aktionen aufgerufen und nicht in den Render-Funktionen: so
+   steht an der Stelle, welche Interaktion den Fokus halten soll. */
+
+/* Wiedererkennungsmerkmal eines Bedienelements ueber ein Neuzeichnen hinweg.
+   Eine id haben laengst nicht alle – Bibliothekskoepfe, Meilenstein-Haken und
+   die Plan-Schaltflaechen tragen nur ihre data-Attribute. Die sind aber
+   stabil und eindeutig, also dienen sie als Kennung. */
+const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta'];
+function fokusKennung(el){
+  if(!el || el === document.body) return null;
+  if(el.id) return '#' + CSS.escape(el.id);
+  const art = el.dataset.action ? '' : el.dataset.actionChange ? '-change' : el.dataset.actionInput ? '-input' : null;
+  if(art === null) return null;
+  const name = el.dataset.action || el.dataset.actionChange || el.dataset.actionInput;
+  let sel = '[data-action' + art + '="' + name + '"]';
+  for(const k of FOKUS_DATEN){
+    const v = el.dataset[k];
+    if(v === undefined || v.includes('"')) continue;
+    sel += '[data-' + k + '="' + v + '"]';
+  }
+  return sel;
+}
+
+/* async, weil mehrere Aktionen erst nach einem await neu zeichnen
+   (toggleMilestone speichert, renameDay oeffnet einen Dialog). Wuerde hier
+   nicht gewartet, liefe die Wiederherstellung vor dem Neuzeichnen. */
+async function mitFokus(fn){
+  const alt = document.activeElement;
+  const kennung = fokusKennung(alt);
+  const pos = alt && typeof alt.selectionStart === 'number' ? alt.selectionStart : null;
+  await fn();
+  if(!kennung) return;
+  let neu;
+  try{ neu = document.querySelector(kennung); }catch{ return; }
+  if(!neu || neu === document.activeElement) return;
+  neu.focus({ preventScroll: true });
+  if(pos !== null && typeof neu.setSelectionRange === 'function'){
+    try{ neu.setSelectionRange(pos, pos); }catch{ /* Feldtyp erlaubt keine Auswahl */ }
+  }
+}
+
+/* Vom Nutzer abgelehnte Bewegung gilt auch fuer JavaScript-Animationen –
+   die CSS-Regel in style.css erreicht window.scrollTo nicht. */
+const wenigerBewegung = () =>
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 let toastTimer = null;
-function toast(msg, big){
+/* aktion: optional { text, action } – haengt eine Schaltflaeche an, die ueber
+   die Aktionstabelle laeuft wie jedes andere Element auch. Bewusst
+   createElement statt innerHTML: so stellt sich die Frage nach dem Escapen
+   gar nicht erst. */
+function toast(msg, big, aktion){
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.toggle('levelup', !!big);
+  if(aktion){
+    const b = document.createElement('button');
+    b.className = 'toast-btn';
+    b.textContent = aktion.text;
+    b.dataset.action = aktion.action;
+    t.appendChild(b);
+  }
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), big ? 5000 : 3200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
 }
 
 /* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
@@ -1902,7 +2067,19 @@ function toast(msg, big){
    registriert, weil visibilitychange beim reinen Schliessen am Desktop
    nicht garantiert ist. */
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden') flushSession();
+  if(document.visibilityState === 'hidden'){ flushSession(); return; }
+
+  /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
+     Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
+  zeitgeberAbgleichen();
+
+  /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
+     unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
+     dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
+     wieder ein. requestWakeLock() ist idempotent. */
+  if(session.dayKey) requestWakeLock();
+
+  swPruefen();
 });
 
 /* Ungespeichertes Training beim Verlassen abfangen */
@@ -1934,44 +2111,48 @@ export const actions = {
   'day:select':         d => selectDay(d.key),
   'set:tap':            d => tapSet(d.ex, zahl(d.set)),
   'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'note:set':           (d, ev, el) => setNote(d.ex, el.value),
   'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
-  'level:adjust':       d => adjustLevel(d.ex, zahl(d.delta)),
+  /* mitFokus(): diese Aktionen zeichnen ihren Container neu, das gerade
+     betaetigte Element verschwindet dabei und der Fokus fiele auf <body>. */
+  'level:adjust':       d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
   'tips:toggle':        d => toggleTips(d.ex),
   'exercise:substitute': d => substituteExercise(d.ex),
   'exercise:history':   d => showExHistory(d.ex),
   'exHistory:close':    () => closeExHistory(),
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
-  'rest:stop':          () => stopRest(),
+  'rest:stop':          () => { stopRest(); persistSession(); },
+  'sw:update':          () => updateAnwenden(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
 
   /* Warm-up */
   'warmup:add':         () => addWarmupItem(),
-  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),
+  'warmup:remove':      d => removeWarmupItem(zahl(d.i)),   /* Eintrag ist danach weg – kein Fokusziel */
 
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
 
   /* Bibliothek */
-  'library:filter':     d => setLibFilter(d.cat),
-  'library:toggle':     d => toggleLib(d.ex),
-  'library:search':     () => renderLibrary(),
-  'pr:save':            d => savePR(d.ex),
+  'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),
+  'library:toggle':     d => mitFokus(() => toggleLib(d.ex)),
+  'library:search':     () => mitFokus(() => renderLibrary()),
+  'pr:save':            d => mitFokus(() => savePR(d.ex)),
 
   /* Plan */
   'plan:change':        (d, ev, el) => changePlan(el.value),
   'plan:reset':         () => resetPlan(),
   'planDay:add':        () => addPlanDay(),
-  'planDay:rename':     d => renameDay(zahl(d.day)),
+  'planDay:rename':     d => mitFokus(() => renameDay(zahl(d.day))),
   'planDay:remove':     d => removeDay(zahl(d.day)),
   'planEx:add':         d => addEx(zahl(d.day)),
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
-  'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
+  'planEx:move':        d => mitFokus(() => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta))),
 
   /* Ziele */
-  'milestone:toggle':   (d, ev, el) => toggleMilestone(d.id, el.checked),
-  'milestone:search':   () => renderMilestones(),
+  'milestone:toggle':   (d, ev, el) => mitFokus(() => toggleMilestone(d.id, el.checked)),
+  'milestone:search':   () => mitFokus(() => renderMilestones()),
 
   /* Einstellungen */
   'setting:update':     (d, ev, el) => {

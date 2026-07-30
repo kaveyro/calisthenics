@@ -85,7 +85,9 @@
 
   <!-- ============ TRAINING ============ -->
   <main><section id="view-train" role="tabpanel" aria-labelledby="tab-train" tabindex="0">
-    <div id="banners"></div>
+    <!-- Deload-Erinnerung, Trainingspause und Stagnation erschienen bisher
+         lautlos mitten in der Sitzung. -->
+    <div id="banners" aria-live="polite"></div>
     <div class="day-select" id="daySelect" role="group" data-i18n-aria-label="chooseDay" aria-label="Trainingstag wählen"></div>
 
     <!-- Der Hinzufügen-Button lag früher IM <summary>. Verschachtelte
@@ -149,8 +151,8 @@
     <div class="section-title" data-i18n="planTitle">Trainingsplan</div>
     <div class="card">
       <div class="set-row" style="border-bottom:none;padding-top:0">
-        <span><span class="lbl2" data-i18n="template">Vorlage</span><span class="hint" id="planDesc"></span></span>
-        <select id="planSelect" data-action-change="plan:change"></select>
+        <span><label class="lbl2" for="planSelect" data-i18n="template">Vorlage</label><span class="hint" id="planDesc"></span></span>
+        <select id="planSelect" data-action-change="plan:change" aria-describedby="planDesc"></select>
       </div>
     </div>
     <div id="planEditor"></div>
@@ -190,8 +192,9 @@
 </div>
 
 <!-- Pausen-Timer -->
-<button class="rest-chip" id="restChip" data-action="rest:stop" aria-label="Pausen-Timer beenden">
-  <small>Pause · Tippen beendet</small><span id="restTime">1:30</span>
+<button class="rest-chip" id="restChip" data-action="rest:stop"
+        aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
+  <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
 </button>
 
 <!-- Einstellungen -->
@@ -201,16 +204,16 @@
 
     <div class="section-title" data-i18n="training">Training</div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="setsMode">Satz-Modus</span><span class="hint" data-i18n="setsModeHint">Einsteiger deckelt alles auf 3 Sätze</span></span>
-      <select id="cfg-setsMode" data-action-change="setting:update" data-key="setsMode">
+      <span><label class="lbl2" for="cfg-setsMode" data-i18n="setsMode">Satz-Modus</label><span class="hint" id="hint-cfg-setsMode" data-i18n="setsModeHint">Einsteiger deckelt alles auf 3 Sätze</span></span>
+      <select id="cfg-setsMode" data-action-change="setting:update" data-key="setsMode" aria-describedby="hint-cfg-setsMode">
         <option value="standard" data-i18n="standard">Standard (3–4)</option>
         <option value="light" data-i18n="lightMode">Einsteiger (max. 3)</option>
         <option value="hard" data-i18n="hard">Fortgeschritten (+1 Satz)</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="restBasic">Satzpause</span><span class="hint" data-i18n="restBasicHint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
-      <select id="cfg-rest" data-action-change="setting:update" data-key="rest" data-type="int">
+      <span><label class="lbl2" for="cfg-rest" data-i18n="restBasic">Satzpause</label><span class="hint" id="hint-cfg-rest" data-i18n="restBasicHint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
+      <select id="cfg-rest" data-action-change="setting:update" data-key="rest" data-type="int" aria-describedby="hint-cfg-rest">
         <option value="45">45 Sek</option>
         <option value="60">60 Sek</option>
         <option value="90">90 Sek</option>
@@ -219,49 +222,49 @@
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="perExRest">Übungsspezifische Pausen</span><span class="hint" data-i18n="perExRestHint">Nutzt die empfohlene Pause je Übung</span></span>
-      <input type="checkbox" id="cfg-perExRest" data-action-change="setting:update" data-key="perExRest">
+      <span><label class="lbl2" for="cfg-perExRest" data-i18n="perExRest">Übungsspezifische Pausen</label><span class="hint" id="hint-cfg-perExRest" data-i18n="perExRestHint">Nutzt die empfohlene Pause je Übung</span></span>
+      <input type="checkbox" id="cfg-perExRest" data-action-change="setting:update" data-key="perExRest" aria-describedby="hint-cfg-perExRest">
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="autoRest">Pausen-Timer automatisch</span><span class="hint" data-i18n="autoRestHint">Startet nach jedem abgehakten Satz</span></span>
-      <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest">
+      <span><label class="lbl2" for="cfg-autoRest" data-i18n="autoRest">Pausen-Timer automatisch</label><span class="hint" id="hint-cfg-autoRest" data-i18n="autoRestHint">Startet nach jedem abgehakten Satz</span></span>
+      <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest" aria-describedby="hint-cfg-autoRest">
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="sound">Signaltöne</span><span class="hint" data-i18n="soundHint">Ton bei Timer-Ende und Level-Ups</span></span>
-      <input type="checkbox" id="cfg-sound" data-action-change="setting:update" data-key="sound">
+      <span><label class="lbl2" for="cfg-sound" data-i18n="sound">Signaltöne</label><span class="hint" id="hint-cfg-sound" data-i18n="soundHint">Ton bei Timer-Ende und Level-Ups</span></span>
+      <input type="checkbox" id="cfg-sound" data-action-change="setting:update" data-key="sound" aria-describedby="hint-cfg-sound">
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="vibration">Vibration</span><span class="hint" data-i18n="vibrationHint">Falls das Gerät es unterstützt</span></span>
-      <input type="checkbox" id="cfg-vibrate" data-action-change="setting:update" data-key="vibrate">
+      <span><label class="lbl2" for="cfg-vibrate" data-i18n="vibration">Vibration</label><span class="hint" id="hint-cfg-vibrate" data-i18n="vibrationHint">Falls das Gerät es unterstützt</span></span>
+      <input type="checkbox" id="cfg-vibrate" data-action-change="setting:update" data-key="vibrate" aria-describedby="hint-cfg-vibrate">
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="levelUpAfter">Level-Up nach</span><span class="hint" data-i18n="levelUpAfterHint">Einheiten am oberen Limit in Folge</span></span>
-      <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int">
+      <span><label class="lbl2" for="cfg-streak" data-i18n="levelUpAfter">Level-Up nach</label><span class="hint" id="hint-cfg-streak" data-i18n="levelUpAfterHint">Einheiten am oberen Limit in Folge</span></span>
+      <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int" aria-describedby="hint-cfg-streak">
         <option value="1" data-i18n="unitOne">1 Einheit</option>
         <option value="2" data-i18n="unitTwo">2 Einheiten</option>
         <option value="3" data-i18n="unitThree">3 Einheiten</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="regress">Stufe zurück nach Pause</span><span class="hint" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
-      <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress">
+      <span><label class="lbl2" for="cfg-regress" data-i18n="regress">Stufe zurück nach Pause</label><span class="hint" id="hint-cfg-regress" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
+      <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress" aria-describedby="hint-cfg-regress">
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="language">Sprache</span><span class="hint" data-i18n="languageHint">Oberfläche und Übungsinhalte</span></span>
+      <span><label class="lbl2" for="cfg-lang" data-i18n="language">Sprache</label><span class="hint" id="hint-cfg-lang" data-i18n="languageHint">Oberfläche und Übungsinhalte</span></span>
       <!-- Optionen kommen aus LANGS in js/i18n/strings.js, damit eine weitere
            Sprache nur an einer Stelle eingetragen werden muss. -->
-      <select id="cfg-lang" data-action-change="setting:update" data-key="lang"></select>
+      <select id="cfg-lang" data-action-change="setting:update" data-key="lang" aria-describedby="hint-cfg-lang"></select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="weekGoal">Wochenziel</span><span class="hint" data-i18n="weekGoalHint">Trainings pro Woche</span></span>
-      <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int">
+      <span><label class="lbl2" for="cfg-weekGoal" data-i18n="weekGoal">Wochenziel</label><span class="hint" id="hint-cfg-weekGoal" data-i18n="weekGoalHint">Trainings pro Woche</span></span>
+      <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int" aria-describedby="hint-cfg-weekGoal">
         <option value="2">2×</option><option value="3">3×</option>
         <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
       </select>
     </div>
     <div class="set-row">
-      <span><span class="lbl2" data-i18n="deloadRemind">Deload-Erinnerung</span><span class="hint" data-i18n="deloadRemindHint">Nach dieser Anzahl Trainings</span></span>
-      <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int">
+      <span><label class="lbl2" for="cfg-deload" data-i18n="deloadRemind">Deload-Erinnerung</label><span class="hint" id="hint-cfg-deload" data-i18n="deloadRemindHint">Nach dieser Anzahl Trainings</span></span>
+      <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int" aria-describedby="hint-cfg-deload">
         <option value="0" data-i18n="off">Aus</option><option value="16">16</option>
         <option value="24">24</option><option value="32">32</option>
       </select>
@@ -292,6 +295,12 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Nur für Screenreader: Ereignisse, die sichtbar ohnehin erkennbar sind und
+     deshalb keinen Toast rechtfertigen – Beginn und Ende von Pause und
+     Haltezeit. Der frühere Weg, jedem Satzpunkt bei Halteübungen ein
+     aria-live zu geben, liess jede einzelne Sekunde vorlesen. -->
+<p id="srStatus" class="sr-only" role="status" aria-live="polite"></p>
 
 <script type="module" src="js/app.js"></script>
 </body>
