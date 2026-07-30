@@ -26,6 +26,13 @@ let state = DEFAULT_STATE();
 const leereSession = () => ({ dayKey: null, sets: {}, top: {}, reps: {}, notes: {} });
 let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
+/* Beide Timer richten sich nach einem absoluten Zielzeitpunkt statt nach
+   heruntergezaehlten Ticks. Browser drosseln setInterval im Hintergrund auf
+   mindestens eine Sekunde und frieren ihn auf Mobilgeraeten ganz ein: eine
+   90-Sekunden-Pause, waehrend der das Handy gesperrt war, ging vorher um
+   genau die Sperrzeit nach. Der Tick zeichnet nur noch. */
+const TAKT = 250;
+let restEnde = 0;
 let libFilter = 'all';
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
@@ -124,7 +131,10 @@ function spiegleSession(){
     ? {
       dayKey: session.dayKey, d: today(),
       sets: { ...session.sets }, top: { ...session.top },
-      reps: { ...session.reps }, notes: { ...session.notes }
+      reps: { ...session.reps }, notes: { ...session.notes },
+      /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
+         uebersteht – eine Restdauer waere nach dem Laden wertlos. */
+      restEnde: restEnde || null
     }
     : null;
 }
@@ -181,6 +191,14 @@ function restoreActiveSession(){
     reps: a.reps || {}, notes: a.notes || {}
   };
   renderDaySelect(); renderWorkout(); restoreSession(session.reps);
+
+  /* Eine Pause, die beim Neuladen noch lief, laeuft weiter. Die Obergrenze
+     faengt einen verbogenen Zeitstempel ab: ohne sie stuende dort eine
+     Pause ueber Stunden. */
+  const offen = Number(a.restEnde) - Date.now();
+  if(Number.isFinite(offen) && offen > 0 && offen <= 60 * 60 * 1000) restBis(Number(a.restEnde));
+
+  requestWakeLock();
   toast(__('sessionRestored'));
   return true;
 }
@@ -476,10 +494,12 @@ function addKeyboardShortcuts(){
       return;
     }
     if(e.key === 'r' || e.key === 'R'){
-      if(document.getElementById('restChip').style.display === 'block') stopRest();
-      else if(session.dayKey){
+      if(document.getElementById('restChip').style.display === 'block'){
+        stopRest(); persistSession();
+      } else if(session.dayKey){
         const defaultRest = cfg('rest');
         startRest(defaultRest);
+        persistSession();
         toast(__('restLabel', { sec: defaultRest }));
       }
       return;
@@ -736,26 +756,44 @@ function tapSet(id, s){
 
   if(t.isHold){
     cancelHold();
-    let rem = t.holdSecs;
-    el.classList.add('running'); el.textContent = rem;
-    holdTimer = { key, el, id, s, interval: setInterval(() => {
-      rem--;
-      if(rem <= 0){
-        clearInterval(holdTimer.interval); holdTimer = null;
-        el.classList.remove('running');
-        markDone(key, el, s, ex);
-        signal(true);
-      } else el.textContent = rem;
-    }, 1000) };
+    el.classList.add('running');
+    holdTimer = { key, el, id, s, ex, ende: Date.now() + t.holdSecs * 1000, interval: null };
+    haltenAnzeigen();
+    holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
   } else {
     markDone(key, el, s, ex);
   }
 }
+
+/* Zeigt die Restzeit der Haltezeit an und schliesst den Satz ab, sobald der
+   Zielzeitpunkt erreicht ist.
+
+   Bewusst so: ist der Zeitpunkt waehrend eines App-Wechsels verstrichen,
+   gilt die Haltezeit als geschafft. Die Uhr lief weiter, und ein Tipp auf
+   den Punkt bricht jederzeit ab. Das ist KEIN Fehler – bitte nicht in ein
+   Weiterzaehlen ab dem eingefrorenen Stand zurueckbauen. */
+function haltenAnzeigen(){
+  if(!holdTimer) return;
+  const rem = Math.ceil((holdTimer.ende - Date.now()) / 1000);
+  if(rem > 0){
+    if(holdTimer.el.textContent !== String(rem)) holdTimer.el.textContent = rem;
+    return;
+  }
+  const { key, el, s, ex } = holdTimer;
+  clearInterval(holdTimer.interval);
+  holdTimer = null;
+  el.classList.remove('running');
+  markDone(key, el, s, ex);
+  signal(true);
+}
+
 function markDone(key, el, s, ex){
   session.sets[key] = true;
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
-  updateFinish(); persistSession();
+  /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
+     Schreibvorgang mitgeht statt einen zweiten zu erzwingen. */
   if(cfg('autoRest')) startRest(restFor(ex));
+  updateFinish(); persistSession();
 }
 function cancelHold(){
   if(!holdTimer) return;
@@ -792,22 +830,43 @@ function updateFinish(){
   document.getElementById('finishBtn').disabled = done === 0;
 }
 
-/* ================= Pausen-Timer ================= */
+/* ================= Pausen-Timer =================
+   Wie die Haltezeit an einem absoluten Zielzeitpunkt haengend. Der Tick
+   zeichnet nur noch, er zaehlt nicht mehr. */
 function startRest(secs){
+  restBis(Date.now() + (secs || cfg('rest')) * 1000);
+}
+function restBis(ende){
   stopRest();
-  let rem = secs || cfg('rest');
-  const chip = document.getElementById('restChip'), out = document.getElementById('restTime');
-  const f = n => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
-  out.textContent = f(rem); chip.style.display = 'block';
-  restTimer = setInterval(() => {
-    rem--;
-    if(rem <= 0){ stopRest(); signal(false); toast(__('restOver')); }
-    else out.textContent = f(rem);
-  }, 1000);
+  restEnde = ende;
+  pauseAnzeigen();
+  if(restEnde) restTimer = setInterval(pauseAnzeigen, TAKT);
+}
+function pauseAnzeigen(){
+  const rem = Math.ceil((restEnde - Date.now()) / 1000);
+  if(rem <= 0){
+    stopRest();
+    persistSession();
+    signal(false); toast(__('restOver'));
+    return;
+  }
+  const out = document.getElementById('restTime');
+  const txt = Math.floor(rem / 60) + ':' + String(rem % 60).padStart(2, '0');
+  if(out.textContent !== txt) out.textContent = txt;
+  document.getElementById('restChip').style.display = 'block';
 }
 function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
+  restEnde = 0;
   document.getElementById('restChip').style.display = 'none';
+}
+
+/* Nach der Rueckkehr aus dem Hintergrund stimmen beide Anzeigen sofort, und
+   ein waehrenddessen verstrichener Zielzeitpunkt wird jetzt abgearbeitet –
+   nicht erst nach so vielen gedrosselten Ticks, wie er zurueckliegt. */
+function zeitgeberAbgleichen(){
+  if(holdTimer) haltenAnzeigen();
+  if(restTimer) pauseAnzeigen();
 }
 
 /* ================= Signal (Ton + Vibration) ================= */
@@ -1821,7 +1880,17 @@ function toast(msg, big){
    registriert, weil visibilitychange beim reinen Schliessen am Desktop
    nicht garantiert ist. */
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden') flushSession();
+  if(document.visibilityState === 'hidden'){ flushSession(); return; }
+
+  /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
+     Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
+  zeitgeberAbgleichen();
+
+  /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
+     unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
+     dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
+     wieder ein. requestWakeLock() ist idempotent. */
+  if(session.dayKey) requestWakeLock();
 });
 
 /* Ungespeichertes Training beim Verlassen abfangen */
@@ -1862,7 +1931,7 @@ export const actions = {
   'exHistory:close':    () => closeExHistory(),
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
-  'rest:stop':          () => stopRest(),
+  'rest:stop':          () => { stopRest(); persistSession(); },
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
 
   /* Warm-up */
