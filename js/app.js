@@ -8,6 +8,7 @@ import { today, fmtDate, isoWeek, calcGlobalStreak as streakOf } from './domain/
 import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
+import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -347,21 +348,8 @@ function renderPhase(){
 function calcGlobalStreak(){ return streakOf(state.log); }
 
 function detectPlateaus(){
-  const plateaus = [];
-  getDays().forEach(d => {
-    d.ex.forEach(id => {
-      const ex = EX_BY_ID[id]; if(!ex) return;
-      const recent = (state.log || []).filter(l => {
-        const day = getDay(l.day);
-        return day && day.ex.includes(id);
-      }).slice(-5);
-      if(recent.length >= 4 && !recent.some(l => l.ups && l.ups.length)){
-        const lvl = state.levels[id] || 0;
-        if(lvl < ex.levels.length - 1) plateaus.push(exName(ex));
-      }
-    });
-  });
-  return plateaus;
+  return plateausOf(getDays(), state.log || [], state.levels, EX_BY_ID)
+    .map(id => exName(EX_BY_ID[id]));
 }
 
 /* Nach einer laengeren Pause eine Stufe zurueckgehen.
@@ -418,8 +406,8 @@ function renderBanners(){
   }
   const plateaus = detectPlateaus();
   if(plateaus.length){
-    html += '<div class="banner warn">' + __('plateauDetected') + ': ' + plateaus.join(', ') +
-      '.<br><small>' + __('plateauMsg') + '</small></div>';
+    html += '<div class="banner warn">' + esc(__('plateauDetected')) + ': ' + esc(plateaus.join(', ')) +
+      '.<br><small>' + esc(__('plateauMsg')) + '</small></div>';
   }
   el.innerHTML = html;
 }
