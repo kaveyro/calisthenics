@@ -191,11 +191,17 @@
   </div>
 </div>
 
-<!-- Pausen-Timer -->
-<button class="rest-chip" id="restChip" data-action="rest:stop"
-        aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
-  <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
-</button>
+<!-- Pausen-Timer. Zwei Schaltflächen in einem Behälter statt einer einzigen:
+     verschachtelte <button> sind ungültig, und "Pause verlängern" ist eine
+     eigene Handlung – ein Satz, der schlecht lief, braucht mehr Zeit. -->
+<div class="rest-chip" id="restChip">
+  <button class="rest-main" data-action="rest:stop"
+          aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
+    <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
+  </button>
+  <button class="rest-plus" data-action="rest:extend" data-sec="30"
+          aria-label="Pause um 30 Sekunden verlängern" data-i18n-aria-label="restExtendAria">+30</button>
+</div>
 
 <!-- Einstellungen -->
 <div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">

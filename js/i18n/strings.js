@@ -206,6 +206,7 @@ export const LANG = {
     backupDueEinheiten: '{n} Einheiten seit der letzten Sicherung.',
     backupDueZeit: 'Die letzte Sicherung ist {n} Tage her.',
     later: 'Später',
+    restExtendAria: 'Pause um 30 Sekunden verlängern',
 
     /* Backup */
     dataBackup: 'Daten & Backup',
@@ -432,6 +433,7 @@ export const LANG = {
     backupDueEinheiten: '{n} workouts since the last backup.',
     backupDueZeit: 'The last backup was {n} days ago.',
     later: 'Later',
+    restExtendAria: 'Extend rest by 30 seconds',
 
     dataBackup: 'Data & backup',
     downloadBackup: 'Download backup', importBackup: 'Import backup',

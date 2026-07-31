@@ -35,6 +35,8 @@ let holdTimer = null, restTimer = null, wakeLock = null;
    genau die Sperrzeit nach. Der Tick zeichnet nur noch. */
 const TAKT = 250;
 let restEnde = 0;
+/* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
+let restLetzteSek = 0;
 let libFilter = 'all';
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
@@ -635,7 +637,7 @@ function addKeyboardShortcuts(){
       return;
     }
     if(e.key === 'r' || e.key === 'R'){
-      if(document.getElementById('restChip').style.display === 'block'){
+      if(document.getElementById('restChip').style.display === 'flex'){
         stopRest(); persistSession();
       } else if(session.dayKey){
         const defaultRest = cfg('rest');
@@ -1042,15 +1044,32 @@ function pauseAnzeigen(){
     signal(false); toast(__('restOver'));
     return;
   }
+  /* Drei kurze Toene vor dem Ende. Der Tick laeuft viermal pro Sekunde,
+     deshalb die Merkvariable – sonst piepste es bei jedem Durchlauf. */
+  if(rem <= 3 && rem !== restLetzteSek){
+    restLetzteSek = rem;
+    tick();
+  }
+
   const out = document.getElementById('restTime');
   const txt = Math.floor(rem / 60) + ':' + String(rem % 60).padStart(2, '0');
   if(out.textContent !== txt) out.textContent = txt;
-  document.getElementById('restChip').style.display = 'block';
+  document.getElementById('restChip').style.display = 'flex';
 }
 function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
   restEnde = 0;
+  restLetzteSek = 0;
   document.getElementById('restChip').style.display = 'none';
+}
+
+/* Pause verlaengern. Ein Satz, der schlecht lief, braucht mehr Zeit – der
+   Chip konnte die Pause bisher nur abbrechen. Laeuft gerade keine, faengt
+   die Verlaengerung bei jetzt an, damit die Schaltflaeche nie ins Leere tippt. */
+function restVerlaengern(sek){
+  const basis = restEnde > Date.now() ? restEnde : Date.now();
+  restBis(basis + sek * 1000);
+  persistSession();
 }
 
 /* Nach der Rueckkehr aus dem Hintergrund stimmen beide Anzeigen sofort, und
@@ -1086,6 +1105,24 @@ function signal(double){
     };
     play(0, 880); if(double) play(.35, 1174);
   }catch{ /* Web Audio blockiert oder nicht verfuegbar – dann eben stumm */ }
+}
+
+/* Kurzer, leiser Ton fuer die letzten drei Sekunden der Pause. Bewusst nicht
+   signal(): das ist das Ende-Signal und deutlich lauter. Bisher kam ueber-
+   haupt erst bei null ein Ton – wer nicht hinsah, verpasste den Einstieg. */
+function tick(){
+  if(!cfg('sound')) return;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 660; o.connect(g); g.connect(audioCtx.destination);
+    const t0 = audioCtx.currentTime;
+    g.gain.setValueAtTime(.001, t0);
+    g.gain.exponentialRampToValueAtTime(.08, t0 + .01);
+    g.gain.exponentialRampToValueAtTime(.001, t0 + .09);
+    o.start(t0); o.stop(t0 + .1);
+  }catch{ /* Web Audio blockiert oder nicht verfuegbar */ }
 }
 
 /* ================= Bildschirm wach halten ================= */
@@ -1161,6 +1198,16 @@ async function finishWorkout(){
         if(v && v > prNumber(state.prs[id])){
           state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
         }
+      }
+    } else if(t.isHold && t.holdSecs){
+      /* Halteuebungen bekamen nie automatisch eine Bestleistung: die Schleife
+         darueber lief nur fuer Wiederholungen. Fuer einen Front Lever musste
+         man sie also in der Bibliothek von Hand eintippen, obwohl die App die
+         Sekunden kennt – ein abgeschlossener Satz IST die gehaltene Zeit.
+         Es genuegt ein geschaffter Satz; die weiteren aendern die Zeit nicht. */
+      const geschafft = Array.from({ length: t.sets }, (_, s) => session.sets[id + '-' + s]).some(Boolean);
+      if(geschafft && t.holdSecs > prNumber(state.prs[id])){
+        state.prs[id] = { v: t.holdSecs + ' ' + __('secShort'), n: t.holdSecs, d: today() };
       }
     }
   });
@@ -2228,6 +2275,7 @@ export const actions = {
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
   'rest:stop':          () => { stopRest(); persistSession(); },
+  'rest:extend':        d => restVerlaengern(zahl(d.sec) || 30),
   'sw:update':          () => updateAnwenden(),
   'app:install':        () => appInstallieren(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
