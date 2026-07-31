@@ -60,5 +60,13 @@ export default [
   {
     files: ['test/**/*.js'],
     languageOptions: { sourceType: 'module', globals: { ...globals.node } }
+  },
+
+  /* Tests, die gegen ein jsdom-Dokument laufen (Kennzeichnung per
+     @vitest-environment im Dateikopf). Sie brauchen zusaetzlich die
+     Browser-Globals – ohne diesen Block meldet no-undef jede Zeile. */
+  {
+    files: ['test/app.test.js'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } }
   }
 ];

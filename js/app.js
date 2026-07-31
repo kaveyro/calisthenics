@@ -45,8 +45,13 @@ function cfg(k){
   return (state.settings && state.settings[k] !== undefined) ? state.settings[k] : SETTINGS_DEFAULTS[k];
 }
 
-/* ================= Start ================= */
-(async function boot(){
+/* ================= Start =================
+   Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
+   selbst startete, konnte kein Test es laden – und damit lag der weitaus
+   groesste Teil des Codes ausserhalb jeder Pruefung, waehrend js/domain/
+   vollstaendig abgedeckt war. Aufgerufen wird start() von js/main.js, dem
+   Einstiegspunkt in index.html. */
+export async function start(){
   try{
     const loaded = await store.load();
     if(loaded){
@@ -78,6 +83,7 @@ function cfg(k){
     installPlanDragAndDrop();
     addKeyboardShortcuts();
     addTablistNavigation();
+    installGlobalListeners();
   }catch(err){
     /* Ohne diesen Zweig bliebe der Ladehinweis dauerhaft stehen und der
        Fehler landete nur als unbehandelte Promise-Rejection in der Konsole. */
@@ -88,7 +94,7 @@ function cfg(k){
       esc(String(err && err.message || err)) +
       '<br><br>' + esc(__('bootHint')) + '</div>';
   }
-})();
+}
 
 /* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
    wochenlang weiter, ohne dass etwas ankommt. Der Hinweis bleibt jetzt
@@ -130,22 +136,6 @@ function byteText(bytes){
   return (mb >= 1 ? mb.toFixed(1) : (bytes / 1024).toFixed(0) + ' k').replace('.', ',') +
     (mb >= 1 ? ' MB' : 'B');
 }
-
-/* Der Browser meldet sich mit diesem Ereignis, statt selbst zu fragen.
-   preventDefault() unterdrueckt nur den eigenen Hinweisstreifen; das
-   Ereignis wird aufgehoben und spaeter ueber die Schaltflaeche ausgeloest –
-   prompt() ist ausserhalb einer Nutzergeste ohnehin nicht erlaubt. */
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  installAngebot = e;
-  zeigeInstallSchalter();
-});
-window.addEventListener('appinstalled', () => {
-  installAngebot = null;
-  zeigeInstallSchalter();
-  /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
-  speicherSichern();
-});
 
 function zeigeInstallSchalter(){
   const b = document.getElementById('installBtn');
@@ -422,11 +412,6 @@ function toggleTheme(){
   toast(__(THEME_TEXT[state.theme]));
 }
 
-/* Nur wirksam, solange dem System gefolgt wird. */
-const dunkelAbfrage = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
-if(dunkelAbfrage && dunkelAbfrage.addEventListener){
-  dunkelAbfrage.addEventListener('change', () => { if(!state.theme) applyTheme(); });
-}
 
 /* ================= Plan ================= */
 function getPlan(){
@@ -2296,35 +2281,64 @@ function toast(msg, big, aktion){
   toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
 }
 
-/* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
+/* Listener am Fenster und am Dokument. Aus start() heraus registriert und
+   nicht mehr im Modulrumpf: sonst haengt schon der blosse Import Handler an
+   die Umgebung, und das Modul waere weiterhin nicht ohne Nebenwirkung zu
+   laden. */
+function installGlobalListeners(){
+  /* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
 
-   visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
-   Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
-   registriert, weil visibilitychange beim reinen Schliessen am Desktop
-   nicht garantiert ist. */
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden'){ flushSession(); return; }
+     visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
+     Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
+     registriert, weil visibilitychange beim reinen Schliessen am Desktop
+     nicht garantiert ist. */
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden'){ flushSession(); return; }
 
-  /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
-     Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
-  zeitgeberAbgleichen();
+    /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
+       Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
+    zeitgeberAbgleichen();
 
-  /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
-     unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
-     dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
-     wieder ein. requestWakeLock() ist idempotent. */
-  if(session.dayKey) requestWakeLock();
+    /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
+       unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
+       dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
+       wieder ein. requestWakeLock() ist idempotent. */
+    if(session.dayKey) requestWakeLock();
 
-  swPruefen();
-});
+    swPruefen();
+  });
 
-/* Ungespeichertes Training beim Verlassen abfangen */
-window.addEventListener('beforeunload', e => {
-  flushSession();
-  if(session.dayKey && Object.values(session.sets).some(Boolean)){
-    e.preventDefault(); e.returnValue = '';
+  /* Ungespeichertes Training beim Verlassen abfangen */
+  window.addEventListener('beforeunload', e => {
+    flushSession();
+    if(session.dayKey && Object.values(session.sets).some(Boolean)){
+      e.preventDefault(); e.returnValue = '';
+    }
+  });
+
+  /* Der Browser meldet die Installierbarkeit mit diesem Ereignis, statt
+     selbst zu fragen. preventDefault() unterdrueckt nur seinen eigenen
+     Hinweisstreifen; das Ereignis wird aufgehoben und spaeter ueber die
+     Schaltflaeche ausgeloest – prompt() ist ausserhalb einer Nutzergeste
+     ohnehin nicht erlaubt. */
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installAngebot = e;
+    zeigeInstallSchalter();
+  });
+  window.addEventListener('appinstalled', () => {
+    installAngebot = null;
+    zeigeInstallSchalter();
+    /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
+    speicherSichern();
+  });
+
+  /* Systemwechsel hell/dunkel – nur wirksam, solange dem System gefolgt wird. */
+  const dunkelAbfrage = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
+  if(dunkelAbfrage && dunkelAbfrage.addEventListener){
+    dunkelAbfrage.addEventListener('change', () => { if(!state.theme) applyTheme(); });
   }
-});
+}
 
 /* =========================================================
    AKTIONEN
