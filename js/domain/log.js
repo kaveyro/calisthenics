@@ -65,20 +65,40 @@ export function repsOf(entry, exId){
   return paare.sort((a, b) => a[0] - b[0]).map(p => p[1]);
 }
 
-/* Die letzte Einheit, in der diese Uebung mit Wiederholungen vorkam.
-   Liefert { d, reps: [12, 10, 8] } oder null.
+/* Die zuletzt notierten Wiederholungen je Uebung: { pushup: { d, reps } }.
+
+   Ein einziger Durchlauf rueckwaerts fuer ALLE gefragten Uebungen, und er
+   bricht ab, sobald keine mehr offen ist. Je Uebung einzeln zu suchen waere
+   der bequemere Weg, aber renderWorkout() laeuft bei jeder Interaktion und
+   das Log fasst bis zu 2000 Eintraege – eine nie trainierte Uebung liesse
+   jedes Mal das ganze Log durchlaufen. detectPlateaus() wurde aus demselben
+   Grund schon einmal umgestellt.
 
    dayOf loest einen Tagesschluessel im Plan auf und wird nur fuer die
    Rueckfaelle in entryExercises() gebraucht; die Schicht kennt den Plan nicht.
-   ausser erlaubt es, die gerade laufende Einheit auszunehmen. */
-export function lastRepsFor(log, exId, dayOf = () => null, ausser = null){
-  if(!Array.isArray(log)) return null;
-  for(let i = log.length - 1; i >= 0; i--){
+   ausser nimmt einen einzelnen Eintrag aus – etwa den gerade geschriebenen. */
+export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null){
+  const out = {};
+  if(!Array.isArray(log) || !exIds) return out;
+  const offen = new Set(exIds);
+
+  for(let i = log.length - 1; i >= 0 && offen.size; i--){
     const l = log[i];
     if(l === ausser) continue;
-    if(!entryHasExercise(l, exId, dayOf(l && l.day))) continue;
-    const reps = repsOf(l, exId);
-    if(reps.length) return { d: l.d, reps };
+    for(const id of entryExercises(l, dayOf(l && l.day))){
+      if(!offen.has(id)) continue;
+      const reps = repsOf(l, id);
+      /* Eine Einheit, in der die Uebung nur abgehakt wurde, hilft nicht
+         weiter – gesucht sind Zahlen zum Vergleichen. Also offen lassen. */
+      if(!reps.length) continue;
+      out[id] = { d: l.d, reps };
+      offen.delete(id);
+    }
   }
-  return null;
+  return out;
+}
+
+/* Einzelabfrage. Liefert { d, reps: [12, 10, 8] } oder null. */
+export function lastRepsFor(log, exId, dayOf, ausser){
+  return lastRepsByExercise(log, [exId], dayOf, ausser)[exId] || null;
 }

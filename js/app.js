@@ -9,7 +9,7 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { entryHasExercise } from './domain/log.js';
+import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
   DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
@@ -640,6 +640,12 @@ function renderWorkout(){
   const need = cfg('streak');
   let html = '';
 
+  /* Was beim letzten Mal geschafft wurde. Die Zahlen liegen seit jeher in
+     jedem Log-Eintrag (entry.reps) und wurden nirgends gelesen – man
+     trainierte also ohne jede Sicht auf die vorige Einheit, obwohl die App
+     sie mitschreibt. Einmal fuer den ganzen Tag ermittelt, nicht je Uebung. */
+  const letzte = lastRepsByExercise(state.log, day.ex, getDay);
+
   day.ex.forEach(id => {
     const ex = EX_BY_ID[id];
     if(!ex) return;
@@ -697,6 +703,11 @@ function renderWorkout(){
       '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
+      (letzte[ex.id]
+        ? '<div class="last-reps">' + esc(__('lastReps', {
+          reps: letzte[ex.id].reps.join(' · '), date: fmtDate(letzte[ex.id].d)
+        })) + '</div>'
+        : '') +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
       '<span class="hold-hint">' +
@@ -814,10 +825,14 @@ function showExHistory(id){
   else {
     /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
        Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
+    /* Die Wiederholungsspalte ist die einzige Angabe hier, die sich wirklich
+       auf DIESE Uebung bezieht – Saetze und Top zaehlen die ganze Einheit. */
     html += '<table style="width:100%;font-size:13px"><tr><th>' + esc(__('colDate')) + '</th><th>' +
+      esc(__('colReps')) + '</th><th>' +
       esc(__('colSets')) + '</th><th>' + esc(__('colTop')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
     logEntries.forEach(l => {
-      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
+      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + esc(repsOf(l, id).join(' · ')) + '</td><td>' +
+        l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
         (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</td></tr>';
     });
     html += '</table>';

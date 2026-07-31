@@ -192,6 +192,9 @@ details.acc li{margin-bottom:5px}
 .ex-stage b{color:var(--ink)}
 .last-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;font-style:italic}
 .pr-line{font-family:var(--mono);font-size:11.5px;color:var(--success);margin-top:4px}
+/* Was beim letzten Mal stand – bewusst neutral gefärbt, nicht wie die
+   Bestleistung: die Zahl daneben ist ein Vergleichswert, kein Erfolg. */
+.last-reps{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:4px}
 
 /* ---------- Progressionsleiter ---------- */
 .rungs{display:flex;align-items:center;margin:0 0 4px}

@@ -137,6 +137,8 @@ export const LANG = {
     calendarAria: 'Trainingstage im {month}',
     calendarDay: '{d}. {month}', calendarTrained: ', trainiert', calendarToday: ', heute',
     colDate: 'Datum', colSets: 'Sätze', colTop: 'Top', colLevelUp: 'Level-Up',
+    colReps: 'Wdh',
+    lastReps: 'Letztes Mal: {reps} ({date})',
 
     /* Bibliothek */
     library: 'Übungsbibliothek', search: 'Übung suchen …',
@@ -356,6 +358,8 @@ export const LANG = {
     calendarAria: 'Workout days in {month}',
     calendarDay: '{month} {d}', calendarTrained: ', trained', calendarToday: ', today',
     colDate: 'Date', colSets: 'Sets', colTop: 'Top', colLevelUp: 'Level-up',
+    colReps: 'Reps',
+    lastReps: 'Last time: {reps} ({date})',
 
     library: 'Exercise library', search: 'Search exercises …',
     searchAria: 'Search exercises', all: 'All',

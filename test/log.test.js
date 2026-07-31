@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { entryExercises, entryHasExercise, repsOf, lastRepsFor } from '../js/domain/log.js';
+import {
+  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise
+} from '../js/domain/log.js';
 
 /* Die Zuordnung Eintrag -> Übung war der Grund für diese Datei: sie lief über
    den heutigen Plan und war damit nach jeder Planänderung falsch. */
@@ -133,5 +135,44 @@ describe('lastRepsFor', () => {
     expect(lastRepsFor(log, 'unbekannt')).toBeNull();
     expect(lastRepsFor([], 'pushup')).toBeNull();
     expect(lastRepsFor(null, 'pushup')).toBeNull();
+  });
+});
+
+describe('lastRepsByExercise', () => {
+  const log = [
+    { d: '2026-07-01', day: 'A', ex: ['pushup', 'dips'], reps: { 'pushup-0': 10, 'dips-0': 5 } },
+    { d: '2026-07-05', day: 'A', ex: ['pushup', 'dips'], reps: { 'pushup-0': 12 } }
+  ];
+
+  it('holt für jede Übung ihre jeweils jüngste Einheit', () => {
+    /* dips kommt in der jüngeren Einheit vor, aber ohne Zahlen – der Wert
+       muss aus der älteren stammen, nicht wegfallen. */
+    expect(lastRepsByExercise(log, ['pushup', 'dips'])).toEqual({
+      pushup: { d: '2026-07-05', reps: [12] },
+      dips: { d: '2026-07-01', reps: [5] }
+    });
+  });
+
+  it('lässt nie trainierte Übungen einfach weg', () => {
+    expect(lastRepsByExercise(log, ['unbekannt'])).toEqual({});
+  });
+
+  it('hört auf zu suchen, sobald alles gefunden ist', () => {
+    /* Der Grund für die Sammelabfrage: renderWorkout() läuft bei jeder
+       Interaktion, das Log fasst bis zu 2000 Einträge. Ein Proxy zählt die
+       tatsächlich betrachteten Einträge. */
+    const besucht = new Set();
+    const lang = Array.from({ length: 500 }, (_, i) => ({
+      d: '2026-01-01', day: 'A', ex: ['pushup'], reps: { 'pushup-0': i }
+    })).map(e => new Proxy(e, { get(t, k){ besucht.add(t); return t[k]; } }));
+
+    expect(lastRepsByExercise(lang, ['pushup']).pushup.reps).toEqual([499]);
+    expect(besucht.size).toBe(1);
+  });
+
+  it('kommt mit unbrauchbaren Eingaben zurecht', () => {
+    expect(lastRepsByExercise(null, ['pushup'])).toEqual({});
+    expect(lastRepsByExercise(log, null)).toEqual({});
+    expect(lastRepsByExercise(log, [])).toEqual({});
   });
 });
