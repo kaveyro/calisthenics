@@ -10,6 +10,10 @@
   "theme_color": "#2547D0",
   "lang": "de",
   "categories": ["health", "fitness", "sports"],
+  "shortcuts": [
+    { "name": "Training", "url": "./index.html#train" },
+    { "name": "Verlauf", "url": "./index.html#history" }
+  ],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

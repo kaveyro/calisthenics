@@ -74,6 +74,8 @@ Nach der Installation funktioniert die App auch ohne Internet. Wo der Browser di
 
 **Installieren ist nicht nur Bequemlichkeit.** Eine nicht installierte Seite gilt dem Browser als flüchtig: iOS löscht ihre Daten nach sieben Tagen ohne Nutzung, und unter Speicherdruck darf jeder Browser aufräumen. Siehe den nächsten Abschnitt.
 
+Jeder Tab liegt in der Browser-History: die Zurück-Geste geht einen Tab zurück, statt die App zu schließen, und `…/#library` öffnet direkt die Übungsbibliothek. Darauf zeigen auch die Verknüpfungen im Manifest – langes Drücken auf das App-Symbol führt direkt ins Training oder in den Verlauf. Dialoge bleiben bewusst außen vor; sie schließen über Escape und ✕.
+
 ---
 
 ## 4. Wichtig zum Speichern

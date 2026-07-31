@@ -77,6 +77,14 @@ export async function start(){
     applyRegression();     /* vor dem ersten Rendern, damit die Stufen stimmen */
     renderWarmup();
     renderAll();
+    /* Einen Tab aus der Adresse uebernehmen – so funktionieren die
+       Verknuepfungen im Manifest und ein geteilter Link. replaceState gibt
+       dem ersten Eintrag seinen Zustand, damit popstate spaeter etwas
+       vorfindet, statt auf den Rueckfall zurueckzugreifen. */
+    const ausAdresse = location.hash.replace('#', '');
+    aktiverTab = TABS.includes(ausAdresse) ? ausAdresse : 'train';
+    history.replaceState({ tab: aktiverTab }, '', '#' + aktiverTab);
+    if(aktiverTab !== 'train') showTab(aktiverTab, true);
     restoreActiveSession();
     registerSW();
     speicherSichern();
@@ -152,13 +160,7 @@ async function appInstallieren(){
   zeigeInstallSchalter();
 }
 
-/* Siehe den storage-Listener in installGlobalListeners(): verhindert, dass
-   zwei Fenster mit je einer laufenden Einheit sich endlos gegenseitig
-   uebernehmen. Jeder gewoehnliche Schreibvorgang hebt die Sperre auf. */
-let echoGeschrieben = false;
-
 async function save(){
-  echoGeschrieben = false;
   try{
     /* Vor dem Schreiben hochzaehlen: ein anderes Fenster erkennt am Zaehler,
        dass der Stand im Speicher neuer ist als sein eigener. */
@@ -192,11 +194,18 @@ async function save(){
 const SCHREIB_VERZOEGERUNG = 500;
 let schreibTimer = null;
 
+/* Kennung dieses Fensters, nur zur Laufzeit. Sie steht in der laufenden
+   Einheit mit, damit ein anderes Fenster erkennt, ob die gespeicherte Einheit
+   seine eigene ist – siehe den storage-Listener. */
+const fensterId = (globalThis.crypto && crypto.randomUUID)
+  ? crypto.randomUUID().slice(0, 8)
+  : String(Date.now()).slice(-8);
+
 /* Uebertraegt die Session in den Zustand, ohne zu schreiben. */
 function spiegleSession(){
   state.activeSession = session.dayKey
     ? {
-      dayKey: session.dayKey, d: today(),
+      dayKey: session.dayKey, d: today(), tab: fensterId,
       sets: { ...session.sets }, top: { ...session.top },
       reps: { ...session.reps }, notes: { ...session.notes },
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
@@ -599,7 +608,18 @@ async function addWarmupItem(){
 
 /* ================= Tabs ================= */
 const TABS = ['train', 'history', 'library', 'plan', 'milestones'];
-function showTab(t){
+let aktiverTab = 'train';
+
+/* Der zweite Parameter ist nur fuer den popstate-Listener da: von dort kommt
+   der Wechsel bereits aus der History und darf keinen neuen Eintrag anlegen.
+
+   Ohne diese Eintraege schloss die Zurueck-Geste auf Android die ganze App,
+   statt einen Tab zurueckzugehen – bei einer installierten PWA ist das der
+   erwartete Weg. */
+function showTab(t, ausHistory = false){
+  if(!TABS.includes(t)) t = 'train';
+  if(!ausHistory && t !== aktiverTab) history.pushState({ tab: t }, '', '#' + t);
+  aktiverTab = t;
   TABS.forEach(x => {
     const sel = (x === t);
     document.getElementById('view-' + x).hidden = !sel;
@@ -2407,6 +2427,14 @@ function installGlobalListeners(){
     speicherSichern();
   });
 
+  /* Zurueck-Taste und Zurueck-Geste wechseln den Tab, statt die App zu
+     schliessen. Dialoge bleiben bewusst aussen vor: sie ueber die History zu
+     schliessen verwickelt openDialog/closeDialog mit ihrem Stapel in
+     Rueckwaertsspruenge, die sie selbst ausloesen. Escape und ✕ tun es. */
+  window.addEventListener('popstate', e => {
+    showTab((e.state && e.state.tab) || 'train', true);
+  });
+
   /* Ein zweites Fenster derselben App hat geschrieben.
 
      Bisher gab es dafuer gar nichts: zwei offene Tabs ueberschrieben sich
@@ -2430,14 +2458,22 @@ function installGlobalListeners(){
     if(!(fremd.rev > (state.rev || 0))) return;
 
     state = fremd;
-    /* Die laufende Einheit stand im fremden Stand nicht drin und muss zurueck
-       in den Speicher. Genau dieser Schreibvorgang loest im anderen Fenster
-       aber die naechste Uebernahme aus – trainiert man dort ebenfalls, ginge
-       das ohne die Sperre endlos hin und her. Eine Antwort genuegt. */
-    if(session.dayKey && !echoGeschrieben){
-      persistSession();
-      echoGeschrieben = true;              /* nach save(), das sie zuruecksetzt */
-    }
+
+    /* Die hier laufende Einheit muss zurueck in den Speicher – der fremde
+       Stand kennt sie nicht. Genau dieser Schreibvorgang loest drueben aber
+       die naechste Uebernahme aus, und trainiert man dort ebenfalls, ginge
+       das endlos hin und her: es gibt nur einen Platz fuer die laufende
+       Einheit, und beide wollen ihn.
+
+       Deshalb die Fensterkennung: steht dort bereits die Einheit eines
+       ANDEREN Fensters, ueberschreiben wir sie nicht. Damit ist nach einer
+       Antwort Schluss, ohne dass eine Sperre stehen bleibt – und der
+       haeufige Fall (ein Fenster trainiert, das andere liegt nur offen)
+       schreibt die Einheit jedes Mal verlaesslich zurueck. */
+    const fremdeEinheit = state.activeSession;
+    const fremdLaeuft = !!(fremdeEinheit && fremdeEinheit.dayKey &&
+      fremdeEinheit.tab && fremdeEinheit.tab !== fensterId);
+    if(session.dayKey && !fremdLaeuft) persistSession();
     applyTheme();
     /* Der Inhaltsbereich bleibt bei laufender Einheit unberuehrt – renderAll()
        kehrt dafuer frueh zurueck. Ein Neuzeichnen wuerde den Halte-Timer von

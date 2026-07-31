@@ -289,6 +289,34 @@ describe('Abgleich zwischen zwei Fenstern', () => {
     expect(document.querySelectorAll('.set-dot.done')).toHaveLength(haken);
   });
 
+  /* Es gibt nur einen Platz fuer die laufende Einheit. Wird dort schon in
+     einem anderen Fenster trainiert, bleibt sie stehen – sonst schrieben
+     sich beide gegenseitig endlos ueber. */
+  it('ueberschreibt die laufende Einheit eines anderen Fensters nicht', async () => {
+    await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+
+    const vorher = gespeichert();
+    const fremdeEinheit = {
+      dayKey: 'A', d: new Date().toISOString().slice(0, 10), tab: 'anderes',
+      sets: {}, top: {}, reps: {}, notes: {}
+    };
+    melden(fremderStand({ activeSession: fremdeEinheit }));
+    await ruhe();
+
+    /* Kein Schreibvorgang – im Speicher steht unveraendert, was vorher
+       dastand. Genau dadurch bleibt die fremde Einheit unangetastet, und der
+       Austausch kommt nach einer Runde zum Stehen. */
+    expect(gespeichert()).toEqual(vorher);
+    /* Uebernommen wurde der fremde Stand trotzdem: die Kopfzahlen zeigen ihn. */
+    expect(document.getElementById('stats').textContent).toContain('3');
+    /* Und die eigene Einheit bleibt im Fenster bedienbar. */
+    expect(document.querySelectorAll('.set-dot.done').length).toBeGreaterThan(0);
+  });
+
   it('laesst einen aelteren oder gleich alten Stand liegen', async () => {
     const app = await starten();
     app.actions['theme:toggle']();          /* schreibt, rev steigt auf 1 */
@@ -455,6 +483,58 @@ describe('Verlauf je Uebung', () => {
     ]);
     expect(overlay.querySelector('svg.spark')).toBeNull();
     expect(overlay.querySelector('table')).not.toBeNull();
+  });
+});
+
+/* Die Tabs erzeugten keinen History-Eintrag: auf Android schloss die
+   Zurueck-Geste damit die ganze App, statt einen Tab zurueckzugehen. */
+describe('Tabs in der History', () => {
+  const sichtbarerTab = () =>
+    TABS.find(t => !document.getElementById('view-' + t).hidden);
+  const TABS = ['train', 'history', 'library', 'plan', 'milestones'];
+
+  /* jsdom fuehrt die History je Dokument – zwischen den Tests aufraeumen,
+     sonst haengen die Eintraege des vorigen noch dran. */
+  beforeEach(() => { history.replaceState(null, '', '/'); });
+
+  it('legt je Wechsel einen Eintrag an und geht ihn wieder zurueck', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    expect(sichtbarerTab()).toBe('library');
+    expect(location.hash).toBe('#library');
+
+    history.back();
+    await new Promise(r => setTimeout(r, 20));
+    expect(sichtbarerTab()).toBe('history');
+
+    history.back();
+    await new Promise(r => setTimeout(r, 20));
+    expect(sichtbarerTab()).toBe('train');
+  });
+
+  it('legt keinen Eintrag an, wenn der Tab derselbe bleibt', async () => {
+    const app = await starten();
+    const vorher = history.length;
+    app.actions['tab:show']({ tab: 'train' });
+    app.actions['tab:show']({ tab: 'train' });
+    await ruhe();
+    expect(history.length).toBe(vorher);
+  });
+
+  it('startet in dem Tab, der in der Adresse steht', async () => {
+    history.replaceState(null, '', '/#library');
+    await starten();
+    expect(sichtbarerTab()).toBe('library');
+  });
+
+  it('ignoriert einen unbekannten Tab in der Adresse', async () => {
+    history.replaceState(null, '', '/#gibtesnicht');
+    await starten();
+    expect(sichtbarerTab()).toBe('train');
+    expect(location.hash).toBe('#train');
   });
 });
 
