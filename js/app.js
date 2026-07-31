@@ -1445,12 +1445,16 @@ function renderCalendar(){
      im englischen Kalender "Juli" und darueber "Mo Di Mi". */
   const monatsName = gezeigt.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
   let html = '<div class="section-title cal-title"><span>' + esc(__('calendar')) + ' ' + esc(monatsName) + '</span>' +
+    /* aria-disabled statt disabled: die Schaltflaeche wird an der Grenze
+       unwirksam, aber genau dann liegt der Fokus auf ihr. Ein deaktiviertes
+       Element kann keinen Fokus halten – er fiele auf <body>, und die
+       Tastaturnavigation risse ab. Die Sperre prueft der Handler. */
     '<span class="cal-nav">' +
       '<button class="mini-btn" data-action="calendar:shift" data-delta="-1"' +
-      (grenzeZurueck ? ' disabled' : '') +
+      (grenzeZurueck ? ' aria-disabled="true"' : '') +
       ' aria-label="' + esc(__('calPrev')) + '">‹</button> ' +
       '<button class="mini-btn" data-action="calendar:shift" data-delta="1"' +
-      (kalenderVersatz >= 0 ? ' disabled' : '') +
+      (kalenderVersatz >= 0 ? ' aria-disabled="true"' : '') +
       ' aria-label="' + esc(__('calNext')) + '">›</button>' +
     '</span></div>' +
     '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
@@ -2386,7 +2390,10 @@ export const actions = {
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
   'log:remove':         d => removeLogEntry(zahl(d.i)),
-  'calendar:shift':     d => mitFokus(() => { kalenderVersatz += zahl(d.delta); renderCalendar(); }),
+  'calendar:shift':     (d, ev, el) => {
+    if(el.getAttribute('aria-disabled') === 'true') return;
+    return mitFokus(() => { kalenderVersatz += zahl(d.delta); renderCalendar(); });
+  },
 
   /* Bibliothek */
   'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),

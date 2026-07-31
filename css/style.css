@@ -198,7 +198,7 @@ details.acc li{margin-bottom:5px}
 /* Kalenderkopf mit Monatsnavigation */
 .cal-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cal-nav{display:flex;gap:4px;flex:none}
-.cal-nav button[disabled]{opacity:.35;cursor:default}
+.cal-nav button[aria-disabled=true]{opacity:.35;cursor:default}
 
 /* ---------- Progressionsleiter ---------- */
 .rungs{display:flex;align-items:center;margin:0 0 4px}
