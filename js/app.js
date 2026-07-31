@@ -10,6 +10,7 @@ import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
+import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
   DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
@@ -70,6 +71,7 @@ function cfg(k){
     renderAll();
     restoreActiveSession();
     registerSW();
+    speicherSichern();
     installDelegation(actions);
     installPlanDragAndDrop();
     addKeyboardShortcuts();
@@ -93,6 +95,68 @@ function cfg(k){
 function updateStorageWarning(){
   const el = document.getElementById('storageWarn');
   if(el) el.hidden = storageOK;
+}
+
+/* ================= Dauerhaftigkeit und Installation =================
+   Der gesamte Verlauf liegt unter einem localStorage-Schluessel. Ohne
+   navigator.storage.persist() darf der Browser ihn unter Speicherdruck
+   raeumen, und iOS loescht die Daten einer nicht installierten Seite nach
+   sieben Tagen ohne Nutzung. Beides zusammen ist das groesste Datenrisiko
+   der App – deshalb wird die Zusage angefordert UND zur Installation
+   eingeladen, denn sie ist die Bedingung, unter der die Zusage haelt. */
+let dauerhaft = null;        /* true | false | null (nicht unterstuetzt) */
+let installAngebot = null;
+
+async function speicherSichern(){
+  dauerhaft = await store.persist();
+  zeigeSpeicherinfo();
+}
+
+async function zeigeSpeicherinfo(){
+  const el = document.getElementById('storageInfo');
+  if(!el) return;
+  const teile = [__('storageLocation', { mode: __('storageLocal') })];
+  if(dauerhaft === true) teile.push(__('storagePersisted'));
+  else if(dauerhaft === false) teile.push(__('storageBestEffort'));
+  const bytes = await store.estimate();
+  if(bytes !== null) teile.push(__('storageUsage', { size: byteText(bytes) }));
+  el.textContent = teile.join(' · ');
+}
+
+function byteText(bytes){
+  const mb = bytes / (1024 * 1024);
+  return (mb >= 1 ? mb.toFixed(1) : (bytes / 1024).toFixed(0) + ' k').replace('.', ',') +
+    (mb >= 1 ? ' MB' : 'B');
+}
+
+/* Der Browser meldet sich mit diesem Ereignis, statt selbst zu fragen.
+   preventDefault() unterdrueckt nur den eigenen Hinweisstreifen; das
+   Ereignis wird aufgehoben und spaeter ueber die Schaltflaeche ausgeloest –
+   prompt() ist ausserhalb einer Nutzergeste ohnehin nicht erlaubt. */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installAngebot = e;
+  zeigeInstallSchalter();
+});
+window.addEventListener('appinstalled', () => {
+  installAngebot = null;
+  zeigeInstallSchalter();
+  /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
+  speicherSichern();
+});
+
+function zeigeInstallSchalter(){
+  const b = document.getElementById('installBtn');
+  if(b) b.hidden = !installAngebot;
+}
+
+async function appInstallieren(){
+  if(!installAngebot) return;
+  installAngebot.prompt();
+  await installAngebot.userChoice;
+  /* Ein Angebot laesst sich nur einmal ausloesen. */
+  installAngebot = null;
+  zeigeInstallSchalter();
 }
 
 async function save(){
@@ -311,8 +375,7 @@ function applyLanguage(){
     .map(([k, name]) => '<option value="' + k + '">' + esc(name) + '</option>').join('');
   /* Wird sonst nur beim Oeffnen der Einstellungen gesetzt und bliebe nach
      einem Sprachwechsel in der alten Sprache stehen. */
-  const info = document.getElementById('storageInfo');
-  if(info) info.textContent = __('storageLocation', { mode: __('storageLocal') });
+  zeigeSpeicherinfo();
 }
 
 /* ================= Theme ================= */
@@ -461,9 +524,20 @@ function renderBanners(){
     html += '<div class="banner warn">' + esc(__('plateauDetected')) + ': ' + esc(plateaus.join(', ')) +
       '.<br><small>' + esc(__('plateauMsg')) + '</small></div>';
   }
+  /* Der Verlauf liegt nur in diesem Browser. Exportieren konnte man ihn
+     immer, aber nichts hielt fest, wann das zuletzt geschah, und nichts
+     erinnerte daran. */
+  const backup = backupFaellig(state, today());
+  if(backup){
+    html += '<div class="banner warn"><b>' + esc(__('backupDueTitle')) + '</b> ' +
+      esc(__('backupDue' + backup.grund[0].toUpperCase() + backup.grund.slice(1), { n: backup.n })) +
+      '<br><button data-action="backup:exportJSON">' + esc(__('downloadBackup')) + '</button> ' +
+      '<button data-action="backup:remindLater">' + esc(__('later')) + '</button></div>';
+  }
   el.innerHTML = html;
 }
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
+function backupSpaeter(){ state.backupDismissed = state.workouts || 0; save(); renderBanners(); }
 
 function renderWarmup(){
   /* Nur die Standardliste wird übersetzt – eigene Einträge des Nutzers
@@ -1809,7 +1883,8 @@ function openSettings(){
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
-  document.getElementById('storageInfo').textContent = __('storageLocation', { mode: __('storageLocal') });
+  zeigeSpeicherinfo();
+  zeigeInstallSchalter();
   openDialog(document.getElementById('settingsOverlay'));
 }
 function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
@@ -1852,6 +1927,14 @@ function download(name, content, type){
 function exportJSON(){
   try{
     download('progression-backup-' + today() + '.json', JSON.stringify(state, null, 2), 'application/json');
+    /* Erst nach dem erfolgreichen Erzeugen buchen – sonst verstummt die
+       Erinnerung fuer eine Sicherung, die es gar nicht gibt. Der Stand
+       selbst enthaelt die Buchung noch nicht; das ist richtig so, denn er
+       war zum Zeitpunkt des Exports ungesichert. */
+    state.lastBackup = today();
+    state.backupWorkouts = state.workouts || 0;
+    state.backupDismissed = 0;
+    save(); renderBanners();
     toast(__('backupDownloaded'));
   }catch(err){ console.error('[exportJSON]', err); toast(__('exportFailed')); }
 }
@@ -2146,6 +2229,7 @@ export const actions = {
   'workout:undo':       () => undoWorkout(),
   'rest:stop':          () => { stopRest(); persistSession(); },
   'sw:update':          () => updateAnwenden(),
+  'app:install':        () => appInstallieren(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
 
   /* Warm-up */
@@ -2190,5 +2274,6 @@ export const actions = {
   'backup:exportText':  () => exportText(),
   'backup:importJSON':  (d, ev, el) => importJSON(el),
   'backup:importCSV':   (d, ev, el) => importCSV(el),
+  'backup:remindLater': () => backupSpaeter(),
   'backup:resetAll':    () => resetAll()
 };

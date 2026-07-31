@@ -76,5 +76,36 @@ export const store = {
   async clear(){
     await this.remove(STORAGE_KEY);
     await this.dropLegacy();
+  },
+
+  /* ================= Dauerhaftigkeit =================
+     Ohne diese Zusage ist der Origin fuer den Browser "best effort": unter
+     Speicherdruck darf er ihn raeumen, und iOS loescht die Daten einer nicht
+     installierten Seite nach sieben Tagen ohne Nutzung. Der gesamte
+     Trainingsverlauf haengt an einem einzigen localStorage-Schluessel – das
+     ist das groesste Datenrisiko der App und mit einem Aufruf zu entschaerfen.
+
+     Liefert true (zugesagt), false (abgelehnt) oder null (Browser kennt die
+     Schnittstelle nicht). Firefox fragt dabei nach, Chrome entscheidet
+     anhand von Installation und Nutzung selbst. */
+  async persist(){
+    try{
+      if(!navigator.storage || !navigator.storage.persist) return null;
+      if(navigator.storage.persisted && await navigator.storage.persisted()) return true;
+      return await navigator.storage.persist();
+    }catch{
+      return null;
+    }
+  },
+
+  /* Belegter Platz in Bytes, oder null. Nur zur Anzeige. */
+  async estimate(){
+    try{
+      if(!navigator.storage || !navigator.storage.estimate) return null;
+      const e = await navigator.storage.estimate();
+      return Number.isFinite(e && e.usage) ? e.usage : null;
+    }catch{
+      return null;
+    }
   }
 };

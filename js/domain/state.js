@@ -36,7 +36,10 @@ export const DEFAULT_STATE = () => ({
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  measurements: {}, warmupCustom: null, regressedFor: null
+  measurements: {}, warmupCustom: null, regressedFor: null,
+  /* Wann zuletzt gesichert wurde und bei welchem Zaehlerstand – siehe
+     js/domain/backup.js. backupDismissed haelt ein "Spaeter" fest. */
+  lastBackup: null, backupWorkouts: 0, backupDismissed: 0
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -55,7 +58,8 @@ export const DEFAULT_STATE = () => ({
    und ueber die Defaults bzw. prNumber() abgedeckt. v6 ergaenzt log[].ex
    (die tatsaechlich trainierten Uebungen); aeltere Eintraege bekommen hier
    eine leere Liste, und js/domain/log.js faellt fuer sie auf Plan und
-   Wiederholungsschluessel zurueck. */
+   Wiederholungsschluessel zurueck. Ebenfalls v6: lastBackup, backupWorkouts
+   und backupDismissed – additiv und ueber die Defaults abgedeckt. */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -79,6 +83,9 @@ export function migrateState(raw){
   if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
   if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
   if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
+  /* Default null heisst oben "jeden Typ durchlassen" – hier steht aber ein
+     ISO-Datum, das spaeter in eine Datumsrechnung laeuft. */
+  if(out.lastBackup !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.lastBackup))) out.lastBackup = null;
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log

@@ -287,6 +287,12 @@
         <input type="file" accept=".csv,text/csv" style="display:none" data-action-change="backup:importCSV">
       </label>
     </div>
+    <!-- Erscheint nur, wenn der Browser die Installation anbietet
+         (beforeinstallprompt). Eine installierte App wird deutlich seltener
+         geräumt – auf iOS ist sie die Bedingung dafür. -->
+    <div class="data-btns">
+      <button class="btn" id="installBtn" hidden data-action="app:install" data-i18n="installApp">App installieren</button>
+    </div>
     <div class="data-btns">
       <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
     </div>
