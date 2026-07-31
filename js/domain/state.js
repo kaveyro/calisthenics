@@ -148,6 +148,20 @@ export function migrateState(raw){
   return out;
 }
 
+/* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar
+   ist. Das Feld erlaubt Freitext ("sauber!"); frueher lieferte parseInt() dann
+   NaN und jeder Vergleich  v > NaN  war false – die automatische PR-Erfassung
+   war fuer diese Uebung dauerhaft tot. Ein nicht lesbarer Wert darf nicht
+   blockieren.
+
+   Liegt hier und nicht in app.js, weil die Form von state.prs hier beschrieben
+   ist und js/domain/merge.js denselben Vergleich braucht. */
+export function prNumber(pr){
+  if(!pr) return -Infinity;
+  const n = typeof pr.n === 'number' ? pr.n : parseInt(pr.v, 10);
+  return Number.isFinite(n) ? n : -Infinity;
+}
+
 /* ================= Import beschneiden =================
    Beschneidet ein importiertes Backup auf die bekannte Form.
    Bewusst kappen statt ablehnen: ein Validator, der die eigenen aelteren

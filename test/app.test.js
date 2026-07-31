@@ -312,6 +312,46 @@ describe('Abgleich zwischen zwei Fenstern', () => {
   });
 });
 
+/* Der Import ersetzte immer alles – wer auf dem Handy trainierte und danach
+   das Backup vom Rechner einspielte, verlor jede Einheit dazwischen. */
+describe('Backup importieren', () => {
+  const HIER = { d: '2026-07-30', day: 'A', sets: 12, tops: 1, ups: [], ex: ['pushup'], reps: {} };
+  const DORT = { d: '2026-07-20', day: 'A', sets: 8, tops: 0, ups: [], ex: ['pushup'], reps: {} };
+
+  async function importieren(wahl){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 7, workouts: 1, lastDate: '2026-07-30', log: [HIER], levels: { pushup: 5 }
+    }));
+    const app = await starten();
+
+    const inhalt = JSON.stringify({ v: 7, workouts: 1, log: [DORT], levels: { pushup: 2 } });
+    const eingabe = { files: [new window.File([inhalt], 'backup.json')], value: '' };
+    app.actions['backup:importJSON'](null, null, eingabe);
+    /* FileReader arbeitet asynchron. */
+    await new Promise(r => setTimeout(r, 20));
+
+    const knopf = [...document.querySelectorAll('.dlg-choice')]
+      .find(b => b.textContent.includes(wahl));
+    expect(knopf).toBeTruthy();
+    knopf.click();
+    await ruhe();
+    return gespeichert();
+  }
+
+  it('fuehrt auf Wunsch zusammen, statt zu ersetzen', async () => {
+    const s = await importieren('Zusammenführen');
+    expect(s.log.map(l => l.d)).toEqual(['2026-07-20', '2026-07-30']);
+    /* Die weitere Stufe gewinnt – sonst kostet ein altes Backup Fortschritt. */
+    expect(s.levels.pushup).toBe(5);
+  });
+
+  it('ersetzt weiterhin, wenn man es verlangt', async () => {
+    const s = await importieren('Ersetzen');
+    expect(s.log.map(l => l.d)).toEqual(['2026-07-20']);
+    expect(s.levels.pushup).toBe(2);
+  });
+});
+
 describe('Design', () => {
   it('kehrt im Dreierzyklus zum System zurueck', async () => {
     const app = await starten();

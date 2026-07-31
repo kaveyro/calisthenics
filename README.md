@@ -82,7 +82,7 @@ Die Daten liegen im `localStorage` des Browsers, gebunden an die Adresse (Origin
 
 - **Feste HTTPS-Adresse verwenden** (GitHub Pages). Bei lokal geöffneten Dateien hängen die Daten am Dateipfad und gehen beim Verschieben verloren.
 - **Kein Inkognito-Modus** – dort wird der Speicher beim Schließen geleert.
-- Handy und PC teilen den Fortschritt **nicht** automatisch. Zum Umziehen: Einstellungen → *Backup herunterladen*, auf dem anderen Gerät → *Backup importieren*.
+- Handy und PC teilen den Fortschritt **nicht** automatisch. Zum Umziehen: Einstellungen → *Backup herunterladen*, auf dem anderen Gerät → *Backup importieren*. Dort fragt die App, ob sie **zusammenführen** oder **ersetzen** soll. Zusammenführen ist die verlustfreie Wahl: Verlauf, Stufen, Bestleistungen und Meilensteine kommen aus beiden Ständen, die Einrichtung dieses Geräts (Einstellungen, Plan, Warm-up) bleibt. Dieselbe Datei zweimal einzuspielen ändert beim zweiten Mal nichts.
 - Vor größeren Änderungen am Code: einmal Backup ziehen.
 
 Die App fordert beim Start `navigator.storage.persist()` an – die Zusage des Browsers, den Speicher nicht von sich aus zu räumen. Ob sie erteilt wurde, steht in den Einstellungen unter *Daten & Backup*, zusammen mit dem belegten Platz. Chrome entscheidet anhand von Installation und Nutzung selbst, Firefox fragt nach. Steht dort **„Nicht dauerhaft"**, ist ein regelmäßiges Backup keine Vorsichtsmaßnahme, sondern notwendig.
@@ -110,7 +110,7 @@ progression/
 │   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
 │   │                   dates · escape · target · csv · plateau · state
-│   │                   log · backup
+│   │                   log · backup · merge
 │   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
 │   ├── data/
 │   │   └── content.en.js  Englische Übungsinhalte

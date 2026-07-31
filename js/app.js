@@ -13,8 +13,9 @@ import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
-  DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
+  DEFAULT_STATE, migrateState, prNumber, clampBackup as clampBackupPure
 } from './domain/state.js';
+import { mergeStates } from './domain/merge.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -1645,15 +1646,6 @@ function renderLibrary(){
 const EQUIP_KEYS = { none: 'equipNone', parallettes: 'equipParallettes', bar: 'equipBar', chair: 'equipChair' };
 const equipName = eq => EQUIP_KEYS[eq] ? __(EQUIP_KEYS[eq]) : eq;
 function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
-/* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar ist.
-   Das Feld erlaubt Freitext ("sauber!"); frueher lieferte parseInt() dann NaN
-   und jeder Vergleich  v > NaN  war false – die automatische PR-Erfassung war
-   fuer diese Uebung dauerhaft tot. Ein nicht lesbarer Wert darf nicht blockieren. */
-function prNumber(pr){
-  if(!pr) return -Infinity;
-  const n = typeof pr.n === 'number' ? pr.n : parseInt(pr.v, 10);
-  return Number.isFinite(n) ? n : -Infinity;
-}
 
 async function savePR(id){
   const v = (document.getElementById('pr-' + id).value || '').trim().slice(0, 40);
@@ -2114,15 +2106,27 @@ function importJSON(input){
       const data = JSON.parse(e.target.result);
       if(!data || typeof data !== 'object' || Array.isArray(data) ||
          (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
-      const ok = await askConfirm(__('importTitle'), __('importBody'), __('importAction'), true);
-      if(!ok){ input.value = ''; return; }
+      /* Ersetzen war bisher die einzige Moeglichkeit – und fuer den
+         haeufigsten Fall die falsche: wer auf dem Handy trainiert und danach
+         das Backup vom Rechner einspielt, verlor jede Einheit, die seit dem
+         Backup dazukam. Zusammenfuehren steht deshalb zuerst, es ist die
+         verlustfreie Wahl. */
+      const wahl = await askChoice(__('importTitle'), [
+        { name: __('importMerge'), sub: __('importMergeSub'), value: 'merge' },
+        { name: __('importReplace'), sub: __('importReplaceSub'), value: 'replace' }
+      ]);
+      if(!wahl){ input.value = ''; return; }
       cancelHold(); stopRest();
       /* Durch BEIDE Stufen: clampBackup kappt Laengen und Fremdfelder,
          migrateState normalisiert Typen und setzt die Version. Frueher stand
          hier ein Object.assign(DEFAULT_STATE(), …) – also genau der flache
          Merge, den migrateState ersetzt hat. Boot- und Importpfad pruefen
-         seitdem unterschiedlich streng, obwohl es dieselben Daten sind. */
-      state = migrateState(clampBackup(data));
+         seitdem unterschiedlich streng, obwohl es dieselben Daten sind.
+
+         mergeStates() sitzt dazwischen: es entscheidet, welcher Wert gewinnt,
+         nicht ob er eine gueltige Form hat. */
+      const sauber = clampBackup(data);
+      state = migrateState(wahl === 'merge' ? mergeStates(state, sauber) : sauber);
       clearSession();          /* vor dem Speichern: sonst landet eine aus dem
                                   Backup stammende Einheit kurz im Speicher */
       await save();
