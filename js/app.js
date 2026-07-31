@@ -1604,19 +1604,27 @@ function renderCatFilter(){
 }
 function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
 
+/* Aufbau und Suche sind getrennt.
+
+   renderLibrary() baute frueher bei JEDEM Tastendruck im Suchfeld alle 36
+   Uebungen mit ihren 141 Stufen neu auf. Wer bei einer Uebung eine
+   Bestleistung halb eingetippt hatte und dann suchte, fand sie danach nicht
+   mehr vor – das Feld war ein anderes. Gesucht wird jetzt, indem vorhandene
+   Eintraege aus- und wieder eingeblendet werden. */
 function renderLibrary(){
-  const q = (document.getElementById('libSearch').value || '').toLowerCase().trim();
-  const list = EXERCISES.filter(e =>
-    (libFilter === 'all' || e.cat === libFilter) &&
-    (!q || exName(e).toLowerCase().includes(q) ||
-          e.levels.some((l, i) => exStage(e, i).toLowerCase().includes(q))));
+  const list = EXERCISES.filter(e => libFilter === 'all' || e.cat === libFilter);
 
   const planIds = new Set(getDays().flatMap(d => d.ex));
 
   document.getElementById('libList').innerHTML = list.length ? list.map(ex => {
     const lvl = lvlOf(ex), open = libOpen[ex.id];
     const pr = (state.prs || {})[ex.id];
-    return '<div class="lib-item">' +
+    /* Der Suchtext wird beim Aufbau festgeschrieben, damit filterLibrary()
+       weder die Uebungsdaten noch die Uebersetzung erneut durchgehen muss.
+       Ein Sprachwechsel laeuft ueber renderAll() und baut ohnehin neu auf. */
+    const suchtext = [exName(ex), ...ex.levels.map((l, i) => exStage(ex, i))]
+      .join(' ').toLowerCase();
+    return '<div class="lib-item" data-such="' + esc(suchtext) + '">' +
       /* Echter Button statt eines klickbaren div: der Kopf ist die
          Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
       '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
@@ -1641,8 +1649,26 @@ function renderLibrary(){
         '<ul class="tips open" style="margin-top:10px">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
         '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
-  }).join('') : '<div class="empty-hint">' + __('noExercises') + '</div>';
+  }).join('') : '';
+  filterLibrary();
 }
+
+/* Blendet aus, was nicht zur Suche passt – ohne die Liste anzufassen. Damit
+   ueberleben halb getippte Bestleistungen in anderen Eintraegen, der auf- und
+   zugeklappte Zustand bleibt, und pro Tastendruck faellt kein Neuaufbau an. */
+function filterLibrary(){
+  const q = (document.getElementById('libSearch').value || '').toLowerCase().trim();
+  const eintraege = document.querySelectorAll('#libList .lib-item');
+  let sichtbar = 0;
+  eintraege.forEach(el => {
+    const passt = !q || (el.dataset.such || '').includes(q);
+    el.hidden = !passt;
+    if(passt) sichtbar++;
+  });
+  const leer = document.getElementById('libEmpty');
+  if(leer) leer.hidden = sichtbar > 0;
+}
+
 const EQUIP_KEYS = { none: 'equipNone', parallettes: 'equipParallettes', bar: 'equipBar', chair: 'equipChair' };
 const equipName = eq => EQUIP_KEYS[eq] ? __(EQUIP_KEYS[eq]) : eq;
 function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
@@ -2450,7 +2476,8 @@ export const actions = {
   /* Bibliothek */
   'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),
   'library:toggle':     d => mitFokus(() => toggleLib(d.ex)),
-  'library:search':     () => mitFokus(() => renderLibrary()),
+  /* Kein mitFokus mehr: das Suchfeld wird nicht mehr ersetzt. */
+  'library:search':     () => filterLibrary(),
   'pr:save':            d => mitFokus(() => savePR(d.ex)),
 
   /* Plan */

@@ -144,6 +144,9 @@
       <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen" data-i18n-placeholder="search" data-i18n-aria-label="searchAria">
     </div>
     <div class="card" id="libList"></div>
+    <!-- Steht im Markup statt in der Liste: die Suche blendet Eintraege nur
+         aus, statt sie neu aufzubauen (siehe filterLibrary()). -->
+    <div class="empty-hint" id="libEmpty" hidden data-i18n="noExercises">Keine Übung gefunden.</div>
   </section>
 
   <!-- ============ PLAN ============ -->

@@ -352,6 +352,64 @@ describe('Backup importieren', () => {
   });
 });
 
+/* renderLibrary() baute bei jedem Tastendruck alle 36 Uebungen neu auf – wer
+   eine Bestleistung halb eingetippt hatte und dann suchte, fand ein leeres
+   Feld vor. */
+describe('Suche in der Bibliothek', () => {
+  async function bibliothek(){
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    return app;
+  }
+  const suchen = async (app, text) => {
+    document.getElementById('libSearch').value = text;
+    app.actions['library:search']();
+    await ruhe();
+  };
+  const sichtbare = () =>
+    [...document.querySelectorAll('#libList .lib-item')].filter(el => !el.hidden);
+
+  it('blendet aus, was nicht passt – und wieder ein', async () => {
+    const app = await bibliothek();
+    const alle = sichtbare().length;
+    expect(alle).toBeGreaterThan(1);
+
+    await suchen(app, 'liegestütze');
+    const gefiltert = sichtbare().length;
+    expect(gefiltert).toBeGreaterThan(0);
+    expect(gefiltert).toBeLessThan(alle);
+
+    await suchen(app, '');
+    expect(sichtbare()).toHaveLength(alle);
+  });
+
+  it('findet auch ueber den Namen einer Stufe', async () => {
+    const app = await bibliothek();
+    await suchen(app, 'negativ');
+    expect(sichtbare().length).toBeGreaterThan(0);
+  });
+
+  it('zeigt den Hinweis, wenn nichts passt', async () => {
+    const app = await bibliothek();
+    await suchen(app, 'gibtesnicht');
+    expect(sichtbare()).toHaveLength(0);
+    expect(document.getElementById('libEmpty').hidden).toBe(false);
+  });
+
+  it('laesst eine halb getippte Bestleistung stehen', async () => {
+    const app = await bibliothek();
+    const feld = document.querySelector('#libList input[id^="pr-"]');
+    feld.value = '2';
+
+    await suchen(app, 'a');
+
+    /* Dasselbe Element, derselbe Wert – die Liste wurde nicht neu gebaut. */
+    expect(document.getElementById(feld.id)).toBe(feld);
+    expect(feld.value).toBe('2');
+  });
+});
+
 describe('Design', () => {
   it('kehrt im Dreierzyklus zum System zurueck', async () => {
     const app = await starten();
