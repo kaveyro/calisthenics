@@ -6,9 +6,11 @@ import { join } from 'node:path';
    Der häufigste Fehler beim Umbau ist ein Tippfehler im Aktionsnamen, und
    das Fehlerbild – "Button tut nichts" – ist von Hand mühsam zu finden.
 
-   js/app.js wird bewusst als TEXT gelesen statt importiert: das Modul greift
-   beim Laden auf document zu, und ein jsdom nur für diesen Test wäre teurer
-   als der reguläre Ausdruck. */
+   js/app.js wird als TEXT gelesen, nicht importiert – und das bleibt auch so,
+   seit start() exportiert wird und das Modul sich laden lässt (siehe
+   test/app.test.js). Gesucht sind hier nämlich die Namen im QUELLTEXT: die
+   Aktionstabelle und die in den HTML-Strings verwendeten Namen. Ein Import
+   liefert nur die Tabelle, also genau eine der beiden Seiten des Vergleichs. */
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 

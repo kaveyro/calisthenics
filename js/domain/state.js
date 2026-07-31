@@ -19,7 +19,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -27,13 +27,19 @@ export const STATE_VERSION = 5;
    unter dem localStorage-Budget. */
 export const MAX_LOG_ENTRIES = 2000;
 export const MAX_SERIES_ENTRIES = 1000;
+/* Ein Trainingstag fasst hoechstens 30 Uebungen (siehe clampBackup); die
+   Liste im Log-Eintrag kann nicht laenger sein als das, was trainierbar war. */
+export const MAX_EX_PER_ENTRY = 30;
 
 export const DEFAULT_STATE = () => ({
   v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
   weights: [], log: [], workouts: 0, byDay: {},
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
-  measurements: {}, warmupCustom: null, regressedFor: null
+  measurements: {}, warmupCustom: null, regressedFor: null,
+  /* Wann zuletzt gesichert wurde und bei welchem Zaehlerstand – siehe
+     js/domain/backup.js. backupDismissed haelt ein "Spaeter" fest. */
+  lastBackup: null, backupWorkouts: 0, backupDismissed: 0
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -49,7 +55,11 @@ export const DEFAULT_STATE = () => ({
    Zwischen v1 und v4 ist keine strukturelle Aenderung dokumentiert oder aus
    dem Code ableitbar; diese Schritte sind daher reine Normalisierung. v5
    ergaenzt activeSession und das numerische Feld prs[].n – beides additiv
-   und ueber die Defaults bzw. prNumber() abgedeckt. */
+   und ueber die Defaults bzw. prNumber() abgedeckt. v6 ergaenzt log[].ex
+   (die tatsaechlich trainierten Uebungen); aeltere Eintraege bekommen hier
+   eine leere Liste, und js/domain/log.js faellt fuer sie auf Plan und
+   Wiederholungsschluessel zurueck. Ebenfalls v6: lastBackup, backupWorkouts
+   und backupDismissed – additiv und ueber die Defaults abgedeckt. */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -73,6 +83,9 @@ export function migrateState(raw){
   if(out.warmupCustom && !Array.isArray(out.warmupCustom)) out.warmupCustom = null;
   if(out.activeSession && typeof out.activeSession !== 'object') out.activeSession = null;
   if(typeof out.theme === 'string' && out.theme !== 'dark' && out.theme !== 'light') out.theme = null;
+  /* Default null heisst oben "jeden Typ durchlassen" – hier steht aber ein
+     ISO-Datum, das spaeter in eine Datumsrechnung laeuft. */
+  if(out.lastBackup !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.lastBackup))) out.lastBackup = null;
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log
@@ -83,6 +96,9 @@ export function migrateState(raw){
       sets: Number(l.sets) || 0,
       tops: Number(l.tops) || 0,
       ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
+      /* Seit v6: die tatsaechlich trainierten Uebungen. Leer bei Altbestaenden
+         und bei CSV-Importen – dort greifen die Rueckfaelle in domain/log.js. */
+      ex: Array.isArray(l.ex) ? l.ex.filter(x => typeof x === 'string' && x).slice(0, MAX_EX_PER_ENTRY) : [],
       reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
     }))
     .slice(-MAX_LOG_ENTRIES);

@@ -33,7 +33,7 @@ npm run check      # Linting, Tests und Prüfung des Offline-Manifests
 
 | Befehl | Zweck |
 | --- | --- |
-| `npm test` | Unit-Tests der reinen Logik in `js/domain/` |
+| `npm test` | Tests: reine Logik in `js/domain/` plus `js/app.js` in jsdom |
 | `npm run lint` | ESLint, inklusive der Schichtgrenzen |
 | `npm run sw:manifest` | Offline-Dateiliste neu erzeugen (siehe Abschnitt 7) |
 
@@ -70,7 +70,9 @@ Bei kostenlosen Accounts muss das Repository öffentlich sein. Dein Code ist dan
 
 **iPhone/iPad (Safari):** Teilen-Symbol → „Zum Home-Bildschirm".
 
-Nach der Installation funktioniert die App auch ohne Internet.
+Nach der Installation funktioniert die App auch ohne Internet. Wo der Browser die Installation selbst anbietet (Chrome, Edge), steht dafür zusätzlich eine Schaltfläche in den Einstellungen.
+
+**Installieren ist nicht nur Bequemlichkeit.** Eine nicht installierte Seite gilt dem Browser als flüchtig: iOS löscht ihre Daten nach sieben Tagen ohne Nutzung, und unter Speicherdruck darf jeder Browser aufräumen. Siehe den nächsten Abschnitt.
 
 ---
 
@@ -82,6 +84,10 @@ Die Daten liegen im `localStorage` des Browsers, gebunden an die Adresse (Origin
 - **Kein Inkognito-Modus** – dort wird der Speicher beim Schließen geleert.
 - Handy und PC teilen den Fortschritt **nicht** automatisch. Zum Umziehen: Einstellungen → *Backup herunterladen*, auf dem anderen Gerät → *Backup importieren*.
 - Vor größeren Änderungen am Code: einmal Backup ziehen.
+
+Die App fordert beim Start `navigator.storage.persist()` an – die Zusage des Browsers, den Speicher nicht von sich aus zu räumen. Ob sie erteilt wurde, steht in den Einstellungen unter *Daten & Backup*, zusammen mit dem belegten Platz. Chrome entscheidet anhand von Installation und Nutzung selbst, Firefox fragt nach. Steht dort **„Nicht dauerhaft"**, ist ein regelmäßiges Backup keine Vorsichtsmaßnahme, sondern notwendig.
+
+Deshalb erinnert ein Banner daran: nach zehn Einheiten ohne Sicherung, oder nach 30 Tagen, sofern seither trainiert wurde. Gezählt werden Einheiten statt Tage – wer pausiert, erzeugt keine neuen Daten und braucht keine Erinnerung.
 
 ---
 
@@ -97,10 +103,12 @@ progression/
 │   └── style.css       Alles Visuelle, @font-face, Themes über CSS-Variablen
 ├── js/
 │   ├── exercises.js    ► ÜBUNGSDATEN & PLAN-VORLAGEN (hier erweitern)
-│   ├── storage.js      Speicher-Adapter (localStorage, Altschlüssel)
+│   ├── storage.js      Speicher-Adapter (localStorage, Dauerhaftigkeit)
+│   ├── main.js         Einstiegspunkt – ruft start() aus app.js
 │   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
 │   │                   dates · escape · target · csv · plateau · state
+│   │                   log · backup
 │   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
 │   ├── data/
 │   │   └── content.en.js  Englische Übungsinhalte
@@ -112,7 +120,9 @@ progression/
 └── icons/              App-Icons (192, 512, maskable)
 ```
 
-**Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart. Genau diese Schicht ist getestet.
+**Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart.
+
+**`app.js` startet sich nicht selbst.** Der Einstieg läuft über `js/main.js`, das `start()` aufruft; auch die Listener an `window` und `document` hängt erst `start()` an. Der bloße Import hat damit keine Nebenwirkung – die Voraussetzung dafür, dass `test/app.test.js` die Datei in jsdom laden und die App durch echte Klicks auf das Markup aus `index.html` fahren kann. Vorher lag der weitaus größte Teil des Codes außerhalb jeder Prüfung. **Bitte nichts wieder in den Modulrumpf legen**, was beim Laden ausgeführt werden soll.
 
 **Keine Inline-Event-Handler.** Markup und Logik hängen ausschließlich über `data-action` zusammen, aufgelöst durch eine Tabelle in `app.js`. Das ist die Voraussetzung für die Content-Security-Policy ohne `'unsafe-inline'` und verhindert zugleich, dass Werte in JavaScript-Strings innerhalb von Attributen landen. Ein Test prüft, dass jede verwendete Aktion existiert und keine Handler zurückkehren.
 
@@ -174,7 +184,7 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. Zuletzt geschah das für v6: ein Log-Eintrag führt seither in `ex` die tatsächlich trainierten Übungen mit. Vorher wurden sie im *heutigen* Plan nachgeschlagen, was nach jeder Ersetzung, jedem Plan-Reset und jedem CSV-Import falsch war; für Altbestände fällt `js/domain/log.js` weiterhin auf Plan und Wiederholungsschlüssel zurück. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 

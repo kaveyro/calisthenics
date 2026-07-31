@@ -191,11 +191,17 @@
   </div>
 </div>
 
-<!-- Pausen-Timer -->
-<button class="rest-chip" id="restChip" data-action="rest:stop"
-        aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
-  <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
-</button>
+<!-- Pausen-Timer. Zwei Schaltflächen in einem Behälter statt einer einzigen:
+     verschachtelte <button> sind ungültig, und "Pause verlängern" ist eine
+     eigene Handlung – ein Satz, der schlecht lief, braucht mehr Zeit. -->
+<div class="rest-chip" id="restChip">
+  <button class="rest-main" data-action="rest:stop"
+          aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
+    <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
+  </button>
+  <button class="rest-plus" data-action="rest:extend" data-sec="30"
+          aria-label="Pause um 30 Sekunden verlängern" data-i18n-aria-label="restExtendAria">+30</button>
+</div>
 
 <!-- Einstellungen -->
 <div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">
@@ -287,6 +293,12 @@
         <input type="file" accept=".csv,text/csv" style="display:none" data-action-change="backup:importCSV">
       </label>
     </div>
+    <!-- Erscheint nur, wenn der Browser die Installation anbietet
+         (beforeinstallprompt). Eine installierte App wird deutlich seltener
+         geräumt – auf iOS ist sie die Bedingung dafür. -->
+    <div class="data-btns">
+      <button class="btn" id="installBtn" hidden data-action="app:install" data-i18n="installApp">App installieren</button>
+    </div>
     <div class="data-btns">
       <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
     </div>
@@ -302,6 +314,6 @@
      aria-live zu geben, liess jede einzelne Sekunde vorlesen. -->
 <p id="srStatus" class="sr-only" role="status" aria-live="polite"></p>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

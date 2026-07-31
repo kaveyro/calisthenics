@@ -9,6 +9,8 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
+import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
+import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
   DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
@@ -33,6 +35,8 @@ let holdTimer = null, restTimer = null, wakeLock = null;
    genau die Sperrzeit nach. Der Tick zeichnet nur noch. */
 const TAKT = 250;
 let restEnde = 0;
+/* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
+let restLetzteSek = 0;
 let libFilter = 'all';
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
@@ -41,8 +45,13 @@ function cfg(k){
   return (state.settings && state.settings[k] !== undefined) ? state.settings[k] : SETTINGS_DEFAULTS[k];
 }
 
-/* ================= Start ================= */
-(async function boot(){
+/* ================= Start =================
+   Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
+   selbst startete, konnte kein Test es laden – und damit lag der weitaus
+   groesste Teil des Codes ausserhalb jeder Pruefung, waehrend js/domain/
+   vollstaendig abgedeckt war. Aufgerufen wird start() von js/main.js, dem
+   Einstiegspunkt in index.html. */
+export async function start(){
   try{
     const loaded = await store.load();
     if(loaded){
@@ -69,10 +78,12 @@ function cfg(k){
     renderAll();
     restoreActiveSession();
     registerSW();
+    speicherSichern();
     installDelegation(actions);
     installPlanDragAndDrop();
     addKeyboardShortcuts();
     addTablistNavigation();
+    installGlobalListeners();
   }catch(err){
     /* Ohne diesen Zweig bliebe der Ladehinweis dauerhaft stehen und der
        Fehler landete nur als unbehandelte Promise-Rejection in der Konsole. */
@@ -83,7 +94,7 @@ function cfg(k){
       esc(String(err && err.message || err)) +
       '<br><br>' + esc(__('bootHint')) + '</div>';
   }
-})();
+}
 
 /* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
    wochenlang weiter, ohne dass etwas ankommt. Der Hinweis bleibt jetzt
@@ -92,6 +103,52 @@ function cfg(k){
 function updateStorageWarning(){
   const el = document.getElementById('storageWarn');
   if(el) el.hidden = storageOK;
+}
+
+/* ================= Dauerhaftigkeit und Installation =================
+   Der gesamte Verlauf liegt unter einem localStorage-Schluessel. Ohne
+   navigator.storage.persist() darf der Browser ihn unter Speicherdruck
+   raeumen, und iOS loescht die Daten einer nicht installierten Seite nach
+   sieben Tagen ohne Nutzung. Beides zusammen ist das groesste Datenrisiko
+   der App – deshalb wird die Zusage angefordert UND zur Installation
+   eingeladen, denn sie ist die Bedingung, unter der die Zusage haelt. */
+let dauerhaft = null;        /* true | false | null (nicht unterstuetzt) */
+let installAngebot = null;
+
+async function speicherSichern(){
+  dauerhaft = await store.persist();
+  zeigeSpeicherinfo();
+}
+
+async function zeigeSpeicherinfo(){
+  const el = document.getElementById('storageInfo');
+  if(!el) return;
+  const teile = [__('storageLocation', { mode: __('storageLocal') })];
+  if(dauerhaft === true) teile.push(__('storagePersisted'));
+  else if(dauerhaft === false) teile.push(__('storageBestEffort'));
+  const bytes = await store.estimate();
+  if(bytes !== null) teile.push(__('storageUsage', { size: byteText(bytes) }));
+  el.textContent = teile.join(' · ');
+}
+
+function byteText(bytes){
+  const mb = bytes / (1024 * 1024);
+  return (mb >= 1 ? mb.toFixed(1) : (bytes / 1024).toFixed(0) + ' k').replace('.', ',') +
+    (mb >= 1 ? ' MB' : 'B');
+}
+
+function zeigeInstallSchalter(){
+  const b = document.getElementById('installBtn');
+  if(b) b.hidden = !installAngebot;
+}
+
+async function appInstallieren(){
+  if(!installAngebot) return;
+  installAngebot.prompt();
+  await installAngebot.userChoice;
+  /* Ein Angebot laesst sich nur einmal ausloesen. */
+  installAngebot = null;
+  zeigeInstallSchalter();
 }
 
 async function save(){
@@ -310,24 +367,51 @@ function applyLanguage(){
     .map(([k, name]) => '<option value="' + k + '">' + esc(name) + '</option>').join('');
   /* Wird sonst nur beim Oeffnen der Einstellungen gesetzt und bliebe nach
      einem Sprachwechsel in der alten Sprache stehen. */
-  const info = document.getElementById('storageInfo');
-  if(info) info.textContent = __('storageLocation', { mode: __('storageLocal') });
+  zeigeSpeicherinfo();
+  /* Zuletzt: applyStaticTexts() hat die Beschriftung der Theme-Schaltflaeche
+     gerade auf den statischen Schluessel zurueckgesetzt, applyTheme() traegt
+     den aktuellen Modus wieder ein. */
+  applyTheme();
 }
 
-/* ================= Theme ================= */
+/* ================= Theme =================
+   state.theme === null heisst "dem System folgen". Genau dorthin fuehrte
+   aber kein Weg zurueck: toggleTheme() schaltete nur zwischen hell und
+   dunkel um, und wer die Schaltflaeche einmal beruehrt hatte, war fuer immer
+   festgelegt. Jetzt ein Dreierzyklus – und ein Listener, damit ein
+   Systemwechsel bei geoeffneter App ankommt statt bis zum Neuladen zu warten. */
+const THEMES = [null, 'light', 'dark'];
+const THEME_ZEICHEN = { null: '◐', light: '☀', dark: '☾' };
+const THEME_TEXT = { null: 'themeSystem', light: 'themeLight', dark: 'themeDark' };
+
+const systemDunkel = () =>
+  !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+
 function applyTheme(){
-  let t = state.theme;
-  if(!t) t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  const wunsch = state.theme === 'light' || state.theme === 'dark' ? state.theme : null;
+  const t = wunsch || (systemDunkel() ? 'dark' : 'light');
   document.documentElement.dataset.theme = t;
+
   const btn = document.getElementById('themeBtn');
-  if(btn) btn.textContent = t === 'dark' ? '☀' : '☾';
+  if(btn){
+    /* Das Zeichen benennt den AKTUELLEN Zustand, nicht den naechsten Schritt.
+       Bei drei Moeglichkeiten waere "was passiert beim Tippen" nicht mehr
+       aus einem Symbol ablesbar. */
+    btn.textContent = THEME_ZEICHEN[wunsch];
+    btn.setAttribute('aria-label', __('themeCurrent', { mode: __(THEME_TEXT[wunsch]) }));
+    btn.setAttribute('title', __(THEME_TEXT[wunsch]));
+  }
   const meta = document.querySelector('meta[name=theme-color]');
   if(meta) meta.setAttribute('content', t === 'dark' ? '#14161A' : '#F3F4F1');
 }
+
 function toggleTheme(){
-  state.theme = (document.documentElement.dataset.theme === 'dark') ? 'light' : 'dark';
+  const i = THEMES.indexOf(state.theme === 'light' || state.theme === 'dark' ? state.theme : null);
+  state.theme = THEMES[(i + 1) % THEMES.length];
   applyTheme(); save();
+  toast(__(THEME_TEXT[state.theme]));
 }
+
 
 /* ================= Plan ================= */
 function getPlan(){
@@ -460,9 +544,20 @@ function renderBanners(){
     html += '<div class="banner warn">' + esc(__('plateauDetected')) + ': ' + esc(plateaus.join(', ')) +
       '.<br><small>' + esc(__('plateauMsg')) + '</small></div>';
   }
+  /* Der Verlauf liegt nur in diesem Browser. Exportieren konnte man ihn
+     immer, aber nichts hielt fest, wann das zuletzt geschah, und nichts
+     erinnerte daran. */
+  const backup = backupFaellig(state, today());
+  if(backup){
+    html += '<div class="banner warn"><b>' + esc(__('backupDueTitle')) + '</b> ' +
+      esc(__('backupDue' + backup.grund[0].toUpperCase() + backup.grund.slice(1), { n: backup.n })) +
+      '<br><button data-action="backup:exportJSON">' + esc(__('downloadBackup')) + '</button> ' +
+      '<button data-action="backup:remindLater">' + esc(__('later')) + '</button></div>';
+  }
   el.innerHTML = html;
 }
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
+function backupSpaeter(){ state.backupDismissed = state.workouts || 0; save(); renderBanners(); }
 
 function renderWarmup(){
   /* Nur die Standardliste wird übersetzt – eigene Einträge des Nutzers
@@ -560,7 +655,7 @@ function addKeyboardShortcuts(){
       return;
     }
     if(e.key === 'r' || e.key === 'R'){
-      if(document.getElementById('restChip').style.display === 'block'){
+      if(document.getElementById('restChip').style.display === 'flex'){
         stopRest(); persistSession();
       } else if(session.dayKey){
         const defaultRest = cfg('rest');
@@ -639,6 +734,12 @@ function renderWorkout(){
   const need = cfg('streak');
   let html = '';
 
+  /* Was beim letzten Mal geschafft wurde. Die Zahlen liegen seit jeher in
+     jedem Log-Eintrag (entry.reps) und wurden nirgends gelesen – man
+     trainierte also ohne jede Sicht auf die vorige Einheit, obwohl die App
+     sie mitschreibt. Einmal fuer den ganzen Tag ermittelt, nicht je Uebung. */
+  const letzte = lastRepsByExercise(state.log, day.ex, getDay);
+
   day.ex.forEach(id => {
     const ex = EX_BY_ID[id];
     if(!ex) return;
@@ -696,6 +797,11 @@ function renderWorkout(){
       '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
+      (letzte[ex.id]
+        ? '<div class="last-reps">' + esc(__('lastReps', {
+          reps: letzte[ex.id].reps.join(' · '), date: fmtDate(letzte[ex.id].d)
+        })) + '</div>'
+        : '') +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
       '<span class="hold-hint">' +
@@ -796,10 +902,13 @@ async function substituteExercise(id){
 /* ================= Per-Exercise History ================= */
 function showExHistory(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
-  const logEntries = (state.log || []).filter(l => {
-    const day = getDay(l.day);
-    return day && day.ex.includes(id);
-  }).slice(-15).reverse();
+  /* Der Eintrag selbst weiss seit v6, welche Uebungen trainiert wurden. Der
+     Plan-Tag dient nur noch als Rueckfall fuer Altbestaende – vorher war er
+     die einzige Quelle, und damit war diese Liste nach jeder Ersetzung, jedem
+     Plan-Reset und jedem CSV-Import falsch. */
+  const logEntries = (state.log || [])
+    .filter(l => entryHasExercise(l, id, getDay(l.day)))
+    .slice(-15).reverse();
   /* role/aria-modal fehlten hier komplett – anders als beim statischen
      Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
   let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '"' +
@@ -810,10 +919,14 @@ function showExHistory(id){
   else {
     /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
        Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
+    /* Die Wiederholungsspalte ist die einzige Angabe hier, die sich wirklich
+       auf DIESE Uebung bezieht – Saetze und Top zaehlen die ganze Einheit. */
     html += '<table style="width:100%;font-size:13px"><tr><th>' + esc(__('colDate')) + '</th><th>' +
+      esc(__('colReps')) + '</th><th>' +
       esc(__('colSets')) + '</th><th>' + esc(__('colTop')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
     logEntries.forEach(l => {
-      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
+      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + esc(repsOf(l, id).join(' · ')) + '</td><td>' +
+        l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
         (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</td></tr>';
     });
     html += '</table>';
@@ -949,15 +1062,32 @@ function pauseAnzeigen(){
     signal(false); toast(__('restOver'));
     return;
   }
+  /* Drei kurze Toene vor dem Ende. Der Tick laeuft viermal pro Sekunde,
+     deshalb die Merkvariable – sonst piepste es bei jedem Durchlauf. */
+  if(rem <= 3 && rem !== restLetzteSek){
+    restLetzteSek = rem;
+    tick();
+  }
+
   const out = document.getElementById('restTime');
   const txt = Math.floor(rem / 60) + ':' + String(rem % 60).padStart(2, '0');
   if(out.textContent !== txt) out.textContent = txt;
-  document.getElementById('restChip').style.display = 'block';
+  document.getElementById('restChip').style.display = 'flex';
 }
 function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
   restEnde = 0;
+  restLetzteSek = 0;
   document.getElementById('restChip').style.display = 'none';
+}
+
+/* Pause verlaengern. Ein Satz, der schlecht lief, braucht mehr Zeit – der
+   Chip konnte die Pause bisher nur abbrechen. Laeuft gerade keine, faengt
+   die Verlaengerung bei jetzt an, damit die Schaltflaeche nie ins Leere tippt. */
+function restVerlaengern(sek){
+  const basis = restEnde > Date.now() ? restEnde : Date.now();
+  restBis(basis + sek * 1000);
+  persistSession();
 }
 
 /* Nach der Rueckkehr aus dem Hintergrund stimmen beide Anzeigen sofort, und
@@ -993,6 +1123,24 @@ function signal(double){
     };
     play(0, 880); if(double) play(.35, 1174);
   }catch{ /* Web Audio blockiert oder nicht verfuegbar – dann eben stumm */ }
+}
+
+/* Kurzer, leiser Ton fuer die letzten drei Sekunden der Pause. Bewusst nicht
+   signal(): das ist das Ende-Signal und deutlich lauter. Bisher kam ueber-
+   haupt erst bei null ein Ton – wer nicht hinsah, verpasste den Einstieg. */
+function tick(){
+  if(!cfg('sound')) return;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 660; o.connect(g); g.connect(audioCtx.destination);
+    const t0 = audioCtx.currentTime;
+    g.gain.setValueAtTime(.001, t0);
+    g.gain.exponentialRampToValueAtTime(.08, t0 + .01);
+    g.gain.exponentialRampToValueAtTime(.001, t0 + .09);
+    o.start(t0); o.stop(t0 + .1);
+  }catch{ /* Web Audio blockiert oder nicht verfuegbar */ }
 }
 
 /* ================= Bildschirm wach halten ================= */
@@ -1069,12 +1217,25 @@ async function finishWorkout(){
           state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
         }
       }
+    } else if(t.isHold && t.holdSecs){
+      /* Halteuebungen bekamen nie automatisch eine Bestleistung: die Schleife
+         darueber lief nur fuer Wiederholungen. Fuer einen Front Lever musste
+         man sie also in der Bibliothek von Hand eintippen, obwohl die App die
+         Sekunden kennt – ein abgeschlossener Satz IST die gehaltene Zeit.
+         Es genuegt ein geschaffter Satz; die weiteren aendern die Zeit nicht. */
+      const geschafft = Array.from({ length: t.sets }, (_, s) => session.sets[id + '-' + s]).some(Boolean);
+      if(geschafft && t.holdSecs > prNumber(state.prs[id])){
+        state.prs[id] = { v: t.holdSecs + ' ' + __('secShort'), n: t.holdSecs, d: today() };
+      }
     }
   });
 
   const sets = Object.values(session.sets).filter(Boolean).length;
   const now = today();
-  const entry = { d: now, day: session.dayKey, sets, tops, ups, reps: { ...session.reps } };
+  /* ex: die tatsaechlich trainierten Uebungen. Ohne dieses Feld liess sich
+     nur im heutigen Plan nachschlagen, welche Uebungen zu einer Einheit
+     gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
+  const entry = { d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups, reps: { ...session.reps } };
 
   lastWorkoutSnapshot.entry = entry;
 
@@ -1209,18 +1370,53 @@ function renderHistory(){
   renderMeasurements();
 
   const list = document.getElementById('logList');
-  const log = (state.log || []).slice(-25).reverse();
-  list.innerHTML = log.length ? log.map(l => {
+  /* Mit dem echten Index, nicht dem der Ansicht: geloescht wird in state.log,
+     angezeigt werden nur die letzten 25 in umgekehrter Reihenfolge. */
+  const log = (state.log || []).map((l, i) => ({ l, i })).slice(-25).reverse();
+  list.innerHTML = log.length ? log.map(({ l, i }) => {
     const d = getDay(l.day);
     return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
       '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
       '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top</span>' +
-      '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span></div>';
+      '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span>' +
+      '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
+      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">✕</button></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
   /* Calendar view */
   renderCalendar();
 }
+
+/* Einen einzelnen Eintrag entfernen.
+
+   Das Undo nach "Fertig" lebt fuenf Sekunden; danach war ein Fehleintrag nur
+   noch ueber ein von Hand bearbeitetes JSON-Backup loszuwerden.
+
+   Zurueckgerechnet werden Zaehler, Tagesstatistik und das Datum der letzten
+   Einheit. Stufen, Serien und Bestleistungen bleiben, wie sie sind: aus einem
+   Log-Eintrag laesst sich nicht ableiten, welcher Stand vor ihm galt. Der
+   Bestaetigungsdialog sagt das ausdruecklich. */
+async function removeLogEntry(i){
+  const l = (state.log || [])[i];
+  if(!l) return;
+  const ok = await askConfirm(__('logRemoveTitle'),
+    __('logRemoveBody', { date: fmtDate(l.d), day: l.day }), __('remove'), true);
+  if(!ok) return;
+
+  state.log.splice(i, 1);
+  state.workouts = Math.max(0, (state.workouts || 0) - 1);
+  if(state.byDay && state.byDay[l.day]) state.byDay[l.day] = Math.max(0, state.byDay[l.day] - 1);
+  /* Das groesste verbliebene Datum, nicht das letzte Element: ein CSV-Import
+     kann aeltere Eintraege hinten angehaengt haben. */
+  state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
+
+  await save();
+  renderAll(); renderHistory();
+  toast(__('logRemoved'));
+}
+
+/* Angezeigter Monat, relativ zum laufenden. 0 = dieser Monat. */
+let kalenderVersatz = 0;
 
 function renderCalendar(){
   const cal = document.getElementById('calendarView') || (() => {
@@ -1231,16 +1427,36 @@ function renderCalendar(){
   })();
   if(!state.log || !state.log.length){ cal.innerHTML = ''; return; }
 
+  /* Der Kalender stand fest auf new Date() – zurueckblaettern ging nicht,
+     und ein mehrjaehriger Verlauf war damit im laufenden Monat eingesperrt. */
   const now = new Date();
-  const year = now.getFullYear(), month = now.getMonth();
-  const first = new Date(year, month, 1).getDay();
+  const gezeigt = new Date(now.getFullYear(), now.getMonth() + kalenderVersatz, 1);
+  const year = gezeigt.getFullYear(), month = gezeigt.getMonth();
+  const first = gezeigt.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
+  /* Vorwaerts endet die Reise im laufenden Monat, rueckwaerts beim ersten
+     aufgezeichneten Training – dahinter gibt es nichts zu sehen. */
+  const erster = state.log.reduce((a, e) => (!a || e.d < a) ? e.d : a, null) || '';
+  const grenzeZurueck = erster.slice(0, 7) >= (year + '-' + String(month + 1).padStart(2, '0'));
+
   /* Monatsname und Wochentage aus Intl statt fest verdrahtet – sonst steht
      im englischen Kalender "Juli" und darueber "Mo Di Mi". */
-  const monatsName = now.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
-  let html = '<div class="section-title">' + esc(__('calendar')) + ' ' + esc(monatsName) + '</div>' +
+  const monatsName = gezeigt.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title cal-title"><span>' + esc(__('calendar')) + ' ' + esc(monatsName) + '</span>' +
+    /* aria-disabled statt disabled: die Schaltflaeche wird an der Grenze
+       unwirksam, aber genau dann liegt der Fokus auf ihr. Ein deaktiviertes
+       Element kann keinen Fokus halten – er fiele auf <body>, und die
+       Tastaturnavigation risse ab. Die Sperre prueft der Handler. */
+    '<span class="cal-nav">' +
+      '<button class="mini-btn" data-action="calendar:shift" data-delta="-1"' +
+      (grenzeZurueck ? ' aria-disabled="true"' : '') +
+      ' aria-label="' + esc(__('calPrev')) + '">‹</button> ' +
+      '<button class="mini-btn" data-action="calendar:shift" data-delta="1"' +
+      (kalenderVersatz >= 0 ? ' aria-disabled="true"' : '') +
+      ' aria-label="' + esc(__('calNext')) + '">›</button>' +
+    '</span></div>' +
     '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
   wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
   const offset = (first + 6) % 7;
@@ -1787,7 +2003,8 @@ function openSettings(){
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
-  document.getElementById('storageInfo').textContent = __('storageLocation', { mode: __('storageLocal') });
+  zeigeSpeicherinfo();
+  zeigeInstallSchalter();
   openDialog(document.getElementById('settingsOverlay'));
 }
 function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
@@ -1830,6 +2047,14 @@ function download(name, content, type){
 function exportJSON(){
   try{
     download('progression-backup-' + today() + '.json', JSON.stringify(state, null, 2), 'application/json');
+    /* Erst nach dem erfolgreichen Erzeugen buchen – sonst verstummt die
+       Erinnerung fuer eine Sicherung, die es gar nicht gibt. Der Stand
+       selbst enthaelt die Buchung noch nicht; das ist richtig so, denn er
+       war zum Zeitpunkt des Exports ungesichert. */
+    state.lastBackup = today();
+    state.backupWorkouts = state.workouts || 0;
+    state.backupDismissed = 0;
+    save(); renderBanners();
     toast(__('backupDownloaded'));
   }catch(err){ console.error('[exportJSON]', err); toast(__('exportFailed')); }
 }
@@ -2060,35 +2285,64 @@ function toast(msg, big, aktion){
   toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
 }
 
-/* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
+/* Listener am Fenster und am Dokument. Aus start() heraus registriert und
+   nicht mehr im Modulrumpf: sonst haengt schon der blosse Import Handler an
+   die Umgebung, und das Modul waere weiterhin nicht ohne Nebenwirkung zu
+   laden. */
+function installGlobalListeners(){
+  /* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
 
-   visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
-   Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
-   registriert, weil visibilitychange beim reinen Schliessen am Desktop
-   nicht garantiert ist. */
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden'){ flushSession(); return; }
+     visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
+     Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
+     registriert, weil visibilitychange beim reinen Schliessen am Desktop
+     nicht garantiert ist. */
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden'){ flushSession(); return; }
 
-  /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
-     Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
-  zeitgeberAbgleichen();
+    /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
+       Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */
+    zeitgeberAbgleichen();
 
-  /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
-     unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
-     dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
-     wieder ein. requestWakeLock() ist idempotent. */
-  if(session.dayKey) requestWakeLock();
+    /* Der Browser gibt die Bildschirmsperre frei, sobald das Dokument
+       unsichtbar wird. Angefordert wurde sie bisher nur in selectDay() – nach
+       dem ersten App-Wechsel schlief der Bildschirm fuer den Rest der Einheit
+       wieder ein. requestWakeLock() ist idempotent. */
+    if(session.dayKey) requestWakeLock();
 
-  swPruefen();
-});
+    swPruefen();
+  });
 
-/* Ungespeichertes Training beim Verlassen abfangen */
-window.addEventListener('beforeunload', e => {
-  flushSession();
-  if(session.dayKey && Object.values(session.sets).some(Boolean)){
-    e.preventDefault(); e.returnValue = '';
+  /* Ungespeichertes Training beim Verlassen abfangen */
+  window.addEventListener('beforeunload', e => {
+    flushSession();
+    if(session.dayKey && Object.values(session.sets).some(Boolean)){
+      e.preventDefault(); e.returnValue = '';
+    }
+  });
+
+  /* Der Browser meldet die Installierbarkeit mit diesem Ereignis, statt
+     selbst zu fragen. preventDefault() unterdrueckt nur seinen eigenen
+     Hinweisstreifen; das Ereignis wird aufgehoben und spaeter ueber die
+     Schaltflaeche ausgeloest – prompt() ist ausserhalb einer Nutzergeste
+     ohnehin nicht erlaubt. */
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installAngebot = e;
+    zeigeInstallSchalter();
+  });
+  window.addEventListener('appinstalled', () => {
+    installAngebot = null;
+    zeigeInstallSchalter();
+    /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
+    speicherSichern();
+  });
+
+  /* Systemwechsel hell/dunkel – nur wirksam, solange dem System gefolgt wird. */
+  const dunkelAbfrage = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
+  if(dunkelAbfrage && dunkelAbfrage.addEventListener){
+    dunkelAbfrage.addEventListener('change', () => { if(!state.theme) applyTheme(); });
   }
-});
+}
 
 /* =========================================================
    AKTIONEN
@@ -2123,7 +2377,9 @@ export const actions = {
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
   'rest:stop':          () => { stopRest(); persistSession(); },
+  'rest:extend':        d => restVerlaengern(zahl(d.sec) || 30),
   'sw:update':          () => updateAnwenden(),
+  'app:install':        () => appInstallieren(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
 
   /* Warm-up */
@@ -2133,6 +2389,11 @@ export const actions = {
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
+  'log:remove':         d => removeLogEntry(zahl(d.i)),
+  'calendar:shift':     (d, ev, el) => {
+    if(el.getAttribute('aria-disabled') === 'true') return;
+    return mitFokus(() => { kalenderVersatz += zahl(d.delta); renderCalendar(); });
+  },
 
   /* Bibliothek */
   'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),
@@ -2168,5 +2429,6 @@ export const actions = {
   'backup:exportText':  () => exportText(),
   'backup:importJSON':  (d, ev, el) => importJSON(el),
   'backup:importCSV':   (d, ev, el) => importCSV(el),
+  'backup:remindLater': () => backupSpaeter(),
   'backup:resetAll':    () => resetAll()
 };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_STATE, STATE_VERSION, SETTINGS_DEFAULTS,
-  MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
+  MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY,
   migrateState, clampBackup
 } from '../js/domain/state.js';
 
@@ -69,9 +69,26 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], reps: {} },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], reps: {} }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {} },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {} }
     ]);
+  });
+
+  /* Seit v6 traegt der Eintrag die trainierten Uebungen. Ein leeres Feld ist
+     der Normalfall fuer Altbestaende – js/domain/log.js faellt dann zurueck. */
+  it('uebernimmt die Uebungsliste und wirft Unbrauchbares daraus weg', () => {
+    const out = migrateState({ log: [
+      { d: '2026-01-01', day: 'A', ex: ['pushup', 7, '', null, 'squat'] },
+      { d: '2026-01-02', day: 'A', ex: 'pushup' },       /* kein Array */
+      { d: '2026-01-03', day: 'A' }                      /* Altbestand */
+    ]});
+    expect(out.log.map(l => l.ex)).toEqual([['pushup', 'squat'], [], []]);
+  });
+
+  it('kappt uebermaessig lange Uebungslisten', () => {
+    const ex = Array.from({ length: MAX_EX_PER_ENTRY + 10 }, (_, i) => 'ex' + i);
+    const out = migrateState({ log: [{ d: '2026-01-01', day: 'A', ex }] });
+    expect(out.log[0].ex).toHaveLength(MAX_EX_PER_ENTRY);
   });
 
   it('kappt das Log auf MAX_LOG_ENTRIES und behaelt die juengsten', () => {
@@ -246,7 +263,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], reps: {} }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {} }]);
     expect(out.unbekannt).toBeUndefined();
   });
 
