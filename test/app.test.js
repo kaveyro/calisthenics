@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(6);
+    expect(s.v).toBe(7);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -233,6 +233,82 @@ describe('Einen Log-Eintrag loeschen', () => {
     expect(s.workouts).toBe(1);
     expect(s.byDay.A).toBe(1);
     expect(s.lastDate).toBe('2026-07-29');
+  });
+});
+
+/* Zwei offene Fenster ueberschrieben sich bisher vollstaendig und still: der
+   ganze Zustand haengt an einem Schluessel, es gibt keine Teilschreibvorgaenge.
+   Ein Fenster von gestern Abend machte beim naechsten Tipp den heutigen
+   Verlauf zunichte. */
+describe('Abgleich zwischen zwei Fenstern', () => {
+  /* Was ein zweites Fenster geschrieben haette. */
+  function fremderStand(over = {}){
+    return JSON.stringify({
+      v: 7, rev: 500, workouts: 3, lastDate: '2026-07-30',
+      log: [{ d: '2026-07-30', day: 'A', sets: 12, tops: 1, ups: [], ex: ['pushup'], reps: {} }],
+      ...over
+    });
+  }
+  const melden = wert => window.dispatchEvent(
+    new window.StorageEvent('storage', { key: SPEICHER, newValue: wert }));
+
+  it('uebernimmt einen neueren Stand aus dem anderen Fenster', async () => {
+    const app = await starten();
+    expect(document.getElementById('stats').textContent).not.toContain('3');
+
+    melden(fremderStand());
+    await ruhe();
+
+    /* Die Kopfzahlen zeigen den fremden Stand … */
+    expect(document.getElementById('stats').textContent).toContain('3');
+    /* … und der Verlauf kennt die Einheit, die hier nie stattfand. */
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    expect(document.getElementById('logList').textContent).not.toBe('');
+    expect(document.querySelectorAll('[data-action="log:remove"]')).toHaveLength(1);
+  });
+
+  it('behaelt die hier laufende Einheit und schreibt sie zurueck', async () => {
+    await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    const haken = document.querySelectorAll('.set-dot.done').length;
+    expect(haken).toBeGreaterThan(0);
+
+    melden(fremderStand());
+    await ruhe();
+
+    /* Der fremde Verlauf ist da, die eigenen Haken stehen noch, und beides
+       liegt zusammen im Speicher – in keiner Richtung ein Verlust. */
+    const s = gespeichert();
+    expect(s.log).toHaveLength(1);
+    expect(s.workouts).toBe(3);
+    expect(s.activeSession).not.toBeNull();
+    expect(document.querySelectorAll('.set-dot.done')).toHaveLength(haken);
+  });
+
+  it('laesst einen aelteren oder gleich alten Stand liegen', async () => {
+    const app = await starten();
+    app.actions['theme:toggle']();          /* schreibt, rev steigt auf 1 */
+    await ruhe();
+    const vorher = gespeichert();
+
+    melden(fremderStand({ rev: 0, workouts: 99 }));
+    melden(fremderStand({ rev: vorher.rev, workouts: 99 }));
+    await ruhe();
+
+    expect(gespeichert()).toEqual(vorher);
+  });
+
+  it('ignoriert fremden Schrott, statt den Stand wegzuwerfen', async () => {
+    await starten();
+    const vorher = document.getElementById('stats').textContent;
+    melden('{kein json');
+    melden(null);
+    await ruhe();
+    expect(document.getElementById('stats').textContent).toBe(vorher);
   });
 });
 

@@ -151,8 +151,17 @@ async function appInstallieren(){
   zeigeInstallSchalter();
 }
 
+/* Siehe den storage-Listener in installGlobalListeners(): verhindert, dass
+   zwei Fenster mit je einer laufenden Einheit sich endlos gegenseitig
+   uebernehmen. Jeder gewoehnliche Schreibvorgang hebt die Sperre auf. */
+let echoGeschrieben = false;
+
 async function save(){
+  echoGeschrieben = false;
   try{
+    /* Vor dem Schreiben hochzaehlen: ein anderes Fenster erkennt am Zaehler,
+       dass der Stand im Speicher neuer ist als sein eigener. */
+    state.rev = (state.rev || 0) + 1;
     const res = await store.save(state);
     if(!res) throw new Error('no result');
     if(!storageOK){
@@ -2335,6 +2344,45 @@ function installGlobalListeners(){
     zeigeInstallSchalter();
     /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
     speicherSichern();
+  });
+
+  /* Ein zweites Fenster derselben App hat geschrieben.
+
+     Bisher gab es dafuer gar nichts: zwei offene Tabs ueberschrieben sich
+     gegenseitig vollstaendig, und zwar still. Ein Fenster von gestern Abend,
+     das noch offenlag, machte beim naechsten Tipp den ganzen heutigen
+     Verlauf zunichte – der komplette Zustand haengt an einem einzigen
+     Schluessel, es gibt keine Teilschreibvorgaenge.
+
+     Die Aufloesung ist in beiden Faellen dieselbe: den fremden Stand
+     uebernehmen und die hier laufende Einheit wieder anhaengen. Das einzige,
+     was dieses Fenster exklusiv hat, ist session – alles andere ist laengst
+     geschrieben. Damit geht in keiner Richtung etwas verloren. */
+  window.addEventListener('storage', e => {
+    if(e.key !== STORAGE_KEY || !e.newValue) return;
+    let fremd;
+    try{ fremd = migrateState(JSON.parse(e.newValue)); }
+    catch{ return; }                       /* fremder Schrott geht uns nichts an */
+    /* Tragend, nicht beilaeufig: Safari hat storage historisch auch im
+       schreibenden Fenster ausgeloest. Ohne den Vergleich uebernaehmen sich
+       zwei Fenster gegenseitig im Wechsel, ohne je stillzustehen. */
+    if(!(fremd.rev > (state.rev || 0))) return;
+
+    state = fremd;
+    /* Die laufende Einheit stand im fremden Stand nicht drin und muss zurueck
+       in den Speicher. Genau dieser Schreibvorgang loest im anderen Fenster
+       aber die naechste Uebernahme aus – trainiert man dort ebenfalls, ginge
+       das ohne die Sperre endlos hin und her. Eine Antwort genuegt. */
+    if(session.dayKey && !echoGeschrieben){
+      persistSession();
+      echoGeschrieben = true;              /* nach save(), das sie zuruecksetzt */
+    }
+    applyTheme();
+    /* Der Inhaltsbereich bleibt bei laufender Einheit unberuehrt – renderAll()
+       kehrt dafuer frueh zurueck. Ein Neuzeichnen wuerde den Halte-Timer von
+       seinem DOM-Knoten trennen und die Haken mitnehmen. */
+    renderAll();
+    toast(__('syncedFromOtherTab'));
   });
 
   /* Systemwechsel hell/dunkel – nur wirksam, solange dem System gefolgt wird. */

@@ -19,7 +19,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -39,7 +39,13 @@ export const DEFAULT_STATE = () => ({
   measurements: {}, warmupCustom: null, regressedFor: null,
   /* Wann zuletzt gesichert wurde und bei welchem Zaehlerstand – siehe
      js/domain/backup.js. backupDismissed haelt ein "Spaeter" fest. */
-  lastBackup: null, backupWorkouts: 0, backupDismissed: 0
+  lastBackup: null, backupWorkouts: 0, backupDismissed: 0,
+  /* Zaehlt jeden Schreibvorgang hoch. Nur dafuer da, zwei offene Fenster
+     derselben App auseinanderzuhalten: das storage-Ereignis liefert den
+     fremden Stand, und ohne einen Vergleich waere nicht zu erkennen, ob er
+     neuer ist als der eigene oder nur das Echo des eigenen Schreibens.
+     Geraetelokal – aus einem Backup wird er nie uebernommen. */
+  rev: 0
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -59,7 +65,9 @@ export const DEFAULT_STATE = () => ({
    (die tatsaechlich trainierten Uebungen); aeltere Eintraege bekommen hier
    eine leere Liste, und js/domain/log.js faellt fuer sie auf Plan und
    Wiederholungsschluessel zurueck. Ebenfalls v6: lastBackup, backupWorkouts
-   und backupDismissed – additiv und ueber die Defaults abgedeckt. */
+   und backupDismissed – additiv und ueber die Defaults abgedeckt. v7 ergaenzt
+   rev, den Revisionszaehler fuer den Abgleich zwischen zwei Fenstern; ein
+   Stand ohne ihn faengt bei 0 an. */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -86,6 +94,10 @@ export function migrateState(raw){
   /* Default null heisst oben "jeden Typ durchlassen" – hier steht aber ein
      ISO-Datum, das spaeter in eine Datumsrechnung laeuft. */
   if(out.lastBackup !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.lastBackup))) out.lastBackup = null;
+  /* Der Revisionszaehler wird nur groesser und nur ganzzahlig – eine 2.5 oder
+     eine -1 aus einem handgeschriebenen Stand wuerde den Vergleich zwischen
+     zwei Fenstern still verdrehen. */
+  if(!Number.isInteger(out.rev) || out.rev < 0) out.rev = 0;
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log
@@ -148,7 +160,10 @@ export function migrateState(raw){
    Das Ergebnis ist danach noch durch migrateState() zu schicken: hier werden
    nur Laengen und Fremdfelder gekappt, die Typnormalisierung sitzt dort. */
 export function clampBackup(data, exById = {}){
-  const known = Object.keys(DEFAULT_STATE());
+  /* rev zaehlt die Schreibvorgaenge DIESES Geraets. Der Wert aus einer fremden
+     Datei sagt darueber nichts aus und wuerde den Abgleich zwischen zwei
+     Fenstern nach einem Import verwirren – deshalb gar nicht erst uebernehmen. */
+  const known = Object.keys(DEFAULT_STATE()).filter(k => k !== 'rev');
   const out = {};
   known.forEach(k => { if(data[k] !== undefined && data[k] !== null) out[k] = data[k]; });
 

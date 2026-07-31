@@ -89,6 +89,8 @@ Die App fordert beim Start `navigator.storage.persist()` an – die Zusage des B
 
 Deshalb erinnert ein Banner daran: nach zehn Einheiten ohne Sicherung, oder nach 30 Tagen, sofern seither trainiert wurde. Gezählt werden Einheiten statt Tage – wer pausiert, erzeugt keine neuen Daten und braucht keine Erinnerung.
 
+**Zwei offene Fenster** derselben App sind kein Problem mehr. Der gesamte Zustand hängt an einem einzigen Schlüssel, es gibt keine Teilschreibvorgänge – ein Fenster von gestern Abend, das noch offenlag, machte beim nächsten Tipp den ganzen heutigen Verlauf zunichte. Jeder Schreibvorgang zählt jetzt `state.rev` hoch; das `storage`-Ereignis meldet dem anderen Fenster den neuen Stand, und es übernimmt ihn, sobald der Zähler höher ist als sein eigener. Eine dort laufende Einheit bleibt dabei erhalten und wird wieder mitgeschrieben – sie ist das Einzige, was ein Fenster exklusiv hat.
+
 ---
 
 ## 5. Projektstruktur
@@ -184,7 +186,7 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. Zuletzt geschah das für v6: ein Log-Eintrag führt seither in `ex` die tatsächlich trainierten Übungen mit. Vorher wurden sie im *heutigen* Plan nachgeschlagen, was nach jeder Ersetzung, jedem Plan-Reset und jedem CSV-Import falsch war; für Altbestände fällt `js/domain/log.js` weiterhin auf Plan und Wiederholungsschlüssel zurück. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. Zuletzt geschah das für v7: der Stand führt seither in `rev` einen Revisionszähler mit, an dem zwei offene Fenster erkennen, wessen Stand der neuere ist (siehe Abschnitt 4). Davor v6: ein Log-Eintrag führt seither in `ex` die tatsächlich trainierten Übungen mit. Vorher wurden sie im *heutigen* Plan nachgeschlagen, was nach jeder Ersetzung, jedem Plan-Reset und jedem CSV-Import falsch war; für Altbestände fällt `js/domain/log.js` weiterhin auf Plan und Wiederholungsschlüssel zurück. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 

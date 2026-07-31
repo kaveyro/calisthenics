@@ -153,6 +153,24 @@ describe('migrateState – Version', () => {
   });
 });
 
+describe('migrateState – Revisionszaehler', () => {
+  /* Am Zaehler haengt die Entscheidung, ob ein zweites Fenster den fremden
+     Stand uebernimmt. Ein verbogener Wert wuerde sie still verdrehen. */
+  it('faengt bei 0 an, wenn nichts dastand', () => {
+    expect(migrateState({}).rev).toBe(0);
+  });
+
+  it('uebernimmt eine ganze Zahl', () => {
+    expect(migrateState({ rev: 42 }).rev).toBe(42);
+  });
+
+  it('setzt alles Unbrauchbare auf 0 zurueck', () => {
+    [-1, 2.5, NaN, Infinity, '7', null, {}].forEach(wert => {
+      expect(migrateState({ rev: wert }).rev).toBe(0);
+    });
+  });
+});
+
 describe('clampBackup', () => {
   it('uebernimmt nur bekannte Felder', () => {
     const out = clampBackup({ workouts: 5, boeses: 'weg', __proto__x: 1 }, EX);
@@ -242,6 +260,16 @@ describe('clampBackup', () => {
   it('kommt ohne Uebungsbestand aus', () => {
     const out = clampBackup({ customPlan: { days: [{ key: 'A', ex: ['pushup'] }] } });
     expect(out.customPlan.days[0].ex).toEqual([]);
+  });
+
+  /* Der Zaehler gehoert dem Geraet, nicht der Datei. Kaeme er aus einem
+     Backup, stuende nach dem Import ein fremder Stand gegen die Fenster
+     dieses Geraets – und je nach Hoehe wuerde er sie ueberschreiben oder
+     sofort wieder ueberschrieben. */
+  it('uebernimmt den Revisionszaehler nicht aus dem Backup', () => {
+    const out = clampBackup({ workouts: 3, rev: 999 }, EX);
+    expect('rev' in out).toBe(false);
+    expect(migrateState(out).rev).toBe(0);
   });
 });
 

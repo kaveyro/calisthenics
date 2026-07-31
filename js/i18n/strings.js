@@ -41,6 +41,7 @@ export const LANG = {
     saveFailed: 'Speichern nicht möglich – Fortschritt gilt nur für diese Sitzung.',
     saveWorksAgain: 'Speichern funktioniert wieder.',
     storageCorrupt: 'Gespeicherter Stand war beschädigt – es wurde neu begonnen. Eine Kopie liegt im Browser-Speicher.',
+    syncedFromOtherTab: 'In einem anderen Fenster geändert – Stand übernommen.',
 
     /* Start */
     loading: 'Lade deinen Fortschritt …',
@@ -284,6 +285,7 @@ export const LANG = {
     saveFailed: 'Cannot save – progress applies to this session only.',
     saveWorksAgain: 'Saving works again.',
     storageCorrupt: 'The saved data was corrupted – starting fresh. A copy was kept in browser storage.',
+    syncedFromOtherTab: 'Changed in another window – state adopted.',
 
     loading: 'Loading your progress …',
     bootFailed: 'The app could not start.',
