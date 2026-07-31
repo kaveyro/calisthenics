@@ -927,6 +927,7 @@ function showExHistory(id){
     '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">✕</button></div>';
   if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
   else {
+    html += topsatzKurve(logEntries, id);
     /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
        Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
     /* Die Wiederholungsspalte ist die einzige Angabe hier, die sich wirklich
@@ -950,6 +951,36 @@ function showExHistory(id){
   overlay.innerHTML = html;
   openDialog(overlay);
 }
+/* Der beste Satz je Einheit als Kurve, in zeitlicher Reihenfolge – die
+   Tabelle darunter ist umgekehrt sortiert.
+
+   Der Verlauf je Uebung war eine reine Zahlentabelle. Ob es aufwaerts geht,
+   ist der Grund, ueberhaupt hineinzuschauen, und genau das liest man aus
+   fuenfzehn Zeilen schlechter ab als aus einer Linie.
+
+   aria-hidden wie bei den Messwerten: dieselben Zahlen stehen direkt
+   darunter in der Tabelle und wuerden sonst zweimal vorgelesen. Bei
+   Halteuebungen sind es Sekunden statt Wiederholungen – die Kurve zeigt
+   beides, gerade weil sie unbeschriftet bleibt. */
+function topsatzKurve(logEntries, id){
+  const werte = [...logEntries].reverse()
+    .map(l => repsOf(l, id))
+    .filter(r => r.length)
+    .map(r => Math.max(...r));
+  if(werte.length < 2) return '';
+
+  const min = Math.min(...werte), max = Math.max(...werte);
+  /* Immer derselbe Wert: eine Linie auf halber Hoehe statt einer Division
+     durch null. Am Boden saehe sie nach dem schlechtesten Ergebnis aus. */
+  const y = v => max === min ? 35 : 66 - (v - min) / (max - min) * 62;
+  const pts = werte.map((v, i) =>
+    (i / (werte.length - 1) * 296 + 2).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+
+  return '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+    '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+}
+
 function closeExHistory(){
   const o = document.getElementById('exHistoryOverlay');
   if(o) closeDialog(o);

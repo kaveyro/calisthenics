@@ -410,6 +410,54 @@ describe('Suche in der Bibliothek', () => {
   });
 });
 
+/* Der Verlauf je Uebung war eine reine Zahlentabelle – ob es aufwaerts geht,
+   ist aber der Grund, ueberhaupt hineinzuschauen. */
+describe('Verlauf je Uebung', () => {
+  const eintrag = (d, reps) =>
+    ({ d, day: 'A', sets: 12, tops: 0, ups: [], ex: ['pushup'], reps });
+
+  async function oeffnen(log){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 7, workouts: log.length, log }));
+    const app = await starten();
+    app.actions['exercise:history']({ ex: 'pushup' });
+    await ruhe();
+    return document.getElementById('exHistoryOverlay');
+  }
+
+  it('zeichnet die Topsaetze als Kurve', async () => {
+    const overlay = await oeffnen([
+      eintrag('2026-07-01', { 'pushup-0': 8, 'pushup-1': 6 }),
+      eintrag('2026-07-05', { 'pushup-0': 12 })
+    ]);
+    const svg = overlay.querySelector('svg.spark polyline');
+    expect(svg).not.toBeNull();
+    /* Zwei Punkte, aelteste Einheit links – und der bessere Satz liegt
+       hoeher, also bei kleinerem y. */
+    const [links, rechts] = svg.getAttribute('points').split(' ')
+      .map(p => p.split(',').map(Number));
+    expect(links[0]).toBeLessThan(rechts[0]);
+    expect(rechts[1]).toBeLessThan(links[1]);
+  });
+
+  it('bleibt stumm fuer Screenreader – die Zahlen stehen in der Tabelle', async () => {
+    const overlay = await oeffnen([
+      eintrag('2026-07-01', { 'pushup-0': 8 }),
+      eintrag('2026-07-05', { 'pushup-0': 12 })
+    ]);
+    expect(overlay.querySelector('svg.spark').getAttribute('aria-hidden')).toBe('true');
+    expect(overlay.querySelector('table').textContent).toContain('12');
+  });
+
+  it('zeichnet nichts bei weniger als zwei Zahlenreihen', async () => {
+    const overlay = await oeffnen([
+      eintrag('2026-07-01', { 'pushup-0': 8 }),
+      eintrag('2026-07-05', {})                 /* nur abgehakt, keine Zahlen */
+    ]);
+    expect(overlay.querySelector('svg.spark')).toBeNull();
+    expect(overlay.querySelector('table')).not.toBeNull();
+  });
+});
+
 describe('Design', () => {
   it('kehrt im Dreierzyklus zum System zurueck', async () => {
     const app = await starten();
