@@ -9,6 +9,7 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
+import { entryHasExercise } from './domain/log.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
   DEFAULT_STATE, migrateState, clampBackup as clampBackupPure
@@ -796,10 +797,13 @@ async function substituteExercise(id){
 /* ================= Per-Exercise History ================= */
 function showExHistory(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
-  const logEntries = (state.log || []).filter(l => {
-    const day = getDay(l.day);
-    return day && day.ex.includes(id);
-  }).slice(-15).reverse();
+  /* Der Eintrag selbst weiss seit v6, welche Uebungen trainiert wurden. Der
+     Plan-Tag dient nur noch als Rueckfall fuer Altbestaende – vorher war er
+     die einzige Quelle, und damit war diese Liste nach jeder Ersetzung, jedem
+     Plan-Reset und jedem CSV-Import falsch. */
+  const logEntries = (state.log || [])
+    .filter(l => entryHasExercise(l, id, getDay(l.day)))
+    .slice(-15).reverse();
   /* role/aria-modal fehlten hier komplett – anders als beim statischen
      Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
   let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '"' +
@@ -1074,7 +1078,10 @@ async function finishWorkout(){
 
   const sets = Object.values(session.sets).filter(Boolean).length;
   const now = today();
-  const entry = { d: now, day: session.dayKey, sets, tops, ups, reps: { ...session.reps } };
+  /* ex: die tatsaechlich trainierten Uebungen. Ohne dieses Feld liess sich
+     nur im heutigen Plan nachschlagen, welche Uebungen zu einer Einheit
+     gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
+  const entry = { d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups, reps: { ...session.reps } };
 
   lastWorkoutSnapshot.entry = entry;
 
