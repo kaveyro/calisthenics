@@ -378,21 +378,54 @@ function applyLanguage(){
   /* Wird sonst nur beim Oeffnen der Einstellungen gesetzt und bliebe nach
      einem Sprachwechsel in der alten Sprache stehen. */
   zeigeSpeicherinfo();
+  /* Zuletzt: applyStaticTexts() hat die Beschriftung der Theme-Schaltflaeche
+     gerade auf den statischen Schluessel zurueckgesetzt, applyTheme() traegt
+     den aktuellen Modus wieder ein. */
+  applyTheme();
 }
 
-/* ================= Theme ================= */
+/* ================= Theme =================
+   state.theme === null heisst "dem System folgen". Genau dorthin fuehrte
+   aber kein Weg zurueck: toggleTheme() schaltete nur zwischen hell und
+   dunkel um, und wer die Schaltflaeche einmal beruehrt hatte, war fuer immer
+   festgelegt. Jetzt ein Dreierzyklus – und ein Listener, damit ein
+   Systemwechsel bei geoeffneter App ankommt statt bis zum Neuladen zu warten. */
+const THEMES = [null, 'light', 'dark'];
+const THEME_ZEICHEN = { null: '◐', light: '☀', dark: '☾' };
+const THEME_TEXT = { null: 'themeSystem', light: 'themeLight', dark: 'themeDark' };
+
+const systemDunkel = () =>
+  !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+
 function applyTheme(){
-  let t = state.theme;
-  if(!t) t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  const wunsch = state.theme === 'light' || state.theme === 'dark' ? state.theme : null;
+  const t = wunsch || (systemDunkel() ? 'dark' : 'light');
   document.documentElement.dataset.theme = t;
+
   const btn = document.getElementById('themeBtn');
-  if(btn) btn.textContent = t === 'dark' ? '☀' : '☾';
+  if(btn){
+    /* Das Zeichen benennt den AKTUELLEN Zustand, nicht den naechsten Schritt.
+       Bei drei Moeglichkeiten waere "was passiert beim Tippen" nicht mehr
+       aus einem Symbol ablesbar. */
+    btn.textContent = THEME_ZEICHEN[wunsch];
+    btn.setAttribute('aria-label', __('themeCurrent', { mode: __(THEME_TEXT[wunsch]) }));
+    btn.setAttribute('title', __(THEME_TEXT[wunsch]));
+  }
   const meta = document.querySelector('meta[name=theme-color]');
   if(meta) meta.setAttribute('content', t === 'dark' ? '#14161A' : '#F3F4F1');
 }
+
 function toggleTheme(){
-  state.theme = (document.documentElement.dataset.theme === 'dark') ? 'light' : 'dark';
+  const i = THEMES.indexOf(state.theme === 'light' || state.theme === 'dark' ? state.theme : null);
+  state.theme = THEMES[(i + 1) % THEMES.length];
   applyTheme(); save();
+  toast(__(THEME_TEXT[state.theme]));
+}
+
+/* Nur wirksam, solange dem System gefolgt wird. */
+const dunkelAbfrage = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
+if(dunkelAbfrage && dunkelAbfrage.addEventListener){
+  dunkelAbfrage.addEventListener('change', () => { if(!state.theme) applyTheme(); });
 }
 
 /* ================= Plan ================= */
@@ -1352,18 +1385,53 @@ function renderHistory(){
   renderMeasurements();
 
   const list = document.getElementById('logList');
-  const log = (state.log || []).slice(-25).reverse();
-  list.innerHTML = log.length ? log.map(l => {
+  /* Mit dem echten Index, nicht dem der Ansicht: geloescht wird in state.log,
+     angezeigt werden nur die letzten 25 in umgekehrter Reihenfolge. */
+  const log = (state.log || []).map((l, i) => ({ l, i })).slice(-25).reverse();
+  list.innerHTML = log.length ? log.map(({ l, i }) => {
     const d = getDay(l.day);
     return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
       '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
       '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top</span>' +
-      '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span></div>';
+      '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span>' +
+      '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
+      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">✕</button></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
   /* Calendar view */
   renderCalendar();
 }
+
+/* Einen einzelnen Eintrag entfernen.
+
+   Das Undo nach "Fertig" lebt fuenf Sekunden; danach war ein Fehleintrag nur
+   noch ueber ein von Hand bearbeitetes JSON-Backup loszuwerden.
+
+   Zurueckgerechnet werden Zaehler, Tagesstatistik und das Datum der letzten
+   Einheit. Stufen, Serien und Bestleistungen bleiben, wie sie sind: aus einem
+   Log-Eintrag laesst sich nicht ableiten, welcher Stand vor ihm galt. Der
+   Bestaetigungsdialog sagt das ausdruecklich. */
+async function removeLogEntry(i){
+  const l = (state.log || [])[i];
+  if(!l) return;
+  const ok = await askConfirm(__('logRemoveTitle'),
+    __('logRemoveBody', { date: fmtDate(l.d), day: l.day }), __('remove'), true);
+  if(!ok) return;
+
+  state.log.splice(i, 1);
+  state.workouts = Math.max(0, (state.workouts || 0) - 1);
+  if(state.byDay && state.byDay[l.day]) state.byDay[l.day] = Math.max(0, state.byDay[l.day] - 1);
+  /* Das groesste verbliebene Datum, nicht das letzte Element: ein CSV-Import
+     kann aeltere Eintraege hinten angehaengt haben. */
+  state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
+
+  await save();
+  renderAll(); renderHistory();
+  toast(__('logRemoved'));
+}
+
+/* Angezeigter Monat, relativ zum laufenden. 0 = dieser Monat. */
+let kalenderVersatz = 0;
 
 function renderCalendar(){
   const cal = document.getElementById('calendarView') || (() => {
@@ -1374,16 +1442,32 @@ function renderCalendar(){
   })();
   if(!state.log || !state.log.length){ cal.innerHTML = ''; return; }
 
+  /* Der Kalender stand fest auf new Date() – zurueckblaettern ging nicht,
+     und ein mehrjaehriger Verlauf war damit im laufenden Monat eingesperrt. */
   const now = new Date();
-  const year = now.getFullYear(), month = now.getMonth();
-  const first = new Date(year, month, 1).getDay();
+  const gezeigt = new Date(now.getFullYear(), now.getMonth() + kalenderVersatz, 1);
+  const year = gezeigt.getFullYear(), month = gezeigt.getMonth();
+  const first = gezeigt.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const workoutDays = new Set(state.log.map(l => l.d));
 
+  /* Vorwaerts endet die Reise im laufenden Monat, rueckwaerts beim ersten
+     aufgezeichneten Training – dahinter gibt es nichts zu sehen. */
+  const erster = state.log.reduce((a, e) => (!a || e.d < a) ? e.d : a, null) || '';
+  const grenzeZurueck = erster.slice(0, 7) >= (year + '-' + String(month + 1).padStart(2, '0'));
+
   /* Monatsname und Wochentage aus Intl statt fest verdrahtet – sonst steht
      im englischen Kalender "Juli" und darueber "Mo Di Mi". */
-  const monatsName = now.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
-  let html = '<div class="section-title">' + esc(__('calendar')) + ' ' + esc(monatsName) + '</div>' +
+  const monatsName = gezeigt.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
+  let html = '<div class="section-title cal-title"><span>' + esc(__('calendar')) + ' ' + esc(monatsName) + '</span>' +
+    '<span class="cal-nav">' +
+      '<button class="mini-btn" data-action="calendar:shift" data-delta="-1"' +
+      (grenzeZurueck ? ' disabled' : '') +
+      ' aria-label="' + esc(__('calPrev')) + '">‹</button> ' +
+      '<button class="mini-btn" data-action="calendar:shift" data-delta="1"' +
+      (kalenderVersatz >= 0 ? ' disabled' : '') +
+      ' aria-label="' + esc(__('calNext')) + '">›</button>' +
+    '</span></div>' +
     '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
   wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
   const offset = (first + 6) % 7;
@@ -2287,6 +2371,8 @@ export const actions = {
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
+  'log:remove':         d => removeLogEntry(zahl(d.i)),
+  'calendar:shift':     d => mitFokus(() => { kalenderVersatz += zahl(d.delta); renderCalendar(); }),
 
   /* Bibliothek */
   'library:filter':     d => mitFokus(() => setLibFilter(d.cat)),
