@@ -1661,6 +1661,10 @@ async function finishWorkout(){
   renderAll();
 
   if(ups.length){ signal(true); toast(__('levelUpToast', { list: ups.join(' · ') }), true); }
+  /* "1 Einheiten insgesamt" – im Browser aufgefallen, dieselbe Stelle wie
+     die Verlaufszeile. Die erste Einheit ist ohnehin eine eigene Meldung
+     wert. */
+  else if(state.workouts === 1) toast(__('workoutSavedOne'), true);
   else toast(__('workoutSaved', { n: state.workouts }));
 
   /* Nach dem eigentlichen Ergebnis, nicht statt seiner: der Abschluss soll
@@ -1879,7 +1883,10 @@ function renderHistory(){
       /* Die Dauer nur, wenn sie gemessen wurde: Eintraege von vor v9, CSV-
          Importe und nachgetragene Einheiten haben keine, und "0 Min" waere
          eine Behauptung. */
-      '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top' +
+      /* Nicht Zahl und Wort zusammenstueckeln: "1 Sätze" stand hier zwei
+         Runden lang. */
+      '<span class="muted">' + esc(__(l.sets === 1 ? 'setsCountOne' : 'setsCountMany', { n: l.sets })) +
+        ' · ' + l.tops + '× Top' +
         (l.dauer ? ' · ' + esc(dauerText(l.dauer)) : '') + '</span>' +
       '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span>' +
       '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +

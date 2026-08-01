@@ -88,6 +88,7 @@ export const LANG = {
     nothingToSave: 'Keine Übungen in dieser Einheit – nichts zu speichern.',
     levelUpToast: 'LEVEL-UP! {list}',
     workoutSaved: 'Training gespeichert – {n} Einheiten insgesamt.',
+    workoutSavedOne: 'Training gespeichert – deine erste Einheit.',
     sessionRestored: 'Laufendes Training wiederhergestellt.',
     undo: 'Rückgängig', undoWorkout: 'Training rückgängig gemacht',
     milestoneToast: 'Meilenstein: {name}',
@@ -325,6 +326,9 @@ export const LANG = {
 
     /* Einheiten und Allgemeines */
     level: 'Stufe', sets: 'Sätze', reps: 'Wdh', sec: 'Sek', cm: 'cm', kg: 'kg',
+    /* Zwei Schlüssel statt einer Pluralregel je Sprache – dasselbe Muster
+       wie lastWeekSingular/lastWeeksPlural. */
+    setsCountOne: '1 Satz', setsCountMany: '{n} Sätze',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
     keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
@@ -398,6 +402,7 @@ export const LANG = {
     nothingToSave: 'No exercises in this session – nothing to save.',
     levelUpToast: 'LEVEL-UP! {list}',
     workoutSaved: 'Workout saved – {n} sessions in total.',
+    workoutSavedOne: 'Workout saved – your first session.',
     sessionRestored: 'Workout in progress restored.',
     undo: 'Undo', undoWorkout: 'Workout undone',
     milestoneToast: 'Milestone: {name}',
@@ -624,6 +629,7 @@ export const LANG = {
     reset: 'Reset',
 
     level: 'Stage', sets: 'sets', reps: 'reps', sec: 'sec', cm: 'cm', kg: 'kg',
+    setsCountOne: '1 set', setsCountMany: '{n} sets',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
     keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar'

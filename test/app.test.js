@@ -1807,3 +1807,28 @@ describe('Ziele: erkannte Meilensteine und Bestleistungen', () => {
     expect(document.getElementById('bestsList').textContent).toMatch(/Noch keine/);
   });
 });
+
+describe('Pluralform in der Verlaufszeile', () => {
+  async function mitLog(sets){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 10, onboarded: true, workouts: 1,
+      log: [{ d: '2026-05-04', day: 'A', ex: ['pushup'], sets, tops: 0, ups: [], reps: {}, dauer: 0 }]
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    return app;
+  }
+
+  it('sagt bei einem Satz "1 Satz"', async () => {
+    await mitLog(1);
+    const zeile = document.querySelector('#logList .log-item').textContent;
+    expect(zeile).toContain('1 Satz');
+    expect(zeile).not.toContain('1 Sätze');
+  });
+
+  it('sagt bei mehreren "Sätze"', async () => {
+    await mitLog(12);
+    expect(document.querySelector('#logList .log-item').textContent).toContain('12 Sätze');
+  });
+});
