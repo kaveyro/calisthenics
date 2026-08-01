@@ -20,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -31,6 +31,13 @@ export const MAX_SERIES_ENTRIES = 1000;
 /* Ein Trainingstag fasst hoechstens 30 Uebungen (siehe clampBackup); die
    Liste im Log-Eintrag kann nicht laenger sein als das, was trainierbar war. */
 export const MAX_EX_PER_ENTRY = 30;
+/* Obergrenze der aufgezeichneten Trainingsdauer. Gemessen wird die Spanne
+   zwischen dem ersten Haken und "Fertig" – wer die Einheit offen liegen
+   laesst und Stunden spaeter abschliesst, haette sonst eine Vierstunden-
+   Einheit im Verlauf und einen unbrauchbaren Durchschnitt. Darueber gilt die
+   Dauer als unbekannt (0) statt als sehr lang: eine falsche Zahl ist
+   schlechter als gar keine. */
+export const MAX_WORKOUT_SECS = 4 * 3600;
 
 export const DEFAULT_STATE = () => ({
   v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
@@ -54,7 +61,12 @@ export const DEFAULT_STATE = () => ({
   equipment: [...EQUIP_ALL],
   /* Laufende Entlastungswoche: { bis: 'YYYY-MM-DD' } oder null. Halbiert die
      Saetze und setzt die Progression aus, solange sie laeuft. */
-  deload: null
+  deload: null,
+  /* Ob der Einstieg durchlaufen wurde. Ein bestehender Stand gilt als
+     eingerichtet – wer schon trainiert, soll nicht nach seinen Startstufen
+     gefragt werden. Das entscheidet migrateState() unten anhand des Verlaufs,
+     nicht dieser Vorgabewert. */
+  onboarded: false
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -78,7 +90,10 @@ export const DEFAULT_STATE = () => ({
    rev, den Revisionszaehler fuer den Abgleich zwischen zwei Fenstern; ein
    Stand ohne ihn faengt bei 0 an. v8 ergaenzt equipment (vorhandene Geraete,
    Vorgabe "alles" – ein alter Stand verhaelt sich damit unveraendert) und
-   deload (laufende Entlastungswoche, Vorgabe null). */
+   deload (laufende Entlastungswoche, Vorgabe null). v9 ergaenzt onboarded
+   (siehe unten – ein benutzter Stand gilt als eingerichtet) und log[].dauer
+   (Trainingsdauer in Sekunden; 0 heisst "nicht aufgezeichnet" und gilt fuer
+   jeden Eintrag von vor v9). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -117,6 +132,15 @@ export function migrateState(raw){
   /* Wie lastBackup: Default null laesst oben jeden Typ durch, hier laeuft
      spaeter aber ein Datumsvergleich. */
   if(out.deload && (typeof out.deload !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(out.deload.bis)))) out.deload = null;
+  /* Oben faellt ein Boolean in den letzten Zweig und wuerde jeden Typ
+     durchlassen; hier haengt eine Verzweigung beim Start daran. */
+  out.onboarded = out.onboarded === true;
+  /* Ein bereits benutzter Stand gilt als eingerichtet. Der Einstieg fragt
+     nach Startstufen und Geraeten – wer davon schon etwas festgelegt oder
+     ueberhaupt trainiert hat, bekommt die Frage nicht nachtraeglich gestellt.
+     Nur beim ersten Start einer leeren App ist sie sinnvoll. */
+  if(raw.onboarded === undefined &&
+     (out.workouts > 0 || out.log.length > 0 || Object.keys(out.levels).length > 0)) out.onboarded = true;
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log
@@ -130,7 +154,12 @@ export function migrateState(raw){
       /* Seit v6: die tatsaechlich trainierten Uebungen. Leer bei Altbestaenden
          und bei CSV-Importen – dort greifen die Rueckfaelle in domain/log.js. */
       ex: Array.isArray(l.ex) ? l.ex.filter(x => typeof x === 'string' && x).slice(0, MAX_EX_PER_ENTRY) : [],
-      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {}
+      reps: (l.reps && typeof l.reps === 'object') ? l.reps : {},
+      /* Seit v9: die Dauer in Sekunden. 0 heisst "nicht aufgezeichnet" und
+         gilt fuer alle Eintraege davor, fuer CSV-Importe und fuer eine
+         nachgetragene Einheit. Die Anzeige laesst die Angabe dann weg,
+         statt "0 Min" zu behaupten. */
+      dauer: dauerWert(l.dauer)
     }))
     .slice(-MAX_LOG_ENTRIES);
 
@@ -165,6 +194,15 @@ export function migrateState(raw){
 
   out.v = STATE_VERSION;
   return out;
+}
+
+/* Die Dauer eines Log-Eintrags auf eine ganze, plausible Sekundenzahl
+   bringen. Alles Unlesbare, Negative oder unrealistisch Lange wird zu 0 –
+   also zu "unbekannt". Siehe MAX_WORKOUT_SECS. */
+function dauerWert(v){
+  const n = Math.round(Number(v));
+  if(!Number.isFinite(n) || n <= 0 || n > MAX_WORKOUT_SECS) return 0;
+  return n;
 }
 
 /* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar

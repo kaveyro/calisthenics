@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(8);
+    expect(s.v).toBe(9);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -1018,5 +1018,107 @@ describe('Design', () => {
     expect(gespeichertesTheme()).toBe('dark');
     app.actions['theme:toggle'](); await ruhe();
     expect(gespeichertesTheme()).toBeNull();
+  });
+});
+
+describe('Trainingsdauer', () => {
+  async function einheit(n = 2){
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    wiederholungsPunkte().slice(0, n).forEach(d => d.click());
+    await ruhe();
+    return app;
+  }
+
+  /* Vorspulen statt warten: die Uhr steht sonst beim Abschluss praktisch
+     auf demselben Wert wie beim ersten Haken. */
+  function vorspulen(ms){
+    const echt = Date.now.bind(Date);
+    return vi.spyOn(Date, 'now').mockImplementation(() => echt() + ms);
+  }
+
+  it('misst vom ersten Haken bis zum Abschluss', async () => {
+    const app = await einheit();
+    const spy = vorspulen(27 * 60 * 1000);
+    await app.actions['workout:finish']();
+    await ruhe();
+    spy.mockRestore();
+
+    const dauer = gespeichert().log[0].dauer;
+    expect(dauer).toBeGreaterThanOrEqual(27 * 60);
+    expect(dauer).toBeLessThan(28 * 60);
+  });
+
+  /* Zwischen "Tag angetippt" und "erster Satz" liegen Umziehen und
+     Aufwaermen. Wer gar nichts abhakt, hat keine gemessene Dauer. */
+  it('zaehlt erst ab dem ersten Satz, nicht ab der Tagesauswahl', async () => {
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    const spy = vorspulen(40 * 60 * 1000);
+    await app.actions['workout:finish']();
+    await ruhe();
+    spy.mockRestore();
+
+    expect(gespeichert().log[0].dauer).toBe(0);
+  });
+
+  /* Eine ueber Nacht offen gebliebene Einheit hat keine brauchbare Dauer.
+     Lieber "unbekannt" als eine Zahl, die jeden Durchschnitt verdirbt. */
+  it('verwirft eine unrealistisch lange Einheit', async () => {
+    const app = await einheit();
+    const spy = vorspulen(9 * 60 * 60 * 1000);
+    await app.actions['workout:finish']();
+    await ruhe();
+    spy.mockRestore();
+
+    expect(gespeichert().log[0].dauer).toBe(0);
+  });
+
+  it('uebersteht ein Neuladen mitten in der Einheit', async () => {
+    await einheit();
+    const start = gespeichert().activeSession.start;
+    expect(start).toBeGreaterThan(0);
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    const app = await starten();
+    const spy = vorspulen(15 * 60 * 1000);
+    await app.actions['workout:finish']();
+    await ruhe();
+    spy.mockRestore();
+
+    expect(gespeichert().log[0].dauer).toBeGreaterThanOrEqual(15 * 60);
+  });
+
+  it('zeigt Dauer und Durchschnitt im Verlauf, aber nicht ohne Messung', async () => {
+    const app = await einheit();
+    const spy = vorspulen(32 * 60 * 1000);
+    await app.actions['workout:finish']();
+    await ruhe();
+    spy.mockRestore();
+
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    expect(document.getElementById('logList').textContent).toContain('32 Min');
+    expect(document.getElementById('logSummary').textContent).toContain('32 Min');
+
+    /* Ein Eintrag ohne Messung darf weder "0 Min" zeigen noch den Schnitt
+       nach unten ziehen. */
+    const s = gespeichert();
+    s.log.push({ ...s.log[0], d: '2026-01-01', dauer: 0 });
+    localStorage.setItem(SPEICHER, JSON.stringify(s));
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    const app2 = await starten();
+    app2.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    /* Genau eine Zeile nennt eine Dauer – nicht auf "0 Min" pruefen, das
+       steckt auch in "10 Min". */
+    const zeilen = [...document.querySelectorAll('#logList .log-item')];
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.filter(z => /\bMin\b/.test(z.textContent))).toHaveLength(1);
+    expect(document.getElementById('logSummary').textContent).toContain('32 Min');
   });
 });

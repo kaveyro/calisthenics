@@ -12,7 +12,7 @@ import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
-  SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES,
+  SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
   DEFAULT_STATE, migrateState, prNumber, clampBackup as clampBackupPure
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
@@ -34,7 +34,13 @@ const leereSession = () => ({
   /* Nur fuer heute: origId -> ersatzId bzw. origId -> true. Beides steht
      bewusst in der Session und nicht im Plan – wer eine Uebung heute nicht
      machen kann, will deswegen nicht seinen Plan umbauen. */
-  subs: {}, skip: {}
+  subs: {}, skip: {},
+  /* Abgehakte Aufwaermpunkte, nach Position in der Liste. */
+  warm: {},
+  /* Zeitstempel des ERSTEN Hakens, nicht der Tagesauswahl: zwischen "Tag
+     angetippt" und "erster Satz" liegen Umziehen und Aufwaermen, und beides
+     ist keine Trainingszeit. null, solange nichts geschafft ist. */
+  start: null
 });
 let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
@@ -219,6 +225,7 @@ function spiegleSession(){
       sets: { ...session.sets }, top: { ...session.top },
       reps: { ...session.reps }, notes: { ...session.notes },
       subs: { ...session.subs }, skip: { ...session.skip },
+      warm: { ...session.warm }, start: session.start || null,
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
          uebersteht – eine Restdauer waere nach dem Laden wertlos. */
       restEnde: restEnde || null
@@ -276,7 +283,11 @@ function restoreActiveSession(){
   session = {
     dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
     reps: a.reps || {}, notes: a.notes || {},
-    subs: a.subs || {}, skip: a.skip || {}
+    subs: a.subs || {}, skip: a.skip || {},
+    warm: a.warm || {},
+    /* Ein verbogener Zeitstempel wuerde eine absurde Dauer ergeben; die
+       Plausibilitaet prueft dauerJetzt() beim Abschliessen. */
+    start: Number.isFinite(Number(a.start)) ? Number(a.start) : null
   };
   renderDaySelect(); renderWorkout(); restoreSession(session.reps);
 
@@ -819,6 +830,16 @@ function wochentage(){
    aktuelle Sprache nicht, also wird sie hier hereingereicht. */
 function fmtDate(iso){ return fmtDatePure(iso, getLang()); }
 
+/* Sekunden als lesbare Dauer. Unter einer Stunde nur Minuten, darueber
+   Stunden und Minuten – "78 Min" liest sich schlechter als "1 Std 18 Min".
+   Aufgerundet auf die nächste Minute: eine Einheit von 40 Sekunden ist
+   "1 Min" und nicht "0 Min". */
+function dauerText(sek){
+  const min = Math.max(1, Math.round(sek / 60));
+  if(min < 60) return __('durationMin', { n: min });
+  return __('durationHours', { h: Math.floor(min / 60), m: min % 60 });
+}
+
 function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
@@ -1175,6 +1196,7 @@ function tapSet(id, s){
 
   if(t.isHold){
     cancelHold();
+    zeitNehmen();
     el.classList.add('running');
     holdTimer = { key, el, id, s, ex, ende: Date.now() + t.holdSecs * 1000, interval: null };
     haltenAnzeigen();
@@ -1208,7 +1230,26 @@ function haltenAnzeigen(){
   melde(__('holdOver'));
 }
 
+/* Startpunkt der Trainingszeit. Genommen wird der erste Satz – bei
+   Halteuebungen sein Beginn, nicht sein Ende, sonst fehlte die Haltezeit
+   selbst. Danach steht der Wert fest; ein abgewaehlter Haken macht ihn
+   nicht rueckgaengig. */
+function zeitNehmen(){
+  if(!session.start) session.start = Date.now();
+}
+
+/* Die bisherige Dauer der laufenden Einheit in Sekunden, oder 0. Prueft
+   dieselbe Obergrenze wie die Migration: eine ueber Nacht offen gebliebene
+   Einheit hat keine brauchbare Dauer, und eine erfundene waere schlechter
+   als gar keine. */
+function dauerJetzt(){
+  if(!session.start) return 0;
+  const s = Math.round((Date.now() - session.start) / 1000);
+  return (s > 0 && s <= MAX_WORKOUT_SECS) ? s : 0;
+}
+
 function markDone(key, el, s, ex){
+  zeitNehmen();
   session.sets[key] = true;
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
   /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
@@ -1473,7 +1514,10 @@ async function finishWorkout(){
   /* ex: die tatsaechlich trainierten Uebungen. Ohne dieses Feld liess sich
      nur im heutigen Plan nachschlagen, welche Uebungen zu einer Einheit
      gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
-  const entry = { d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups, reps: { ...session.reps } };
+  const entry = {
+    d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups,
+    reps: { ...session.reps }, dauer: dauerJetzt()
+  };
 
   lastWorkoutSnapshot.entry = entry;
 
@@ -1651,14 +1695,36 @@ function renderHistory(){
     const d = getDay(l.day);
     return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
       '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
-      '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top</span>' +
+      /* Die Dauer nur, wenn sie gemessen wurde: Eintraege von vor v9, CSV-
+         Importe und nachgetragene Einheiten haben keine, und "0 Min" waere
+         eine Behauptung. */
+      '<span class="muted">' + l.sets + ' ' + __('sets') + ' · ' + l.tops + '× Top' +
+        (l.dauer ? ' · ' + esc(dauerText(l.dauer)) : '') + '</span>' +
       '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span>' +
       '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
       ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">✕</button></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
+  renderLogSummary();
+
   /* Calendar view */
   renderCalendar();
+}
+
+/* Die durchschnittliche Trainingsdauer.
+
+   Gemittelt wird nur ueber Einheiten, die eine Dauer tragen – die anderen
+   sind nicht "0 Minuten lang", sondern ungemessen, und sie einzurechnen
+   wuerde den Schnitt mit jedem alten Eintrag nach unten ziehen. Deshalb
+   steht auch dabei, aus wie vielen Einheiten er stammt. */
+function renderLogSummary(){
+  const el = document.getElementById('logSummary');
+  if(!el) return;
+  const dauern = (state.log || []).map(l => l.dauer).filter(d => d > 0);
+  if(!dauern.length){ el.textContent = ''; el.hidden = true; return; }
+  el.hidden = false;
+  const schnitt = Math.round(dauern.reduce((a, b) => a + b, 0) / dauern.length);
+  el.textContent = __('avgDuration', { v: dauerText(schnitt), n: dauern.length });
 }
 
 /* Einen einzelnen Eintrag entfernen.

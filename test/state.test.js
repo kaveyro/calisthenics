@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_STATE, STATE_VERSION, SETTINGS_DEFAULTS,
-  MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY,
+  MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY, MAX_WORKOUT_SECS,
   migrateState, clampBackup
 } from '../js/domain/state.js';
 import { EQUIP_ALL } from '../js/domain/equipment.js';
@@ -70,8 +70,8 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {} },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {} }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, dauer: 0 },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, dauer: 0 }
     ]);
   });
 
@@ -218,6 +218,61 @@ describe('migrateState – Entlastungswoche', () => {
   });
 });
 
+describe('migrateState – Trainingsdauer', () => {
+  const mitDauer = v => migrateState({ log: [{ d: '2026-01-01', day: 'A', dauer: v }] }).log[0].dauer;
+
+  it('uebernimmt eine plausible Dauer und rundet sie', () => {
+    expect(mitDauer(2712)).toBe(2712);
+    expect(mitDauer(2712.6)).toBe(2713);
+    expect(mitDauer('1800')).toBe(1800);
+  });
+
+  it('macht aus allem Unbrauchbaren eine 0', () => {
+    [undefined, null, 0, -60, 'lang', NaN, Infinity, {}].forEach(v => {
+      expect(mitDauer(v)).toBe(0);
+    });
+  });
+
+  /* Lieber "unbekannt" als eine Vierstunden-Einheit im Durchschnitt: wer die
+     App offen liegen laesst, erzeugt sonst eine Zahl, die alles verzerrt. */
+  it('verwirft eine unrealistisch lange Dauer, statt sie zu kappen', () => {
+    expect(mitDauer(MAX_WORKOUT_SECS)).toBe(MAX_WORKOUT_SECS);
+    expect(mitDauer(MAX_WORKOUT_SECS + 1)).toBe(0);
+  });
+
+  it('gibt Altbestaenden ohne Feld eine 0', () => {
+    const out = migrateState({ log: [{ d: '2026-01-01', day: 'A', sets: 12 }] });
+    expect(out.log[0].dauer).toBe(0);
+  });
+});
+
+describe('migrateState – Einstieg', () => {
+  it('ist bei einem leeren Stand offen', () => {
+    expect(migrateState({}).onboarded).toBe(false);
+    expect(DEFAULT_STATE().onboarded).toBe(false);
+  });
+
+  /* Der Einstieg fragt nach Startstufen. Wer schon trainiert hat, hat sie
+     laengst – ihn danach zu fragen waere ein Rueckschritt. */
+  it('gilt bei einem benutzten Stand als erledigt', () => {
+    expect(migrateState({ v: 8, workouts: 3 }).onboarded).toBe(true);
+    expect(migrateState({ v: 8, log: [{ d: '2026-01-01', day: 'A' }] }).onboarded).toBe(true);
+    expect(migrateState({ v: 8, levels: { pushup: 2 } }).onboarded).toBe(true);
+  });
+
+  it('bleibt offen, wenn ein alter Stand nur eingerichtet, aber nie benutzt wurde', () => {
+    expect(migrateState({ v: 8, settings: { rest: 60 }, theme: 'dark' }).onboarded).toBe(false);
+  });
+
+  /* Ein ausdrueckliches false ueberlebt: wer den Einstieg abbricht und nie
+     trainiert, soll ihn beim naechsten Start wiedersehen. */
+  it('respektiert einen ausdruecklich gesetzten Wert', () => {
+    expect(migrateState({ onboarded: false, workouts: 9 }).onboarded).toBe(false);
+    expect(migrateState({ onboarded: true }).onboarded).toBe(true);
+    expect(migrateState({ onboarded: 'ja' }).onboarded).toBe(false);
+  });
+});
+
 describe('clampBackup', () => {
   it('uebernimmt nur bekannte Felder', () => {
     const out = clampBackup({ workouts: 5, boeses: 'weg', __proto__x: 1 }, EX);
@@ -338,7 +393,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {} }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, dauer: 0 }]);
     expect(out.unbekannt).toBeUndefined();
   });
 
