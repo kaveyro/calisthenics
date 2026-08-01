@@ -181,6 +181,9 @@ details.acc li{margin-bottom:5px}
 .warm-item{display:inline-flex;align-items:flex-start;gap:8px;cursor:pointer}
 .warm-item input{margin-top:2px;flex:none}
 .warm-item input:checked+span{text-decoration:line-through;opacity:.6}
+/* Liegen geblieben: leiser als der Warnhinweis für fehlendes Gerät – es ist
+   eine Beobachtung, kein Problem. */
+.cat-chip.stale{border-color:var(--line);color:var(--ink-soft)}
 
 /* ---------- Übungskarte ---------- */
 .ex{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 14px 14px;margin-bottom:14px}

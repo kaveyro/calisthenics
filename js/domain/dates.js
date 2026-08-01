@@ -29,6 +29,16 @@ export function fmtDate(iso, lang = 'de'){
   }
 }
 
+/* Volle Tage zwischen zwei ISO-Tagen, oder null bei unbrauchbarer Eingabe.
+   Gerechnet wird auf 12 Uhr mittags, damit eine Zeitumstellung zwischen
+   beiden Daten das Ergebnis nicht um einen Tag verschiebt. */
+export function tageZwischen(von, bis){
+  if(!von || !bis) return null;
+  const a = new Date(String(von) + 'T12:00:00'), b = new Date(String(bis) + 'T12:00:00');
+  if(Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  return Math.round((b - a) / 864e5);
+}
+
 /* ISO-8601-Kalenderwoche als '2026-KW31'.
    Die Woche gehoert zu dem Jahr, in dem ihr Donnerstag liegt. */
 export function isoWeek(iso){

@@ -1230,3 +1230,73 @@ describe('Aufwaermen abhaken', () => {
     expect(punkte()[2].checked).toBe(false);
   });
 });
+
+describe('Bibliothek: was liegen geblieben ist', () => {
+  const ids = () => [...document.querySelectorAll('#libList .lib-item')].map(el => el.dataset.exid);
+  const eintrag = id => document.querySelector('#libList .lib-item[data-exid="' + id + '"]');
+
+  /* Ein Log mit genau zwei bekannten Uebungen: eine von heute, eine alte.
+     Alles andere in der Bibliothek wurde nie trainiert. */
+  async function mitLog(){
+    const heute = new Date().toISOString().slice(0, 10);
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 9, workouts: 2,
+      log: [
+        { d: '2020-01-05', day: 'A', ex: ['squat'], sets: 4, tops: 0, ups: [], reps: {} },
+        { d: heute, day: 'A', ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {} }
+      ]
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    return app;
+  }
+
+  it('nennt bei jeder Uebung, wann sie zuletzt dran war', async () => {
+    await mitLog();
+    expect(eintrag('pushup').textContent).toMatch(/zuletzt/);
+    expect(eintrag('dips').textContent).toMatch(/noch nie/);
+  });
+
+  /* Der Hinweis soll auffallen – an allen 42 Zeilen waere er keiner mehr. */
+  it('markiert nur, was liegen geblieben ist', async () => {
+    await mitLog();
+    const chip = id => eintrag(id).querySelector('.cat-chip.stale');
+    expect(chip('pushup')).toBeNull();
+    expect(chip('squat').textContent).toMatch(/Tagen/);
+    expect(chip('dips').textContent).toMatch(/noch nie/);
+  });
+
+  it('sortiert auf Wunsch nach dem letzten Mal – Ungetrainiertes zuerst', async () => {
+    const app = await mitLog();
+    const standard = ids();
+
+    await app.actions['library:sort']({}, null, { value: 'alt' });
+    await ruhe();
+    const nachAlter = ids();
+    expect(nachAlter).not.toEqual(standard);
+    expect(nachAlter).toHaveLength(standard.length);
+    /* Heute trainiert: ganz hinten. Davor die alte, davor alles Ungeuebte. */
+    expect(nachAlter[nachAlter.length - 1]).toBe('pushup');
+    expect(nachAlter[nachAlter.length - 2]).toBe('squat');
+    expect(nachAlter.indexOf('dips')).toBeLessThan(nachAlter.indexOf('squat'));
+  });
+
+  it('kehrt zur Kategorie-Reihenfolge zurueck', async () => {
+    const app = await mitLog();
+    const standard = ids();
+    await app.actions['library:sort']({}, null, { value: 'alt' });
+    await ruhe();
+    await app.actions['library:sort']({}, null, { value: 'standard' });
+    await ruhe();
+    expect(ids()).toEqual(standard);
+  });
+
+  it('faellt bei einem unbekannten Wert auf die Vorgabe zurueck', async () => {
+    const app = await mitLog();
+    const standard = ids();
+    await app.actions['library:sort']({}, null, { value: 'quatsch' });
+    await ruhe();
+    expect(ids()).toEqual(standard);
+  });
+});

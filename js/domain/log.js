@@ -98,6 +98,29 @@ export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null
   return out;
 }
 
+/* Wann jede Uebung zuletzt drankam: { pushup: '2026-07-30', … }.
+
+   Die Bibliothek listete 42 Uebungen nach Kategorie und Dateireihenfolge und
+   verschwieg dabei die eine Angabe, die im Log seit jeher steht. Gerade im
+   Zusammenspiel mit dem Plangenerator ist sie die interessante: er baut den
+   Plan, und hier steht, was er dabei liegen laesst.
+
+   Anders als lastRepsByExercise() zaehlt hier jede Teilnahme, nicht nur eine
+   mit notierten Wiederholungen – "wann war das dran" ist auch dann
+   beantwortet, wenn nur abgehakt wurde. Ein Durchlauf ueber das ganze Log;
+   ein Abbruch waere nicht moeglich, weil jede Uebung gefragt sein kann. */
+export function letztesDatumJeUebung(log, dayOf = () => null){
+  const out = {};
+  if(!Array.isArray(log)) return out;
+  log.forEach(l => {
+    if(!l || typeof l.d !== 'string') return;
+    entryExercises(l, dayOf(l.day)).forEach(id => {
+      if(!out[id] || l.d > out[id]) out[id] = l.d;
+    });
+  });
+  return out;
+}
+
 /* Einzelabfrage. Liefert { d, reps: [12, 10, 8] } oder null. */
 export function lastRepsFor(log, exId, dayOf, ausser){
   return lastRepsByExercise(log, [exId], dayOf, ausser)[exId] || null;

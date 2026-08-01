@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise
+  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise,
+  letztesDatumJeUebung
 } from '../js/domain/log.js';
 
 /* Die Zuordnung Eintrag -> Übung war der Grund für diese Datei: sie lief über
@@ -174,5 +175,53 @@ describe('lastRepsByExercise', () => {
     expect(lastRepsByExercise(null, ['pushup'])).toEqual({});
     expect(lastRepsByExercise(log, null)).toEqual({});
     expect(lastRepsByExercise(log, [])).toEqual({});
+  });
+});
+
+describe('letztesDatumJeUebung', () => {
+  it('nennt je Übung das jüngste Datum', () => {
+    const out = letztesDatumJeUebung([
+      { d: '2026-07-01', day: 'A', ex: ['pushup', 'dips'] },
+      { d: '2026-07-20', day: 'A', ex: ['pushup'] },
+      { d: '2026-07-10', day: 'B', ex: ['row'] }
+    ]);
+    expect(out).toEqual({ pushup: '2026-07-20', dips: '2026-07-01', row: '2026-07-10' });
+  });
+
+  /* Nicht die Reihenfolge im Log entscheidet, sondern das Datum: ein
+     CSV-Import kann ältere Einheiten hinten angehängt haben. */
+  it('lässt sich von der Reihenfolge im Log nicht täuschen', () => {
+    const out = letztesDatumJeUebung([
+      { d: '2026-07-20', day: 'A', ex: ['pushup'] },
+      { d: '2026-01-05', day: 'A', ex: ['pushup'] }
+    ]);
+    expect(out.pushup).toBe('2026-07-20');
+  });
+
+  /* Anders als lastRepsByExercise() zählt hier jede Teilnahme – "wann war
+     das dran" ist auch ohne notierte Wiederholungen beantwortet. */
+  it('zählt eine Einheit ohne Wiederholungen mit', () => {
+    const out = letztesDatumJeUebung([{ d: '2026-07-01', day: 'A', ex: ['front_lever'], reps: {} }]);
+    expect(out.front_lever).toBe('2026-07-01');
+  });
+
+  it('greift für Altbestände auf Plan und Wiederholungsschlüssel zurück', () => {
+    const out = letztesDatumJeUebung(
+      [{ d: '2026-07-01', day: 'A', reps: { 'dips-0': 8 } }],
+      key => (key === 'A' ? TAG_A : null));
+    expect(out).toEqual({ pushup: '2026-07-01', squat: '2026-07-01', dips: '2026-07-01' });
+  });
+
+  it('verträgt kaputte Eingaben', () => {
+    expect(letztesDatumJeUebung(null)).toEqual({});
+    expect(letztesDatumJeUebung('nein')).toEqual({});
+    expect(letztesDatumJeUebung([null, 5, {}, { d: 7, ex: ['x'] }])).toEqual({});
+  });
+
+  it('verändert das Log nicht', () => {
+    const log = [{ d: '2026-07-01', day: 'A', ex: ['pushup'] }];
+    const kopie = JSON.parse(JSON.stringify(log));
+    letztesDatumJeUebung(log);
+    expect(log).toEqual(kopie);
   });
 });

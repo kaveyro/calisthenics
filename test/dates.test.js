@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isoDaysAgo, today, fmtDate, isoWeek, calcGlobalStreak } from '../js/domain/dates.js';
+import { isoDaysAgo, today, fmtDate, isoWeek, tageZwischen, calcGlobalStreak } from '../js/domain/dates.js';
 
 /* Fester Bezugspunkt statt der echten Uhr – die Tests sollen nicht davon
    abhaengen, wann sie laufen. */
@@ -85,5 +85,28 @@ describe('calcGlobalStreak', () => {
     expect(calcGlobalStreak(null, NOW)).toBe(0);
     expect(calcGlobalStreak(undefined, NOW)).toBe(0);
     expect(calcGlobalStreak([{}, { d: null }], NOW)).toBe(0);
+  });
+});
+
+describe('tageZwischen', () => {
+  it('zählt volle Tage vorwärts', () => {
+    expect(tageZwischen('2026-07-01', '2026-07-01')).toBe(0);
+    expect(tageZwischen('2026-07-01', '2026-07-22')).toBe(21);
+  });
+
+  it('liefert für die Gegenrichtung eine negative Zahl', () => {
+    expect(tageZwischen('2026-07-22', '2026-07-01')).toBe(-21);
+  });
+
+  /* Gerechnet wird auf 12 Uhr mittags: über die Zeitumstellung hinweg wäre
+     eine Spanne sonst um eine Stunde daneben und würde falsch gerundet. */
+  it('übersteht die Zeitumstellung', () => {
+    expect(tageZwischen('2026-03-28', '2026-03-30')).toBe(2);
+    expect(tageZwischen('2026-10-24', '2026-10-26')).toBe(2);
+  });
+
+  it('liefert null für Unbrauchbares', () => {
+    [[null, '2026-07-01'], ['2026-07-01', null], ['', ''], ['keinDatum', '2026-07-01']]
+      .forEach(([a, b]) => expect(tageZwischen(a, b)).toBe(null));
   });
 });

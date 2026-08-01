@@ -4,12 +4,12 @@
 
 import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX_BY_ID } from './exercises.js';
 import { store, STORAGE_KEY } from './storage.js';
-import { today, fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf } from './domain/dates.js';
+import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { entryHasExercise, repsOf, lastRepsByExercise } from './domain/log.js';
+import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
@@ -1994,6 +1994,27 @@ function renderCatFilter(){
 }
 function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
 
+/* Ab wann eine Uebung als liegen geblieben gilt. Zwei Wochen sind bei zwei
+   bis vier Einheiten pro Woche eine Luecke, die kein Plan mehr erklaert. */
+const LIB_STALE_TAGE = 14;
+
+/* Sortierung der Bibliothek. Die Reihenfolge nach Kategorie und Datei ist
+   die bisherige und bleibt die Vorgabe; sie beantwortet aber nicht die
+   Frage, die sich nach ein paar Monaten stellt – was faellt hinten runter?
+
+   Vergleichsfunktionen bekommen { ex, i, lvl, zuletzt } und fallen bei
+   Gleichstand immer auf die Dateireihenfolge zurueck, damit die Liste bei
+   gleichen Werten nicht bei jedem Aufbau anders aussieht. */
+const LIB_SORT = {
+  standard: (a, b) => a.i - b.i,
+  /* Nie trainiert zuerst: das ist die groesste Luecke, nicht die kleinste. */
+  alt: (a, b) => String(a.zuletzt || '').localeCompare(String(b.zuletzt || '')) || (a.i - b.i),
+  fortschritt: (a, b) => (anteil(b) - anteil(a)) || (a.i - b.i)
+};
+const anteil = e => e.ex.levels.length > 1 ? e.lvl / (e.ex.levels.length - 1) : 0;
+let libSort = 'standard';
+function setLibSort(v){ libSort = LIB_SORT[v] ? v : 'standard'; renderLibrary(); }
+
 /* Aufbau und Suche sind getrennt.
 
    renderLibrary() baute frueher bei JEDEM Tastendruck im Suchfeld alle 36
@@ -2002,12 +2023,22 @@ function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
    mehr vor – das Feld war ein anderes. Gesucht wird jetzt, indem vorhandene
    Eintraege aus- und wieder eingeblendet werden. */
 function renderLibrary(){
-  const list = EXERCISES.filter(e => libFilter === 'all' || e.cat === libFilter);
+  /* Einmal fuer die ganze Liste, nicht je Uebung: der Log fasst bis zu 2000
+     Eintraege, und 42 Einzelabfragen liefen ihn 42-mal durch. */
+  const zuletztAlle = letztesDatumJeUebung(state.log || [], getDay);
+  const list = EXERCISES
+    .map((ex, i) => ({ ex, i, lvl: lvlOf(ex), zuletzt: zuletztAlle[ex.id] || null }))
+    .filter(e => libFilter === 'all' || e.ex.cat === libFilter)
+    .sort(LIB_SORT[libSort] || LIB_SORT.standard);
 
   const planIds = new Set(getDays().flatMap(d => d.ex));
 
-  document.getElementById('libList').innerHTML = list.length ? list.map(ex => {
-    const lvl = lvlOf(ex), open = libOpen[ex.id];
+  document.getElementById('libList').innerHTML = list.length ? list.map(({ ex, lvl, zuletzt }) => {
+    const open = libOpen[ex.id];
+    const herTage = zuletzt ? tageZwischen(zuletzt, today()) : null;
+    /* Nur melden, was auffaellt: eine Uebung von vorgestern braucht keinen
+       Hinweis, und ein Chip an jeder der 42 Zeilen waere keiner mehr. */
+    const liegt = herTage === null || herTage >= LIB_STALE_TAGE;
     const pr = (state.prs || {})[ex.id];
     /* Der Suchtext wird beim Aufbau festgeschrieben, damit filterLibrary()
        weder die Uebungsdaten noch die Uebersetzung erneut durchgehen muss.
@@ -2019,19 +2050,24 @@ function renderLibrary(){
        Wer die Ausruestung gerade erst eingetragen hat, soll nicht raten
        muessen, warum die Haelfte der Bibliothek fehlt. */
     const geht = machbar(ex);
-    return '<div class="lib-item" data-such="' + esc(suchtext) + '" data-eqok="' + (geht ? '1' : '0') + '">' +
+    return '<div class="lib-item" data-exid="' + ex.id + '" data-such="' + esc(suchtext) +
+      '" data-eqok="' + (geht ? '1' : '0') + '">' +
       /* Echter Button statt eines klickbaren div: der Kopf ist die
          Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
       '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
         ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
         '<span class="lib-name">' + esc(exName(ex)) +
           (planIds.has(ex.id) ? ' <span class="cat-chip">' + esc(__('inPlan')) + '</span>' : '') +
-          (geht ? '' : ' <span class="cat-chip warn">' + esc(__('equipMissing')) + '</span>') + '</span>' +
+          (geht ? '' : ' <span class="cat-chip warn">' + esc(__('equipMissing')) + '</span>') +
+          (liegt ? ' <span class="cat-chip stale">' + esc(herTage === null
+            ? __('neverTrained')
+            : __('staleDays', { n: herTage })) + '</span>' : '') + '</span>' +
         '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
       '</button>' +
       '<div class="lib-body' + (open ? ' open' : '') + '" id="libbody-' + ex.id + '">' +
         '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(equipListe(ex.equip)) +
-          (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') + '</div>' +
+          (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') +
+          ' · ' + esc(zuletzt ? __('lastTrainedOn', { date: fmtDate(zuletzt) }) : __('neverTrained')) + '</div>' +
         /* Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen
            an der Bank machbar und erst die spaeteren brauchen Parallettes.
            Genau das soll hier ablesbar sein. */
@@ -3049,6 +3085,7 @@ export const actions = {
   'library:toggle':     d => mitFokus(() => toggleLib(d.ex)),
   /* Kein mitFokus mehr: das Suchfeld wird nicht mehr ersetzt. */
   'library:search':     () => filterLibrary(),
+  'library:sort':       (d, ev, el) => mitFokus(() => setLibSort(el.value)),
   'library:onlyAvailable': (d, ev, el) => { libNurMachbar = el.checked; filterLibrary(); },
   'pr:save':            d => mitFokus(() => savePR(d.ex)),
 

@@ -145,6 +145,16 @@
     <div class="inline-row" style="margin-bottom:12px">
       <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen" data-i18n-placeholder="search" data-i18n-aria-label="searchAria">
     </div>
+    <!-- Sortierung: die Reihenfolge nach Kategorie und Datei sagt nichts
+         darüber, was liegen geblieben ist. -->
+    <div class="inline-row" style="margin-bottom:12px">
+      <label class="lbl2" for="libSort" data-i18n="sortBy">Sortierung</label>
+      <select id="libSort" data-action-change="library:sort">
+        <option value="standard" data-i18n="sortDefault">Kategorie</option>
+        <option value="alt" data-i18n="sortLeastRecent">Am längsten nicht trainiert</option>
+        <option value="fortschritt" data-i18n="sortProgress">Fortschritt</option>
+      </select>
+    </div>
     <!-- Vorgabe aus: nicht machbare Übungen bleiben zunächst sichtbar und
          tragen nur einen Hinweis. Wer sie loswerden will, hakt hier an. -->
     <label class="inline-row" style="margin-bottom:12px;gap:8px;cursor:pointer">
