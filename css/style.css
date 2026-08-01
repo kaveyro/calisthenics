@@ -371,6 +371,9 @@ details.acc li{margin-bottom:5px}
    deutliche Rückstand bekommt Farbe. */
 .plan-day-count{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--ink-soft);margin-left:4px}
 .plan-day-count.warn{color:var(--warn)}
+/* Geplant, aber noch nicht gewesen: gepunkteter Rand statt Füllung, damit
+   sich der Tag von einem trainierten unterscheidet. */
+.cal-day.geplant{border:1px dashed var(--accent);color:var(--ink-soft)}
 .plan-ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .plan-ex:last-of-type{border-bottom:none}
 .plan-ex .nm{flex:1;min-width:0}
@@ -469,6 +472,8 @@ footer small{display:block;margin-top:4px;opacity:.6}
 
   /* Trainingstag im Kalender: Unterstrich statt Einfärbung. */
   .cal-day.workout{text-decoration:underline;text-underline-offset:2px;font-weight:700}
+  /* Geplant: gestrichelter Rand bleibt auch ohne Akzentfarbe erkennbar. */
+  .cal-day.geplant{border:1px dashed CanvasText}
   .cal-day.today{outline:2px solid CanvasText;outline-offset:-2px}
 
   /* Verteilung: die sechs Segmente sind nur durch Farbe getrennt – hier

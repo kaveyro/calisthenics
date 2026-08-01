@@ -476,3 +476,55 @@ describe('migrateState – Bestleistungen', () => {
     expect(prNumber(out.prs.c)).toBe(9);
   });
 });
+
+describe('migrateState – Wochenrhythmus', () => {
+  it('ist standardmaessig leer', () => {
+    expect(migrateState({}).wochenplan).toEqual({});
+    expect(DEFAULT_STATE().wochenplan).toEqual({});
+  });
+
+  it('uebernimmt eine Zuordnung', () => {
+    expect(migrateState({ wochenplan: { 1: 'A', 3: 'B' } }).wochenplan).toEqual({ 1: 'A', 3: 'B' });
+  });
+
+  it('laesst nur die sieben Wochentage zu', () => {
+    expect(migrateState({ wochenplan: { 0: 'A', 6: 'B', 7: 'C', '-1': 'D', mo: 'E' } }).wochenplan)
+      .toEqual({ 0: 'A', 6: 'B' });
+  });
+
+  /* Dieselbe Bereinigung wie fuer jeden Tagesschluessel: harmlose Zeichen,
+     gekuerzt, ohne Rand. Eine Zahl ist ein gueltiger Tagesname – wer seinen
+     Plan-Tag "5" nennt, darf ihn auch auf einen Wochentag legen. */
+  it('bereinigt den Tagesschluessel und wirft Leeres weg', () => {
+    const out = migrateState({ wochenplan: { 1: '  A  ', 2: '', 3: null, 4: 5, 5: '<b>X' } });
+    expect(out.wochenplan[1]).toBe('A');
+    expect(out.wochenplan[2]).toBeUndefined();
+    expect(out.wochenplan[3]).toBeUndefined();
+    expect(out.wochenplan[4]).toBe('5');
+    expect(out.wochenplan[5]).toBe('bX');
+  });
+
+  /* Der Plan darf wechseln, ohne die Zuordnung zu loeschen – gelesen wird
+     sie ohnehin nur, wenn getDay() etwas liefert. */
+  it('behaelt einen Tag, den der aktuelle Plan nicht kennt', () => {
+    expect(migrateState({ wochenplan: { 1: 'Z' } }).wochenplan).toEqual({ 1: 'Z' });
+  });
+
+  it('vertraegt kaputte Eingaben', () => {
+    expect(migrateState({ wochenplan: 'nein' }).wochenplan).toEqual({});
+    expect(migrateState({ wochenplan: [1, 2] }).wochenplan).toEqual({});
+    expect(migrateState({ wochenplan: null }).wochenplan).toEqual({});
+  });
+});
+
+describe('migrateState – byDay ist fort', () => {
+  /* Seit v11: der Zaehler wurde nie gelesen und konnte nicht stimmen.
+     Gezaehlt wird im Log (zaehleJeTag in domain/log.js). */
+  it('uebernimmt einen alten Zaehler nicht', () => {
+    expect(migrateState({ v: 10, byDay: { A: 12 } })).not.toHaveProperty('byDay');
+  });
+
+  it('laesst ihn auch aus einem Backup nicht herein', () => {
+    expect(clampBackup({ byDay: { A: 12 }, workouts: 3 }, EX)).toEqual({ workouts: 3 });
+  });
+});

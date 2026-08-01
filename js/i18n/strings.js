@@ -330,6 +330,11 @@ export const LANG = {
        wie lastWeekSingular/lastWeeksPlural. */
     setsCountOne: '1 Satz', setsCountMany: '{n} Sätze',
     dayCount: '{n}×',
+    weekRhythm: 'Wochenrhythmus',
+    weekRhythmHint: 'Optional. Leer heißt: der nächste Tag ergibt sich aus der Reihenfolge.',
+    noDay: '—', todayIs: 'Heute: {day}',
+    restDay: 'Heute ist Ruhetag – trainieren geht trotzdem, tipp einfach einen Tag an.',
+    calendarPlanned: ', geplant: {day}',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
     keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
@@ -632,6 +637,11 @@ export const LANG = {
     level: 'Stage', sets: 'sets', reps: 'reps', sec: 'sec', cm: 'cm', kg: 'kg',
     setsCountOne: '1 set', setsCountMany: '{n} sets',
     dayCount: '{n}×',
+    weekRhythm: 'Weekly rhythm',
+    weekRhythmHint: 'Optional. Empty means the next day follows the rotation.',
+    noDay: '—', todayIs: 'Today: {day}',
+    restDay: 'Today is a rest day – you can still train, just pick a day.',
+    calendarPlanned: ', planned: {day}',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
     keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar'

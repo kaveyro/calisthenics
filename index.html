@@ -88,6 +88,9 @@
     <!-- Deload-Erinnerung, Trainingspause und Stagnation erschienen bisher
          lautlos mitten in der Sitzung. -->
     <div id="banners" aria-live="polite"></div>
+    <!-- Was heute ansteht, sobald ein Wochenrhythmus eingerichtet ist.
+         Nur eine Ansage, keine Sperre. -->
+    <div class="muted" id="heuteHinweis" hidden></div>
     <div class="day-select" id="daySelect" role="group" data-i18n-aria-label="chooseDay" aria-label="Trainingstag wählen"></div>
 
     <!-- Der Hinzufügen-Button lag früher IM <summary>. Verschachtelte
@@ -198,6 +201,11 @@
       <button class="btn secondary" data-action="plan:reset" data-i18n="resetToTemplate">Auf Vorlage zurücksetzen</button>
     </div>
     <p class="muted" style="margin-top:10px" data-i18n="planNote">Änderungen erzeugen automatisch deinen eigenen Plan. Die Vorlagen bleiben davon unberührt.</p>
+
+    <!-- Feste Trainingstage. Ohne Zuordnung bleibt es bei der Rotation. -->
+    <div class="section-title" data-i18n="weekRhythm">Wochenrhythmus</div>
+    <p class="muted" style="margin:-4px 0 8px" data-i18n="weekRhythmHint">Optional. Leer heißt: der nächste Tag ergibt sich aus der Reihenfolge.</p>
+    <div class="card" id="weekPlan"></div>
   </section>
 
   <!-- ============ ZIELE ============ -->

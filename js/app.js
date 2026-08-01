@@ -19,6 +19,7 @@ import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { buildPlan } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
+import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
 import { installDelegation, zahl } from './ui/delegate.js';
@@ -484,9 +485,23 @@ function daySubOf(d){
   return state.customPlan ? d.sub : daySub(state.planId, d.key, d.sub);
 }
 
+/* Der Plan-Tag von heute laut Wochenrhythmus, oder null. Null heisst
+   entweder "kein Rhythmus eingerichtet" oder "heute ist Ruhetag" – fuer die
+   Anzeige unterscheidet das heuteIstRuhetag(). */
+function heutigerPlanTag(){
+  const key = tagFuerWochentag(state.wochenplan, today());
+  return (key && getDay(key)) ? key : null;
+}
+const rhythmusAktiv = () => Object.keys(state.wochenplan || {}).length > 0;
+
 function nextSuggestedKey(){
   const days = getDays();
   if(!days.length) return null;
+  /* Der feste Rhythmus geht vor: wer Mo/Mi/Fr traegt, will am Mittwoch den
+     Mittwochs-Tag vorgeschlagen bekommen und nicht den, der in der Rotation
+     als naechster dran waere. */
+  const heute = heutigerPlanTag();
+  if(heute) return heute;
   const last = (state.log || []).slice(-1)[0];
   if(!last) return days[0].key;
   const i = days.findIndex(d => d.key === last.day);
@@ -875,6 +890,24 @@ function renderDaySelect(){
     '<div class="tag">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</div>' +
     '<div class="sub">' + esc(daySubOf(d) || __('exercisesCount', { n: d.ex.length })) + '</div></button>'
   ).join('') || '<div class="empty-hint">' + esc(__('noPlanDays') + __('noPlanDaysHint')) + '</div>';
+  renderHeute();
+}
+
+/* Was heute ansteht – nur bei eingerichtetem Wochenrhythmus.
+
+   Ausdruecklich KEINE Sperre: am Ruhetag laesst sich jeder Tag antippen und
+   abschliessen, und der Satz sagt das auch. Die App plant, sie verwaltet
+   nicht. */
+function renderHeute(){
+  const el = document.getElementById('heuteHinweis');
+  if(!el) return;
+  if(!rhythmusAktiv()){ el.textContent = ''; el.hidden = true; return; }
+  el.hidden = false;
+  const key = heutigerPlanTag();
+  const d = key && getDay(key);
+  el.textContent = d
+    ? __('todayIs', { day: d.key + ' · ' + dayTitleOf(d) })
+    : __('restDay');
 }
 /* Der frühere Sonder-Listener für #daySelect ist entfallen – die Tag-Buttons
    laufen jetzt über dieselbe Aktionstabelle wie alles andere. */
@@ -2084,17 +2117,33 @@ function renderCalendar(){
     '</span></div>' +
     '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
   wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
+  /* Die geplanten Termine des gezeigten Monats, einmal fuer das ganze Gitter.
+     Ab heute, denn vergangene Tage erzaehlt das Log selbst. 40 Tage reichen:
+     vorwaerts endet die Reise im laufenden Monat, weiter als bis zu dessen
+     Ende kann hier also nichts sichtbar werden. */
+  const geplanteTage = new Map(
+    naechsteTermine(state.wochenplan, today(), 40)
+      .filter(t => t.d.slice(0, 7) === year + '-' + String(month + 1).padStart(2, '0'))
+      .map(t => [t.d, t.key]));
+
   const offset = (first + 6) % 7;
   for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
   for(let d = 1; d <= daysInMonth; d++){
     const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     const isWorkout = workoutDays.has(dateStr);
     const isToday = dateStr === today();
+    /* Geplant, aber noch nicht gewesen: der Kalender zeigte bisher
+       ausschliesslich Vergangenheit. Nur in der Zukunft und nur, wenn ein
+       Rhythmus eingerichtet ist – sonst waere jeder leere Tag markiert. */
+    const isGeplant = !isWorkout && dateStr >= today() && geplanteTage.has(dateStr);
     /* Trainingstage waren nur gruen eingefaerbt – ohne Datum, ohne Label.
        Jetzt tragen sie den vollen Tag samt Zustand als Textalternative. */
     const label = __('calendarDay', { d, month: monatsName }) +
-      (isWorkout ? __('calendarTrained') : '') + (isToday ? __('calendarToday') : '');
-    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '"' +
+      (isWorkout ? __('calendarTrained') : '') +
+      (isGeplant ? __('calendarPlanned', { day: geplanteTage.get(dateStr) }) : '') +
+      (isToday ? __('calendarToday') : '');
+    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isGeplant ? ' geplant' : '') +
+      (isToday ? ' today' : '') + '"' +
       ' role="listitem" aria-label="' + esc(label) + '"><span aria-hidden="true">' + d + '</span></div>';
   }
   html += '</div>';
@@ -2387,6 +2436,44 @@ async function savePR(id){
   await save(); renderLibrary(); toast(v ? __('bestSaved') : __('bestDeleted'));
 }
 
+/* Der Wochenrhythmus: je Wochentag ein Plan-Tag oder nichts.
+
+   Gerufen aus renderPlanTab() und nicht aus showTab(): die Auswahl listet
+   die Trainingstage, und die aendern sich beim Umbenennen, Hinzufuegen,
+   Entfernen und beim Vorlagenwechsel. Aus einer Stelle heraus kann das
+   nicht auseinanderlaufen.
+
+   Angezeigt wird Montag zuerst, gespeichert nach Date.getDay() (0 = Sonntag).
+   Die Reihenfolge kommt aus wochentage(), damit die Namen und die Anordnung
+   dieselbe Quelle haben wie im Kalender. */
+const WOCHENTAG_REIHENFOLGE = [1, 2, 3, 4, 5, 6, 0];
+
+function renderWeekPlan(){
+  const el = document.getElementById('weekPlan');
+  if(!el) return;
+  const namen = wochentage();
+  const days = getDays();
+  el.innerHTML = WOCHENTAG_REIHENFOLGE.map((wd, i) =>
+    '<div class="set-row"><span><label class="lbl2" for="wp-' + wd + '">' + esc(namen[i]) + '</label></span>' +
+    '<select id="wp-' + wd + '" data-action-change="weekplan:set" data-wd="' + wd + '">' +
+      '<option value="">' + esc(__('noDay')) + '</option>' +
+      days.map(d => '<option value="' + esc(d.key) + '"' +
+        ((state.wochenplan || {})[wd] === d.key ? ' selected' : '') + '>' +
+        esc(d.key + ' · ' + dayTitleOf(d)) + '</option>').join('') +
+    '</select></div>').join('');
+}
+
+function setWeekPlan(wd, key){
+  if(!/^[0-6]$/.test(String(wd))) return;
+  const plan = { ...(state.wochenplan || {}) };
+  if(key && getDay(key)) plan[wd] = key; else delete plan[wd];
+  state.wochenplan = plan;
+  save();
+  /* Der Rhythmus entscheidet ueber den Vorschlag und die Zeile darueber –
+     beides liegt im Trainings-Tab und wird sonst erst zufaellig neu gebaut. */
+  renderDaySelect(); renderHistory();
+}
+
 /* ================= Plan-Editor mit Drag & Drop ================= */
 let dragSrcId = null, dragSrcIdx = null;
 
@@ -2448,6 +2535,8 @@ function renderPlanTab(){
           '</optgroup>').join('') +
       '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
+
+  renderWeekPlan();
 }
 
 /* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
@@ -3498,6 +3587,7 @@ export const actions = {
 
   /* Plan */
   'plan:change':        (d, ev, el) => changePlan(el.value),
+  'weekplan:set':       (d, ev, el) => mitFokus(() => setWeekPlan(d.wd, el.value)),
   'plan:reset':         () => resetPlan(),
   'plan:build':         () => generatePlan(),
   'planDay:add':        () => addPlanDay(),

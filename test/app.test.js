@@ -1914,3 +1914,100 @@ describe('Verteilung je Trainingstag', () => {
     expect(gespeichert().byDay).toBeUndefined();
   });
 });
+
+describe('Wochenrhythmus', () => {
+  const hinweis = () => document.getElementById('heuteHinweis');
+  const abzeichen = () => document.querySelector('.day-btn .badge')?.closest('.day-btn')?.dataset.key;
+  const auswahl = wd => document.getElementById('wp-' + wd);
+
+  /* Der Wochentag von heute nach Date.getDay(). */
+  const heuteWd = () => new Date().getDay();
+  const morgenWd = () => (heuteWd() + 1) % 7;
+
+  async function mitPlan(wochenplan){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 11, onboarded: true, wochenplan }));
+    const app = await starten();
+    await ruhe();
+    return app;
+  }
+
+  it('sagt nichts, solange kein Rhythmus eingerichtet ist', async () => {
+    await mitPlan({});
+    expect(hinweis().hidden).toBe(true);
+  });
+
+  it('nennt den Tag von heute und schlaegt ihn vor', async () => {
+    await mitPlan({ [heuteWd()]: 'B' });
+    expect(hinweis().hidden).toBe(false);
+    expect(hinweis().textContent).toMatch(/^Heute: B/);
+    expect(abzeichen()).toBe('B');
+  });
+
+  /* Nie eine Sperre: am Ruhetag laesst sich trotzdem trainieren. */
+  it('meldet einen Ruhetag, ohne etwas zu verbieten', async () => {
+    await mitPlan({ [morgenWd()]: 'A' });
+    expect(hinweis().textContent).toMatch(/Ruhetag/);
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    expect(document.querySelectorAll('.set-dot').length).toBeGreaterThan(0);
+  });
+
+  /* Ohne Rhythmus bleibt die Rotation zustaendig – das bisherige Verhalten. */
+  it('faellt ohne Zuordnung auf die Rotation zurueck', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 11, onboarded: true, wochenplan: {},
+      log: [{ d: '2026-01-01', day: 'A', ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 }]
+    }));
+    await starten();
+    expect(abzeichen()).toBe('B');
+  });
+
+  it('laesst sich im Plan-Tab setzen und wieder loeschen', async () => {
+    const app = await mitPlan({});
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    expect(auswahl(1)).not.toBeNull();
+
+    await app.actions['weekplan:set']({ wd: '1' }, null, { value: 'B' });
+    await ruhe();
+    expect(gespeichert().wochenplan).toEqual({ 1: 'B' });
+
+    await app.actions['weekplan:set']({ wd: '1' }, null, { value: '' });
+    await ruhe();
+    expect(gespeichert().wochenplan).toEqual({});
+  });
+
+  it('nimmt keinen Tag an, den der Plan nicht kennt', async () => {
+    const app = await mitPlan({});
+    await app.actions['weekplan:set']({ wd: '1' }, null, { value: 'Z' });
+    await ruhe();
+    expect(gespeichert().wochenplan).toEqual({});
+
+    /* Auch ein Wochentag ausserhalb von 0–6 aendert nichts. */
+    await app.actions['weekplan:set']({ wd: '9' }, null, { value: 'A' });
+    await ruhe();
+    expect(gespeichert().wochenplan).toEqual({});
+  });
+
+  it('markiert kommende Trainingstage im Kalender', async () => {
+    const app = await mitPlan({ 0: 'A', 1: 'A', 2: 'A', 3: 'A', 4: 'A', 5: 'A', 6: 'A' });
+    /* Der Kalender braucht mindestens einen Log-Eintrag, sonst bleibt er leer. */
+    const s = gespeichert() || { v: 11, onboarded: true, wochenplan: {} };
+    s.log = [{ d: new Date().toISOString().slice(0, 10), day: 'A', ex: ['pushup'],
+      sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 }];
+    s.wochenplan = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 4: 'A', 5: 'A', 6: 'A' };
+    localStorage.setItem(SPEICHER, JSON.stringify(s));
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    const app2 = await starten();
+    app2.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+
+    const geplant = document.querySelectorAll('#calendarView .cal-day.geplant');
+    expect(geplant.length).toBeGreaterThan(0);
+    /* Der heutige Tag ist trainiert und deshalb nicht zusaetzlich geplant. */
+    const heute = document.querySelector('#calendarView .cal-day.workout');
+    expect(heute.classList.contains('geplant')).toBe(false);
+    expect(app).toBeTruthy();
+  });
+});
