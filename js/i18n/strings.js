@@ -168,6 +168,11 @@ export const LANG = {
     subPermanent: 'Dauerhaft im Plan', subPermanentSub: 'Erzeugt deinen eigenen Plan',
     skipToday: 'Heute auslassen', skippedToday: 'Heute ausgelassen',
     undoSkip: 'Doch machen',
+    deloadStart: 'Entlastungswoche starten',
+    deloadStarted: 'Entlastungswoche läuft – halbe Sätze.',
+    deloadActive: 'Entlastungswoche bis {date}.',
+    deloadHint: 'Die Sätze sind halbiert, die Wiederholungen bleiben. Stufen steigen in dieser Woche nicht.',
+    deloadEnd: 'Jetzt beenden', deloadEnded: 'Entlastungswoche beendet – volle Sätze.',
 
     /* Plan */
     planTitle: 'Trainingsplan', template: 'Vorlage', customPlan: 'Eigener Plan',
@@ -430,6 +435,11 @@ export const LANG = {
     subPermanent: 'Permanently in the plan', subPermanentSub: 'Creates your custom plan',
     skipToday: 'Skip today', skippedToday: 'Skipped today',
     undoSkip: 'Do it after all',
+    deloadStart: 'Start deload week',
+    deloadStarted: 'Deload week running – half the sets.',
+    deloadActive: 'Deload week until {date}.',
+    deloadHint: 'Sets are halved, reps stay the same. Levels do not go up this week.',
+    deloadEnd: 'End it now', deloadEnded: 'Deload week over – full sets.',
 
     planTitle: 'Workout plan', template: 'Template', customPlan: 'Custom plan',
     customPlanDesc: 'Adjusted by you',

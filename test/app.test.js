@@ -717,6 +717,88 @@ describe('Ersetzen und Auslassen', () => {
   });
 });
 
+/* Das Banner erinnerte an eine Deload-Woche und hielt danach nur einen
+   Zaehler fest – halbiert hat nie etwas. */
+describe('Entlastungswoche', () => {
+  const morgen = n => {
+    const d = new Date(); d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const saetzeVon = id => document.querySelectorAll('.ex[data-exid="' + id + '"] .set-dot').length;
+
+  it('halbiert die Saetze, sobald sie laeuft', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const voll = saetzeVon('pushup');
+    expect(voll).toBe(4);
+
+    app.actions['deload:start']({ due: 0 });
+    await ruhe();
+    expect(saetzeVon('pushup')).toBe(2);
+
+    app.actions['deload:end']();
+    await ruhe();
+    expect(saetzeVon('pushup')).toBe(voll);
+  });
+
+  it('raeumt die Haken ab, die es nach dem Halbieren nicht mehr gibt', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    document.querySelectorAll('.ex[data-exid="pushup"] .set-dot').forEach(d => d.click());
+    await ruhe();
+    expect(Object.keys(gespeichert().activeSession.sets)).toHaveLength(4);
+
+    app.actions['deload:start']({ due: 0 });
+    await ruhe();
+    /* Ohne Nacharbeit stuenden hier Haken fuer Saetze 3 und 4, die es nicht
+       mehr gibt – und die Abschlussleiste zaehlte 4/2. */
+    expect(Object.keys(gespeichert().activeSession.sets)).toHaveLength(2);
+    expect(document.getElementById('finishCount').textContent).toMatch(/^2\/\d/);
+  });
+
+  it('laesst die Stufen waehrend der Woche stehen', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, deload: { bis: morgen(3) },
+      levels: { pushup: 1 }, streaks: { pushup: 1 }, settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'pushup' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    const s = gespeichert();
+    expect(s.levels.pushup).toBe(1);
+    /* Weder hoch noch auf null: die Woche beschleunigt die Progression nicht
+       und bestraft sie auch nicht. */
+    expect(s.streaks.pushup).toBe(1);
+    /* Notizen und Bestleistungen laufen trotzdem durch. */
+    expect(s.log).toHaveLength(1);
+  });
+
+  it('endet von selbst, wenn das Datum durch ist', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 8, deload: { bis: morgen(-1) } }));
+    await starten();
+    expect(gespeichert().deload).toBeNull();
+    expect(document.getElementById('banners').textContent).not.toContain('Entlastungswoche bis');
+  });
+
+  it('zeigt das laufende Banner statt der Erinnerung', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, deload: { bis: morgen(3) }, workouts: 24, settings: { deload: 24 }
+    }));
+    await starten();
+    const text = document.getElementById('banners').textContent;
+    expect(text).toContain('Entlastungswoche bis');
+    expect(text).not.toContain('Entlastungswoche starten');
+  });
+});
+
 describe('Plangenerator', () => {
   async function dialogOeffnen(equipment){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 8, equipment }));

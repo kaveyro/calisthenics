@@ -550,16 +550,67 @@ function applyRegression(){
   }
 }
 
+/* ================= Entlastungswoche =================
+   Das Banner erinnerte bisher an eine Deload-Woche und hielt danach nur einen
+   Zaehler fest – halbiert hat nie etwas. Jetzt ist es ein Zustand mit
+   Enddatum: state.deload = { bis: 'YYYY-MM-DD' }. */
+const DELOAD_TAGE = 7;
+
+function deloadAktiv(){
+  return !!(state.deload && state.deload.bis && today() <= state.deload.bis);
+}
+/* Abgelaufene Woche aufraeumen. Wird aus renderBanners() gerufen, also bei
+   jedem Neuzeichnen – ein Datumsvergleich, kein Timer. */
+function deloadAufraeumen(){
+  if(!state.deload || deloadAktiv()) return false;
+  state.deload = null;
+  save();
+  setTimeout(() => toast(__('deloadEnded')), 400);
+  return true;
+}
+function startDeload(due){
+  const ende = new Date(today());
+  ende.setDate(ende.getDate() + DELOAD_TAGE - 1);
+  state.deload = { bis: ende.toISOString().slice(0, 10) };
+  /* Die Erinnerung hat ihren Zweck erfuellt und soll nicht daneben stehen. */
+  if(due) state.deloadDismissed = due;
+  beendeDeloadUmstellung();
+  toast(__('deloadStarted'));
+}
+function endDeload(){
+  state.deload = null;
+  beendeDeloadUmstellung();
+}
+/* Die Satzzahl aendert sich in beide Richtungen mitten in einer laufenden
+   Einheit – dieselbe Nacharbeit wie beim Satz-Modus. */
+function beendeDeloadUmstellung(){
+  if(session.dayKey){
+    verwerfeUeberzaehligeSaetze();
+    cancelHold();
+    persistSession();
+    renderWorkout(); restoreSession(session.reps);
+  } else save();
+  renderAll();
+}
+
 function renderBanners(){
   const el = document.getElementById('banners');
   let html = '';
+  deloadAufraeumen();
+
+  if(deloadAktiv()){
+    html += '<div class="banner info"><b>' + esc(__('deloadActive', { date: fmtDate(state.deload.bis) })) + '</b> ' +
+      esc(__('deloadHint')) +
+      '<br><button data-action="deload:end">' + esc(__('deloadEnd')) + '</button></div>';
+  }
   const every = cfg('deload');
-  if(every > 0){
+  if(every > 0 && !deloadAktiv()){
     const due = Math.floor((state.workouts || 0) / every) * every;
     if(due > 0 && due > (state.deloadDismissed || 0)){
       html += '<div class="banner warn"><b>' + esc(__('deloadTitle')) + '</b> ' +
         esc(__('deloadBody', { n: state.workouts })) +
-        '<br><button data-action="deload:dismiss" data-due="' + due + '">' + esc(__('understood')) + '</button></div>';
+        '<br><button data-action="deload:start" data-due="' + due + '">' + esc(__('deloadStart')) + '</button> ' +
+        '<button data-action="deload:dismiss" data-due="' + due + '">' + esc(__('understood')) + '</button></div>';
     }
   }
   if(state.lastDate){
@@ -732,7 +783,16 @@ function renderDaySelect(){
    laufen jetzt über dieselbe Aktionstabelle wie alles andere. */
 
 /* ================= Sätze & Ziele berechnen ================= */
-function parseTarget(target){ return parseTargetPure(target, cfg('setsMode')); }
+/* Der einzige Ort, an dem der Satz-Modus angewandt wird – und damit auch der
+   richtige fuer die Entlastungswoche. */
+function parseTarget(target){
+  const t = parseTargetPure(target, cfg('setsMode'));
+  if(!deloadAktiv()) return t;
+  /* Halbe Saetze, unveraenderte Wiederholungen und Haltezeiten: im Deload
+     sinkt das Volumen, nicht die Intensitaet. Genau so ist eine
+     Entlastungswoche gemeint. */
+  return { ...t, sets: Math.max(1, Math.ceil(t.sets / 2)) };
+}
 /* Zielangaben wie '4 × 10–20 Sek' fuer die Anzeige uebersetzen.
 
    Nicht in content.en.js gespiegelt, und zwar mit Absicht: parseTarget()
@@ -1352,7 +1412,14 @@ async function finishWorkout(){
        bereits geschrieben waren und bevor save() lief. */
     const lvl = lvlOf(ex);
     const maxed = lvl >= ex.levels.length - 1;
-    if(session.top[id]){
+    /* In der Entlastungswoche zaehlt das obere Limit nicht: es bezieht sich
+       auf halbierte Saetze und ist damit nicht dasselbe wie sonst. Der Streak
+       bleibt stehen statt zu wachsen oder genullt zu werden – die Woche soll
+       die Progression weder beschleunigen noch bestrafen. Notizen und
+       Bestleistungen weiter unten sind davon nicht betroffen. */
+    if(deloadAktiv()){
+      if(session.top[id]) tops++;
+    } else if(session.top[id]){
       tops++;
       state.streaks[id] = (state.streaks[id] || 0) + 1;
       if(!maxed && state.streaks[id] >= need){
@@ -2355,17 +2422,23 @@ function updateSetting(k, v){
     renderPlanTab(); renderMilestones(); renderRoadmap(); renderHistory();
   }
   if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest'].includes(k)){
-    if(k === 'setsMode'){
-      Object.keys(session.sets).forEach(key => {
-        const id = key.slice(0, key.lastIndexOf('-'));
-        const ex = EX_BY_ID[id]; if(!ex) return;
-        const max = parseTarget(ex.levels[lvlOf(ex)].target).sets;
-        if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
-      });
-    }
+    if(k === 'setsMode') verwerfeUeberzaehligeSaetze();
     cancelHold(); renderWorkout(); restoreSession(session.reps);
   }
   renderAll();
+}
+
+/* Haken, die es nach einer geaenderten Satzzahl nicht mehr gibt.
+
+   Frueher nur beim Satz-Modus noetig; die Entlastungswoche halbiert die
+   Saetze ebenfalls und kann mitten in einer laufenden Einheit beginnen. */
+function verwerfeUeberzaehligeSaetze(){
+  Object.keys(session.sets).forEach(key => {
+    const id = key.slice(0, key.lastIndexOf('-'));
+    const ex = EX_BY_ID[id]; if(!ex) return;
+    const max = parseTarget(ex.levels[lvlOf(ex)].target).sets;
+    if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
+  });
 }
 
 /* ================= Backup ================= */
@@ -2782,6 +2855,8 @@ export const actions = {
   'sw:update':          () => updateAnwenden(),
   'app:install':        () => appInstallieren(),
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
+  'deload:start':       d => startDeload(zahl(d.due)),
+  'deload:end':         () => endDeload(),
 
   /* Warm-up */
   'warmup:add':         () => addWarmupItem(),
