@@ -324,6 +324,23 @@ details.acc li{margin-bottom:5px}
 .lvl-list li.gesperrt small{font-style:italic;color:var(--warn)}
 .lvl-list .t{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
 
+/* Verteilung der Wiederholungen auf die Kategorien.
+
+   Die Farben decken sich absichtlich mit nichts anderem in der App – sie
+   unterscheiden hier nur sechs Segmente voneinander. Die Aussage steht als
+   Text daneben; ohne den waere der Streifen reine Dekoration. */
+.vol-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:6px 0 8px;background:var(--line)}
+.vol-part{display:block;min-width:3px}
+.vol-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.vol-keys span{display:inline-flex;align-items:center;gap:5px}
+.vol-keys i{width:9px;height:9px;border-radius:3px;flex:none}
+.vol-push{background:var(--accent)}
+.vol-pull{background:var(--success)}
+.vol-legs{background:var(--warn)}
+.vol-core{background:#7A5CC4}
+.vol-skill{background:#C4478F}
+.vol-mobility{background:#3E9AA8}
+
 /* Vorschau im Plangenerator */
 .pb-preview{margin-top:12px;max-height:230px;overflow-y:auto}
 .pb-day{display:flex;flex-direction:column;gap:2px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}

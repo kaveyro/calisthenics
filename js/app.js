@@ -18,6 +18,7 @@ import {
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { buildPlan } from './domain/planbuilder.js';
+import { volumenJeWoche } from './domain/volume.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -1561,6 +1562,30 @@ function undoWorkout(){
   toast(__('undoWorkout'));
 }
 
+/* Wie sich die Wiederholungen der letzten Woche auf die Kategorien verteilen.
+
+   Ein Streifen mit Zahlen daneben, kein reines Farbdiagramm: die Aufteilung
+   ist die eigentliche Aussage ("zu viel Drücken, zu wenig Ziehen") und muss
+   auch dann ankommen, wenn die Farben nicht unterscheidbar sind. */
+function renderVolSplit(woche){
+  const el = document.getElementById('volSplit');
+  if(!el) return;
+  const jeKat = (woche && woche.jeKat) || {};
+  const summe = Object.values(jeKat).reduce((a, b) => a + b, 0);
+  if(!summe){ el.innerHTML = ''; return; }
+
+  const teile = Object.keys(CATS).filter(k => jeKat[k] > 0);
+  el.innerHTML = '<div class="vol-legend">' + esc(__('volumeSplit')) + '</div>' +
+    '<div class="vol-split" role="img" aria-label="' + esc(__('volumeSplitAria', {
+      data: teile.map(k => catName(k, CATS[k].name) + ' ' + jeKat[k]).join(', ')
+    })) + '">' +
+    teile.map(k => '<span class="vol-part vol-' + k + '" style="flex:' + jeKat[k] + '"></span>').join('') +
+    '</div>' +
+    '<div class="vol-keys" aria-hidden="true">' + teile.map(k =>
+      '<span><i class="vol-' + k + '"></i>' + esc(catName(k, CATS[k].name)) + ' ' + jeKat[k] + '</span>').join('') +
+    '</div>';
+}
+
 /* ================= Verlauf ================= */
 /* '2026-KW31' -> 'KW31' bzw. 'W31'. Der Schluessel bleibt deutsch, weil er
    in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
@@ -1568,12 +1593,11 @@ function weekLabel(w){ return __('weekShort') + w.split('-')[1].replace('KW', ''
 
 function renderHistory(){
   /* Week chart */
-  const byWeek = {}, volWeek = {};
-  (state.log || []).forEach(l => {
-    const w = isoWeek(l.d);
-    byWeek[w] = (byWeek[w] || 0) + 1;
-    volWeek[w] = (volWeek[w] || 0) + (l.sets || 0);
-  });
+  const byWeek = {};
+  (state.log || []).forEach(l => { byWeek[isoWeek(l.d)] = (byWeek[isoWeek(l.d)] || 0) + 1; });
+  /* Volumen sind jetzt die Wiederholungen, nicht die Haekchen: 4 × 5 und
+     4 × 15 sahen im alten Diagramm gleich aus. */
+  const volWeek = volumenJeWoche(state.log || [], EX_BY_ID);
   const weeks = Object.keys(byWeek).sort().slice(-8);
   const goal = cfg('weekGoal');
 
@@ -1582,6 +1606,7 @@ function renderHistory(){
     wc.innerHTML = '<div class="empty-hint" style="width:100%">' + esc(__('noHistory') + __('noHistoryHint')) + '</div>';
     document.getElementById('weekLegend').textContent = '';
     document.getElementById('volChart').innerHTML = '';
+    renderVolSplit(null);
   } else {
     /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
        steckte allein in der Balkenfarbe. Jeder Balken bekommt daher ein
@@ -1600,16 +1625,19 @@ function renderHistory(){
     }).join('');
     document.getElementById('weekLegend').textContent = __('weekLegend', { n: goal });
 
-    const vmax = Math.max(...weeks.map(w => volWeek[w]), 1);
+    const reps = w => (volWeek[w] || {}).reps || 0;
+    const vmax = Math.max(...weeks.map(reps), 1);
     const vc = document.getElementById('volChart');
     vc.setAttribute('role', 'img');
     vc.setAttribute('aria-label', __('chartVolumeAria', {
-      data: weeks.map(w => weekLabel(w) + ' ' + volWeek[w]).join(', ')
+      data: weeks.map(w => weekLabel(w) + ' ' + reps(w)).join(', ')
     }));
     vc.innerHTML = weeks.map(w =>
-      '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + volWeek[w] + '</span>' +
-      '<div class="bar" style="height:' + Math.round(volWeek[w] / vmax * 100) + '%"></div>' +
+      '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + reps(w) + '</span>' +
+      '<div class="bar" style="height:' + Math.round(reps(w) / vmax * 100) + '%"></div>' +
       '<span class="bar-lbl">' + weekLabel(w) + '</span></div>').join('');
+
+    renderVolSplit(volWeek[weeks[weeks.length - 1]]);
   }
 
   renderWeight();
