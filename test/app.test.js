@@ -597,6 +597,74 @@ describe('Ausruestung', () => {
   });
 });
 
+describe('Plangenerator', () => {
+  async function dialogOeffnen(equipment){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 8, equipment }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    const p = app.actions['plan:build']();
+    await ruhe();
+    return { app, p };
+  }
+  const uebernehmen = () => document.querySelector('.overlay.open [data-dlg=ok]').click();
+
+  it('zeigt eine Vorschau, die sich mit der Tageszahl aendert', async () => {
+    await dialogOeffnen(['bar']);
+    const tage = document.getElementById('pb-tage');
+    expect(document.querySelectorAll('#pb-vorschau .pb-day'))
+      .toHaveLength(parseInt(tage.value, 10));
+
+    tage.value = '5';
+    tage.dispatchEvent(new Event('change'));
+    expect(document.querySelectorAll('#pb-vorschau .pb-day')).toHaveLength(5);
+  });
+
+  it('uebernimmt genau das, was in der Vorschau stand', async () => {
+    const { p } = await dialogOeffnen(['rings']);
+    const gesehen = [...document.querySelectorAll('#pb-vorschau .pb-day')]
+      .map(el => el.querySelector('span').textContent);
+    uebernehmen();
+    await p; await ruhe();
+
+    const plan = gespeichert().customPlan;
+    expect(plan.days).toHaveLength(gesehen.length);
+    plan.days.forEach((d, i) => {
+      /* Der Plan wird beim Zeichnen erzeugt und beim Uebernehmen genau dieser
+         genommen – nicht ein zweites Mal gebaut. */
+      expect(gesehen[i].split(' · ')).toHaveLength(d.ex.length);
+    });
+    expect(plan.days.flatMap(d => d.ex).some(id => id.startsWith('ring_'))).toBe(true);
+  });
+
+  it('laesst den Plan beim Abbrechen unberuehrt', async () => {
+    const { p } = await dialogOeffnen(['bar']);
+    document.querySelector('.overlay.open [data-dlg=abbrechen]').click();
+    await p; await ruhe();
+    /* Nicht toBeNull(): ohne Aenderung laeuft gar kein save(), im Speicher
+       steht noch der Stand des Tests – und der kennt das Feld gar nicht. */
+    expect(gespeichert().customPlan == null).toBe(true);
+    expect(document.getElementById('planSelect').value).toBe('ab4');
+  });
+
+  it('fragt nach, bevor ein eigener Plan ueberschrieben wird', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, equipment: ['bar'],
+      customPlan: { name: 'Meiner', desc: '', days: [{ key: 'X', title: 'X', sub: '', ex: ['pushup'] }] }
+    }));
+    const app = await starten();
+    const p = app.actions['plan:build']();
+    await ruhe();
+    uebernehmen();
+    await ruhe();
+
+    /* Zweiter Dialog: die Rueckfrage. Abgelehnt bleibt der alte Plan stehen. */
+    document.querySelector('.overlay.open [data-dlg=abbrechen]').click();
+    await p; await ruhe();
+    expect(gespeichert().customPlan.days[0].key).toBe('X');
+  });
+});
+
 /* Der Verlauf je Uebung war eine reine Zahlentabelle – ob es aufwaerts geht,
    ist aber der Grund, ueberhaupt hineinzuschauen. */
 describe('Verlauf je Uebung', () => {

@@ -13,6 +13,9 @@
                ODER-Liste; ein Eintrag darf mit "+" eine Kombination
                ausdrücken ("bar+band" = Stange UND Band). Die Auswertung
                steht in js/domain/equipment.js.
+     prio      1 = Grundübung, 2 = Ergänzung, 3 = fortgeschritten.
+               Vorgabe 2. Danach sortiert der Plangenerator
+               (js/domain/planbuilder.js), sonst wird das Feld nicht gelesen.
      rest      empfohlene Satzpause in Sekunden (optional)
      levels    Progressionsstufen, von leicht nach schwer
                { stage: Variantenname, target: "4 × 6–10" }
@@ -40,7 +43,7 @@ export const EXERCISES = [
 
   /* ================= DRÜCKEN ================= */
   {
-    id: 'pushup', name: 'Liegestütze', cat: 'push', equip: ['none'], rest: 90,
+    id: 'pushup', name: 'Liegestütze', cat: 'push', equip: ['none'], prio: 1, rest: 90,
     levels: [
       { stage: 'Erhöht (Tisch)', target: '4 × 6–10' },
       { stage: 'Erhöht (Bank/Stufe)', target: '4 × 6–10' },
@@ -70,7 +73,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'archer_push', name: 'Archer-Liegestütze', cat: 'push', equip: ['none'], rest: 120,
+    id: 'archer_push', name: 'Archer-Liegestütze', cat: 'push', equip: ['none'], prio: 3, rest: 120,
     levels: [
       { stage: 'Erhöht, leichte Verlagerung', target: '3 × 5–8' },
       { stage: 'Voll, halbe Verlagerung', target: '3 × 5–8' },
@@ -97,7 +100,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes', 'rings'], rest: 120,
+    id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes', 'rings'], prio: 1, rest: 120,
     levels: [
       { stage: 'Bank-Dips (Füße am Boden)', target: '3 × 8–12', equip: ['chair'] },
       { stage: 'Bank-Dips, Füße erhöht', target: '3 × 8–12', equip: ['chair'] },
@@ -142,7 +145,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'pike', name: 'Pike-Progression', cat: 'push', equip: ['none'], rest: 90,
+    id: 'pike', name: 'Pike-Progression', cat: 'push', equip: ['none'], prio: 1, rest: 90,
     levels: [
       { stage: 'Pike-Halte', target: '3 × 15–20 Sek' },
       { stage: 'Pike-Halte', target: '3 × 25–35 Sek' },
@@ -157,7 +160,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'planche_lean', name: 'Planche Lean', cat: 'push', equip: ['parallettes'], rest: 90,
+    id: 'planche_lean', name: 'Planche Lean', cat: 'push', equip: ['parallettes'], prio: 3, rest: 90,
     levels: [
       { stage: 'Leichter Lean', target: '3 × 10–15 Sek' },
       { stage: 'Mittlerer Lean', target: '3 × 15–20 Sek' },
@@ -188,7 +191,7 @@ export const EXERCISES = [
 
   /* ================= ZIEHEN ================= */
   {
-    id: 'hang', name: 'Dead Hang', cat: 'pull', equip: ['bar', 'rings'], rest: 60,
+    id: 'hang', name: 'Dead Hang', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 60,
     levels: [
       { stage: 'Passiv hängen', target: '4 × 15–30 Sek' },
       { stage: 'Passiv hängen', target: '4 × 30–45 Sek' },
@@ -203,7 +206,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], rest: 60,
+    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 60,
     levels: [
       { stage: 'Scapula Pull-ups', target: '3 × 5–8' },
       { stage: 'Scapula Pull-ups', target: '3 × 8–12' },
@@ -216,7 +219,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'row', name: 'Rudern (horizontal)', cat: 'pull', equip: ['chair', 'bar', 'rings'], rest: 90,
+    id: 'row', name: 'Rudern (horizontal)', cat: 'pull', equip: ['chair', 'bar', 'rings'], prio: 1, rest: 90,
     levels: [
       { stage: 'Tisch-Rudern, Knie gebeugt', target: '4 × 8–12', equip: ['chair'] },
       { stage: 'Tisch-Rudern, Beine gestreckt', target: '4 × 8–12', equip: ['chair'] },
@@ -230,7 +233,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'ring_row', name: 'Ring-Rows', cat: 'pull', equip: ['rings'], rest: 90,
+    id: 'ring_row', name: 'Ring-Rows', cat: 'pull', equip: ['rings'], prio: 1, rest: 90,
     levels: [
       { stage: 'Körper steil, Füße unter den Ringen', target: '4 × 8–12' },
       { stage: 'Körper flacher', target: '4 × 8–12' },
@@ -259,7 +262,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], rest: 150,
+    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 150,
     levels: [
       { stage: 'Negativ, 3 Sek ablassen', target: '4 × 3–5' },
       { stage: 'Negativ, 5–8 Sek ablassen', target: '4 × 3–5' },
@@ -288,7 +291,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'front_lever', name: 'Front Lever', cat: 'pull', equip: ['bar', 'rings'], rest: 120,
+    id: 'front_lever', name: 'Front Lever', cat: 'pull', equip: ['bar', 'rings'], prio: 3, rest: 120,
     levels: [
       { stage: 'Tuck Hang (Knie an Brust)', target: '4 × 10–15 Sek' },
       { stage: 'Tuck Front Lever', target: '4 × 8–15 Sek' },
@@ -318,7 +321,7 @@ export const EXERCISES = [
 
   /* ================= BEINE ================= */
   {
-    id: 'squat', name: 'Kniebeugen', cat: 'legs', equip: ['none'], rest: 90,
+    id: 'squat', name: 'Kniebeugen', cat: 'legs', equip: ['none'], prio: 1, rest: 90,
     levels: [
       { stage: 'Kniebeugen', target: '4 × 12–15' },
       { stage: 'Tiefe Kniebeugen', target: '4 × 15–20' },
@@ -332,7 +335,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'lunge', name: 'Ausfallschritte', cat: 'legs', equip: ['none'], rest: 90,
+    id: 'lunge', name: 'Ausfallschritte', cat: 'legs', equip: ['none'], prio: 1, rest: 90,
     levels: [
       { stage: 'Ausfallschritte', target: '3 × 8–10' },
       { stage: 'Ausfallschritte', target: '3 × 12–15' },
@@ -345,7 +348,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'pistol', name: 'Einbeinige Kniebeuge', cat: 'legs', equip: ['chair'], rest: 120,
+    id: 'pistol', name: 'Einbeinige Kniebeuge', cat: 'legs', equip: ['chair'], prio: 3, rest: 120,
     levels: [
       { stage: 'Assisted (an Türrahmen)', target: '3 × 5–8', equip: ['none'] },
       { stage: 'Box Squat einbeinig (hoch)', target: '3 × 5–8', equip: ['chair'] },
@@ -359,7 +362,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'glute_bridge', name: 'Glute Bridge', cat: 'legs', equip: ['none'], rest: 60,
+    id: 'glute_bridge', name: 'Glute Bridge', cat: 'legs', equip: ['none'], prio: 1, rest: 60,
     levels: [
       { stage: 'Beidbeinig', target: '3 × 15–20' },
       { stage: 'Beidbeinig, Füße erhöht', target: '3 × 12–15' },
@@ -400,7 +403,7 @@ export const EXERCISES = [
 
   /* ================= RUMPF ================= */
   {
-    id: 'hollow', name: 'Hollow Body Hold', cat: 'core', equip: ['none'], rest: 60,
+    id: 'hollow', name: 'Hollow Body Hold', cat: 'core', equip: ['none'], prio: 1, rest: 60,
     levels: [
       { stage: 'Knie angewinkelt', target: '3 × 15–25 Sek' },
       { stage: 'Beine gestreckt', target: '3 × 25–40 Sek' },
@@ -428,7 +431,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'plank', name: 'Plank', cat: 'core', equip: ['none'], rest: 45,
+    id: 'plank', name: 'Plank', cat: 'core', equip: ['none'], prio: 1, rest: 45,
     levels: [
       { stage: 'Plank', target: '3 × 20–40 Sek' },
       { stage: 'Plank', target: '3 × 45–60 Sek' },
@@ -455,7 +458,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'dragon_flag', name: 'Dragon Flag', cat: 'core', equip: ['none'], rest: 120,
+    id: 'dragon_flag', name: 'Dragon Flag', cat: 'core', equip: ['none'], prio: 3, rest: 120,
     levels: [
       { stage: 'Tuck Negativ', target: '3 × 5–8' },
       { stage: 'One-Leg Negativ', target: '3 × 5–8' },
@@ -485,7 +488,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'handstand', name: 'Freier Handstand', cat: 'skill', equip: ['none'], rest: 90,
+    id: 'handstand', name: 'Freier Handstand', cat: 'skill', equip: ['none'], prio: 3, rest: 90,
     levels: [
       { stage: 'Wandläufe / Kick-up-Übungen', target: '4 × 5–8 Versuche' },
       { stage: 'Kick-up mit Balance-Versuch', target: '5 × 3–5 Versuche' },
@@ -500,7 +503,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'planche', name: 'Planche', cat: 'skill', equip: ['parallettes'], rest: 150,
+    id: 'planche', name: 'Planche', cat: 'skill', equip: ['parallettes'], prio: 3, rest: 150,
     levels: [
       { stage: 'Frog Stand (Krähe)', target: '4 × 15–30 Sek', equip: ['none'] },
       { stage: 'Tuck Planche', target: '4 × 8–15 Sek' },
@@ -515,7 +518,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'hspu', name: 'Handstand Push-up', cat: 'skill', equip: ['none'], rest: 150,
+    id: 'hspu', name: 'Handstand Push-up', cat: 'skill', equip: ['none'], prio: 3, rest: 150,
     levels: [
       { stage: 'Pike Push-up, Füße erhöht', target: '4 × 5–8' },
       { stage: 'Wand-HSPU Negativ', target: '4 × 3–5' },
@@ -529,7 +532,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'lsit_hs', name: 'L-Sit zum Handstand', cat: 'skill', equip: ['parallettes'], rest: 180,
+    id: 'lsit_hs', name: 'L-Sit zum Handstand', cat: 'skill', equip: ['parallettes'], prio: 3, rest: 180,
     levels: [
       { stage: 'Tuck-Press Negativ (aus HS ablassen)', target: '4 × 3–5' },
       { stage: 'Press mit Absprunghilfe', target: '4 × 3–5' },
@@ -546,7 +549,7 @@ export const EXERCISES = [
 
   /* ================= MOBILITY ================= */
   {
-    id: 'wrist_prep', name: 'Handgelenks-Routine', cat: 'mobility', equip: ['none'], rest: 30,
+    id: 'wrist_prep', name: 'Handgelenks-Routine', cat: 'mobility', equip: ['none'], prio: 1, rest: 30,
     levels: [
       { stage: 'Basis-Routine', target: '2 × 60 Sek' },
       { stage: 'Mit Gewichtsverlagerung', target: '3 × 60 Sek' },

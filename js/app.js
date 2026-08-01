@@ -17,6 +17,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
+import { buildPlan } from './domain/planbuilder.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -1822,7 +1823,9 @@ function renderPlanTab(){
     '<option value="' + k + '"' + (!state.customPlan && state.planId === k ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') +
     (state.customPlan ? '<option value="custom" selected>' + __('customPlan') + '</option>' : '');
   document.getElementById('planDesc').textContent = state.customPlan
-    ? __('customPlanDesc')
+    /* Die eigene Beschreibung, wenn es eine gibt: ein erzeugter Plan sagt
+       damit, woher er kommt, statt pauschal "von dir angepasst". */
+    ? (state.customPlan.desc || __('customPlanDesc'))
     : planDesc(state.planId, (PLAN_TEMPLATES[state.planId] || {}).desc || '');
 
   const days = getDays();
@@ -1900,6 +1903,38 @@ function dragDrop(di, ei){
   p.days[di].ex.splice(ei, 0, item);
   dragSrcId = null; dragSrcIdx = null;
   save(); renderPlanTab();
+}
+
+/* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
+   Bezeichnungen hinein. Das Modul selbst bleibt damit ohne Sprachwissen. */
+function planAusAusruestung(tage, fokus){
+  return buildPlan({
+    exercises: EXERCISES,
+    equipment: state.equipment,
+    tage, fokus,
+    texte: {
+      name: __('customPlan'),
+      desc: __('generatedPlanDesc'),
+      sub: __('generatedDaySub'),
+      ganzkoerper: __('fullBody'),
+      kat: Object.fromEntries(Object.keys(CATS).map(k => [k, catName(k, CATS[k].name)]))
+    }
+  });
+}
+
+async function generatePlan(){
+  const plan = await askPlanBuilder();
+  if(!plan || !plan.days.length) return;
+  /* Ein eigener Plan wird ueberschrieben – das ist Arbeit, die verloren geht,
+     also nicht ohne Rueckfrage. */
+  if(state.customPlan){
+    const ok = await askConfirm(__('buildPlan'), __('overwriteCustomPlan'), __('apply'), true);
+    if(!ok) return;
+  }
+  state.customPlan = plan;
+  save();
+  renderPlanTab(); renderStats(); renderDaySelect(); renderLibrary();
+  toast(__('planBuilt', { n: plan.days.length }));
 }
 
 function ensureCustom(){
@@ -2144,6 +2179,53 @@ function askChoice(titel, optionen){
     modal.querySelectorAll('.dlg-choice').forEach(b => {
       b.onclick = () => finish(optionen[parseInt(b.dataset.i, 10)].value);
     });
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+  });
+}
+
+/* Plangenerator – zwei Auswahlfelder mit sofortiger Vorschau.
+
+   askChoice() reicht dafuer nicht: dort ist jede Option ein Endergebnis, hier
+   sind zwei Angaben zu kombinieren und das Ergebnis will vor dem Uebernehmen
+   gesehen werden. Geruest, Fokusfalle und Promise kommen unveraendert aus
+   askDialog(). */
+function askPlanBuilder(){
+  const FOKUS = ['kraft', 'ausgewogen', 'skill'];
+  const FOKUS_KEYS = { kraft: 'focusStrength', ausgewogen: 'focusBalanced', skill: 'focusSkills' };
+  return askDialog((modal, finish) => {
+    const titel = __('buildPlan');
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<p class="dlg-text">' + esc(__('buildPlanBody')) + '</p>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-tage">' + esc(__('daysPerWeek')) + '</label></span>' +
+        '<select id="pb-tage">' + [2, 3, 4, 5, 6].map(n =>
+          '<option value="' + n + '"' + (n === cfg('weekGoal') ? ' selected' : '') + '>' + n + '×</option>').join('') +
+        '</select></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-fokus">' + esc(__('focus')) + '</label></span>' +
+        '<select id="pb-fokus">' + FOKUS.map(f =>
+          '<option value="' + f + '"' + (f === 'ausgewogen' ? ' selected' : '') + '>' + esc(__(FOKUS_KEYS[f])) + '</option>').join('') +
+        '</select></div>' +
+      '<div id="pb-vorschau" class="pb-preview"></div>' +
+      dialogFuss(__('apply'));
+
+    const tage = modal.querySelector('#pb-tage'), fokus = modal.querySelector('#pb-fokus');
+    const vorschau = modal.querySelector('#pb-vorschau');
+    /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
+       genau dieser genommen – nicht ein zweites Mal gebaut. Die Funktion ist
+       zwar deterministisch, aber wer die Vorschau bestaetigt, soll auch das
+       bekommen, was er gesehen hat. */
+    let plan = null;
+    const zeichnen = () => {
+      plan = planAusAusruestung(zahl(tage.value), fokus.value);
+      vorschau.innerHTML = plan.days.map(d =>
+        '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) + '</b><span>' +
+        esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') ||
+        '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
+    };
+    tage.onchange = zeichnen; fokus.onchange = zeichnen;
+    zeichnen();
+
+    modal.querySelector('[data-dlg=ok]').onclick = () => finish(plan);
     modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
   });
 }
@@ -2641,6 +2723,7 @@ export const actions = {
   /* Plan */
   'plan:change':        (d, ev, el) => changePlan(el.value),
   'plan:reset':         () => resetPlan(),
+  'plan:build':         () => generatePlan(),
   'planDay:add':        () => addPlanDay(),
   'planDay:rename':     d => mitFokus(() => renameDay(zahl(d.day))),
   'planDay:remove':     d => removeDay(zahl(d.day)),
