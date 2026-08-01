@@ -719,6 +719,44 @@ describe('Ersetzen und Auslassen', () => {
 
 /* Das Banner erinnerte an eine Deload-Woche und hielt danach nur einen
    Zaehler fest – halbiert hat nie etwas. */
+describe('Dialoge und Hintergrund', () => {
+  /* inert lag nur auf .wrap. Abschlussleiste, Pausen-Chip und Toast liegen
+     ausserhalb – ein Klick kam durch den z-index nicht durch, aber im
+     Browse-Modus eines Screenreaders blieb "Training abschliessen"
+     erreichbar, waehrend eine Rueckfrage offen stand. */
+  it('macht auch die Abschlussleiste unerreichbar', async () => {
+    const app = await starten();
+    const draussen = ['.wrap', '#finishBar', '#restChip', '#toast'];
+    draussen.forEach(sel => expect(document.querySelector(sel).hasAttribute('inert')).toBe(false));
+
+    app.actions['settings:open']();
+    await ruhe();
+    draussen.forEach(sel =>
+      expect(document.querySelector(sel).hasAttribute('inert'), sel).toBe(true));
+
+    app.actions['settings:close']();
+    await ruhe();
+    draussen.forEach(sel =>
+      expect(document.querySelector(sel).hasAttribute('inert'), sel).toBe(false));
+  });
+
+  /* showExHistory() benutzt einen wiederverwendeten Knoten. Ohne Schutz setzt
+     ein zweiter Aufruf inert auf das Overlay selbst, und closeDialog() loest
+     nur den ersten Stapeleintrag – .wrap bliebe dauerhaft unerreichbar. */
+  it('oeffnet dasselbe Overlay kein zweites Mal', async () => {
+    const app = await starten();
+    app.actions['exercise:history']({ ex: 'pushup' });
+    app.actions['exercise:history']({ ex: 'pushup' });
+    await ruhe();
+
+    const overlay = document.getElementById('exHistoryOverlay');
+    expect(overlay.hasAttribute('inert')).toBe(false);
+    overlay.querySelector('[data-action="exercise:historyClose"], [data-dlg=abbrechen], button').click();
+    await ruhe();
+    expect(document.querySelector('.wrap').hasAttribute('inert')).toBe(false);
+  });
+});
+
 describe('Entlastungswoche', () => {
   const morgen = n => {
     const d = new Date(); d.setDate(d.getDate() + n);

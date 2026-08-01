@@ -426,6 +426,38 @@ footer small{display:block;margin-top:4px;opacity:.6}
 /* Deckt keine per JavaScript ausgeloesten Bewegungen ab – window.scrollTo
    fragt die Einstellung in showTab() selbst ab. */
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* Windows-Kontrastmodus. Dort ersetzt das System jede Farbe durch eine der
+   wenigen Systemfarben – alles, was seinen Zustand allein über die Füllung
+   transportiert, wird dabei ununterscheidbar. Diese Zustände bekommen
+   deshalb zusätzlich eine Form. */
+@media (forced-colors:active){
+  /* Stufenleiter: erledigt = gefüllt, aktuell = dicker Ring, offen = leer. */
+  .rung{forced-color-adjust:none;background:Canvas;border-color:CanvasText}
+  .rung.done{background:CanvasText}
+  .rung.done::after{background:Canvas}
+  .rung.current{background:Canvas;border-width:4px;box-shadow:none}
+  .rung-line{forced-color-adjust:none;background:GrayText}
+  .rung-line.done{background:CanvasText}
+
+  /* Satzpunkt: der Haken-Zustand steht sonst nur in der Füllung. */
+  .set-dot[aria-pressed="true"]{outline:3px solid CanvasText;outline-offset:-6px}
+
+  /* Wochenziel erreicht: gestrichelter Rand statt grün. */
+  .bar{forced-color-adjust:none;background:GrayText}
+  .bar.goal-met{background:CanvasText}
+
+  /* Trainingstag im Kalender: Unterstrich statt Einfärbung. */
+  .cal-day.workout{text-decoration:underline;text-underline-offset:2px;font-weight:700}
+  .cal-day.today{outline:2px solid CanvasText;outline-offset:-2px}
+
+  /* Verteilung: die sechs Segmente sind nur durch Farbe getrennt – hier
+     durch Trennlinien. Die Zahlen darunter tragen die Aussage ohnehin. */
+  .vol-split{border:1px solid CanvasText}
+  .vol-part{forced-color-adjust:none;background:GrayText;border-right:1px solid CanvasText}
+  .vol-part:last-child{border-right:none}
+  .vol-keys i{forced-color-adjust:none;background:CanvasText}
+}
 @media(max-width:420px){
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 5px)}

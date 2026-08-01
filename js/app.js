@@ -1744,7 +1744,7 @@ function renderCalendar(){
     const label = __('calendarDay', { d, month: monatsName }) +
       (isWorkout ? __('calendarTrained') : '') + (isToday ? __('calendarToday') : '');
     html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isToday ? ' today' : '') + '"' +
-      ' role="listitem" aria-label="' + label + '"><span aria-hidden="true">' + d + '</span></div>';
+      ' role="listitem" aria-label="' + esc(label) + '"><span aria-hidden="true">' + d + '</span></div>';
   }
   html += '</div>';
   cal.innerHTML = html;
@@ -2243,11 +2243,29 @@ function trapTab(e){
   else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
 }
 
+/* Alles, was bei offenem Dialog unerreichbar sein muss. Es genuegt nicht,
+   .wrap zu nehmen: die Abschlussleiste, der Pausen-Chip und der Toast liegen
+   ausserhalb davon. Ein Klick kam durch den z-index zwar nicht durch, aber im
+   Browse-Modus eines Screenreaders blieb "Training abschliessen" erreichbar,
+   waehrend eine Rueckfrage offen stand. */
+const HINTERGRUND = ['.wrap', '#finishBar', '#restChip', '#toast'];
+const hintergrundInert = an => HINTERGRUND.forEach(sel => {
+  const el = document.querySelector(sel);
+  if(!el) return;
+  if(an) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+});
+
 function openDialog(overlay){
+  /* Dasselbe Overlay zweimal oeffnen: showExHistory() benutzt einen
+     wiederverwendeten Knoten. Ohne diese Zeile setzt er inert auf sich selbst
+     und closeDialog() loest nur den ersten Stapeleintrag – .wrap bliebe
+     dauerhaft unerreichbar. */
+  if(dialogStack.some(d => d.el === overlay)) return;
+
   const unten = dialogStack[dialogStack.length - 1];
   /* Die darunterliegende Ebene wird selbst unerreichbar. */
   if(unten) unten.el.setAttribute('inert', '');
-  else document.querySelector('.wrap')?.setAttribute('inert', '');
+  else hintergrundInert(true);
 
   dialogStack.push({ el: overlay, rueckfokus: document.activeElement });
   overlay.classList.add('open');
@@ -2265,7 +2283,7 @@ function closeDialog(overlay){
   const unten = dialogStack[dialogStack.length - 1];
   if(unten) unten.el.removeAttribute('inert');
   else {
-    document.querySelector('.wrap')?.removeAttribute('inert');
+    hintergrundInert(false);
     document.removeEventListener('keydown', trapTab, true);
   }
   /* Fokus dorthin zurueck, wo er herkam. */
