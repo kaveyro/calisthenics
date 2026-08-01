@@ -18,7 +18,7 @@ import {
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { buildPlan } from './domain/planbuilder.js';
-import { volumenJeWoche } from './domain/volume.js';
+import { volumenJeGruppe } from './domain/volume.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -1711,7 +1711,7 @@ function undoWorkout(){
    Ein Streifen mit Zahlen daneben, kein reines Farbdiagramm: die Aufteilung
    ist die eigentliche Aussage ("zu viel Drücken, zu wenig Ziehen") und muss
    auch dann ankommen, wenn die Farben nicht unterscheidbar sind. */
-function renderVolSplit(woche){
+function renderVolSplit(woche, monat = false){
   const el = document.getElementById('volSplit');
   if(!el) return;
   const jeKat = (woche && woche.jeKat) || {};
@@ -1719,7 +1719,7 @@ function renderVolSplit(woche){
   if(!summe){ el.innerHTML = ''; return; }
 
   const teile = Object.keys(CATS).filter(k => jeKat[k] > 0);
-  el.innerHTML = '<div class="vol-legend">' + esc(__('volumeSplit')) + '</div>' +
+  el.innerHTML = '<div class="vol-legend">' + esc(__(monat ? 'volumeSplitMonth' : 'volumeSplit')) + '</div>' +
     '<div class="vol-split" role="img" aria-label="' + esc(__('volumeSplitAria', {
       data: teile.map(k => catName(k, CATS[k].name) + ' ' + jeKat[k]).join(', ')
     })) + '">' +
@@ -1735,15 +1735,55 @@ function renderVolSplit(woche){
    in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
 function weekLabel(w){ return __('weekShort') + w.split('-')[1].replace('KW', ''); }
 
+/* '2026-07-14' -> '2026-07'. Gegenstueck zu isoWeek() fuer lange Zeitraeume. */
+const isoMonat = iso => /^\d{4}-\d{2}/.test(String(iso)) ? String(iso).slice(0, 7) : '';
+function monatLabel(m){
+  const [j, mo] = m.split('-').map(Number);
+  return new Date(j, mo - 1, 1).toLocaleDateString(getLang(), { month: 'short', year: '2-digit' });
+}
+const spaltenLabel = k => k.includes('KW') ? weekLabel(k) : monatLabel(k);
+
+/* Der gezeigte Zeitraum.
+
+   Die Diagramme standen fest auf den letzten acht Wochen, die Liste auf den
+   letzten 25 Eintraegen. Nach einem Jahr Training war damit genau die Sicht
+   unerreichbar, fuer die man ein Jahr lang mitschreibt – die Daten lagen
+   vollstaendig im Speicher und liessen sich nur nicht ansehen.
+
+   Ab einem Jahr wird nach Monaten gruppiert: drei Jahre waeren sonst ueber
+   150 Balken auf der Breite eines Handys. */
+const HIST_RANGES = {
+  '8w':  { spalten: 8,        monatlich: false },
+  '26w': { spalten: 26,       monatlich: false },
+  '12m': { spalten: 12,       monatlich: true },
+  all:   { spalten: Infinity, monatlich: true }
+};
+/* Obergrenze der Liste. Anders als die frueheren 25 ist sie keine stille
+   Kappung: wird sie erreicht, sagt eine Zeile darunter, wie viele Eintraege
+   der Zeitraum insgesamt hat. */
+const LOG_MAX_ZEILEN = 100;
+let histRange = '8w';
+const histBereich = () => HIST_RANGES[histRange] || HIST_RANGES['8w'];
+const histMonatlich = () => histBereich().monatlich;
+const histSpalten = () => histBereich().spalten;
+function setHistRange(v){
+  histRange = HIST_RANGES[v] ? v : '8w';
+  renderHistory();
+}
+
 function renderHistory(){
   /* Week chart */
+  const gruppe = histMonatlich() ? isoMonat : isoWeek;
   const byWeek = {};
-  (state.log || []).forEach(l => { byWeek[isoWeek(l.d)] = (byWeek[isoWeek(l.d)] || 0) + 1; });
+  (state.log || []).forEach(l => {
+    const k = gruppe(l.d);
+    if(k) byWeek[k] = (byWeek[k] || 0) + 1;
+  });
   /* Volumen sind jetzt die Wiederholungen, nicht die Haekchen: 4 × 5 und
      4 × 15 sahen im alten Diagramm gleich aus. */
-  const volWeek = volumenJeWoche(state.log || [], EX_BY_ID);
-  const weeks = Object.keys(byWeek).sort().slice(-8);
-  const goal = cfg('weekGoal');
+  const volWeek = volumenJeGruppe(state.log || [], EX_BY_ID, gruppe);
+  const weeks = Object.keys(byWeek).sort().slice(-histSpalten());
+  const goal = histMonatlich() ? cfg('weekGoal') * 4 : cfg('weekGoal');
 
   const wc = document.getElementById('weekChart');
   if(!weeks.length){
@@ -1755,33 +1795,39 @@ function renderHistory(){
     /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
        steckte allein in der Balkenfarbe. Jeder Balken bekommt daher ein
        sprechendes Label, das Diagramm selbst eine Rolle und Beschriftung. */
+    const monat = histMonatlich();
     const max = Math.max(goal, ...weeks.map(w => byWeek[w]));
     wc.setAttribute('role', 'img');
     wc.setAttribute('aria-label', __('chartWorkoutsAria', {
-      range: weeks.length === 1 ? __('lastWeekSingular') : __('lastWeeksPlural', { n: weeks.length }),
-      data: weeks.map(w => weekLabel(w) + ' ' + byWeek[w] + (byWeek[w] >= goal ? __('goalMet') : '')).join(', ')
+      range: monat
+        ? (weeks.length === 1 ? __('lastMonthSingular') : __('lastMonthsPlural', { n: weeks.length }))
+        : (weeks.length === 1 ? __('lastWeekSingular') : __('lastWeeksPlural', { n: weeks.length })),
+      data: weeks.map(w => spaltenLabel(w) + ' ' + byWeek[w] + (byWeek[w] >= goal ? __('goalMet') : '')).join(', ')
     }));
     wc.innerHTML = weeks.map(w => {
       const n = byWeek[w];
       return '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + n + '</span>' +
         '<div class="bar' + (n >= goal ? ' goal-met' : '') + '" style="height:' + Math.round(n / max * 100) + '%"></div>' +
-        '<span class="bar-lbl">' + weekLabel(w) + '</span></div>';
+        '<span class="bar-lbl">' + esc(spaltenLabel(w)) + '</span></div>';
     }).join('');
-    document.getElementById('weekLegend').textContent = __('weekLegend', { n: goal });
+    /* Bei Monaten ist das Wochenziel hochgerechnet – sonst waere jeder
+       Balken gruen und die Farbe saegte nichts mehr aus. */
+    document.getElementById('weekLegend').textContent =
+      __(monat ? 'monthLegend' : 'weekLegend', { n: goal });
 
     const reps = w => (volWeek[w] || {}).reps || 0;
     const vmax = Math.max(...weeks.map(reps), 1);
     const vc = document.getElementById('volChart');
     vc.setAttribute('role', 'img');
     vc.setAttribute('aria-label', __('chartVolumeAria', {
-      data: weeks.map(w => weekLabel(w) + ' ' + reps(w)).join(', ')
+      data: weeks.map(w => spaltenLabel(w) + ' ' + reps(w)).join(', ')
     }));
     vc.innerHTML = weeks.map(w =>
       '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + reps(w) + '</span>' +
       '<div class="bar" style="height:' + Math.round(reps(w) / vmax * 100) + '%"></div>' +
-      '<span class="bar-lbl">' + weekLabel(w) + '</span></div>').join('');
+      '<span class="bar-lbl">' + esc(spaltenLabel(w)) + '</span></div>').join('');
 
-    renderVolSplit(volWeek[weeks[weeks.length - 1]]);
+    renderVolSplit(volWeek[weeks[weeks.length - 1]], monat);
   }
 
   renderWeight();
@@ -1789,8 +1835,13 @@ function renderHistory(){
 
   const list = document.getElementById('logList');
   /* Mit dem echten Index, nicht dem der Ansicht: geloescht wird in state.log,
-     angezeigt werden nur die letzten 25 in umgekehrter Reihenfolge. */
-  const log = (state.log || []).map((l, i) => ({ l, i })).slice(-25).reverse();
+     angezeigt wird eine gefilterte und umgekehrte Auswahl. */
+  const abGruppe = weeks.length ? weeks[0] : null;
+  const imZeitraum = (state.log || []).map((l, i) => ({ l, i }))
+    /* Dieselbe Grenze wie im Diagramm: was oben zu sehen ist, steht auch
+       unten. Frueher zeigte die Liste 25 Eintraege, egal welcher Zeitraum. */
+    .filter(({ l }) => !abGruppe || gruppe(l.d) >= abGruppe);
+  const log = imZeitraum.slice(-LOG_MAX_ZEILEN).reverse();
   list.innerHTML = log.length ? log.map(({ l, i }) => {
     const d = getDay(l.day);
     return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
@@ -1805,7 +1856,7 @@ function renderHistory(){
       ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">✕</button></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
-  renderLogSummary();
+  renderLogSummary(imZeitraum.length, log.length);
 
   /* Calendar view */
   renderCalendar();
@@ -1817,14 +1868,20 @@ function renderHistory(){
    sind nicht "0 Minuten lang", sondern ungemessen, und sie einzurechnen
    wuerde den Schnitt mit jedem alten Eintrag nach unten ziehen. Deshalb
    steht auch dabei, aus wie vielen Einheiten er stammt. */
-function renderLogSummary(){
+function renderLogSummary(imZeitraum = 0, gezeigt = 0){
   const el = document.getElementById('logSummary');
   if(!el) return;
+  const teile = [];
   const dauern = (state.log || []).map(l => l.dauer).filter(d => d > 0);
-  if(!dauern.length){ el.textContent = ''; el.hidden = true; return; }
-  el.hidden = false;
-  const schnitt = Math.round(dauern.reduce((a, b) => a + b, 0) / dauern.length);
-  el.textContent = __('avgDuration', { v: dauerText(schnitt), n: dauern.length });
+  if(dauern.length){
+    const schnitt = Math.round(dauern.reduce((a, b) => a + b, 0) / dauern.length);
+    teile.push(__('avgDuration', { v: dauerText(schnitt), n: dauern.length }));
+  }
+  /* Keine stille Kappung: wer 300 Einheiten im Zeitraum hat, soll nicht
+     glauben, es waeren 100. */
+  if(gezeigt < imZeitraum) teile.push(__('logShowing', { n: gezeigt, gesamt: imZeitraum }));
+  el.textContent = teile.join(' ');
+  el.hidden = !teile.length;
 }
 
 /* ================= Eine Einheit nachtragen =================
@@ -3210,6 +3267,7 @@ export const actions = {
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
+  'history:range':      (d, ev, el) => mitFokus(() => setHistRange(el.value)),
   'log:add':            () => addLogEntry(),
   'log:remove':         d => removeLogEntry(zahl(d.i)),
   'calendar:shift':     (d, ev, el) => {

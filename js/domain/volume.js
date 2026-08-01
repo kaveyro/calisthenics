@@ -21,11 +21,24 @@ const zahl = v => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
+/* Nach Kalenderwoche – der Regelfall und die urspruengliche Form. */
 export function volumenJeWoche(log, exById = {}){
+  return volumenJeGruppe(log, exById, isoWeek);
+}
+
+/* Dieselbe Auswertung ueber eine frei gewaehlte Gruppierung: die Funktion
+   bekommt ein ISO-Datum und liefert den Schluessel. Fuer lange Zeitraeume
+   zeigt der Verlauf Monate statt Wochen – bei drei Jahren waeren das sonst
+   ueber 150 Balken. Die Gruppierung kommt als Parameter herein, damit die
+   Schicht rein bleibt; isoWeek liegt daneben in dates.js. */
+export function volumenJeGruppe(log, exById = {}, gruppe = isoWeek){
   const out = {};
   (Array.isArray(log) ? log : []).forEach(l => {
     if(!l || typeof l !== 'object' || typeof l.d !== 'string') return;
-    const w = isoWeek(l.d);
+    const w = gruppe(l.d);
+    /* isoWeek() liefert fuer ein unlesbares Datum '' – daraus entstuende
+       sonst eine namenlose Gruppe, die im Diagramm als leerer Balken steht. */
+    if(!w) return;
     const eintrag = out[w] || (out[w] = { reps: 0, saetze: 0, jeKat: {} });
     eintrag.saetze += zahl(l.sets);
 

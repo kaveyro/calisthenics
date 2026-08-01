@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { volumenJeWoche } from '../js/domain/volume.js';
+import { volumenJeWoche, volumenJeGruppe } from '../js/domain/volume.js';
 
 const EX = {
   pushup: { id: 'pushup', cat: 'push' },
@@ -91,5 +91,38 @@ describe('volumenJeWoche', () => {
     const kopie = JSON.parse(JSON.stringify(log));
     volumenJeWoche(log, EX);
     expect(log).toEqual(kopie);
+  });
+});
+
+describe('volumenJeGruppe', () => {
+  const monat = iso => iso.slice(0, 7);
+
+  it('gruppiert nach der uebergebenen Funktion', () => {
+    const out = volumenJeGruppe([
+      eintrag('2026-08-03', { 'pushup-0': 10 }),
+      eintrag('2026-08-25', { 'pushup-0': 5 }),
+      eintrag('2026-09-01', { 'pushup-0': 3 })
+    ], EX, monat);
+    expect(Object.keys(out).sort()).toEqual(['2026-08', '2026-09']);
+    expect(out['2026-08'].reps).toBe(15);
+    expect(out['2026-09'].reps).toBe(3);
+  });
+
+  it('rechnet innerhalb der Gruppe genauso wie je Woche', () => {
+    const log = [eintrag('2026-08-03', { 'pushup-0': 10, 'pullup-0': 4 }, 5)];
+    expect(Object.values(volumenJeGruppe(log, EX, monat))[0])
+      .toEqual(Object.values(volumenJeWoche(log, EX))[0]);
+  });
+
+  /* Ein leerer Schluessel wuerde als namenloser Balken im Diagramm landen. */
+  it('laesst Eintraege ohne Gruppenschluessel aus', () => {
+    expect(volumenJeGruppe([eintrag('unlesbar', { 'pushup-0': 10 })], EX, () => '')).toEqual({});
+    /* Genau der Weg, auf dem isoWeek() ein '' liefert. */
+    expect(volumenJeWoche([eintrag('kein Datum', { 'pushup-0': 10 })], EX)).toEqual({});
+  });
+
+  it('nimmt ohne Angabe die Kalenderwoche', () => {
+    expect(volumenJeGruppe([eintrag('2026-08-03', { 'pushup-0': 10 })], EX))
+      .toEqual(volumenJeWoche([eintrag('2026-08-03', { 'pushup-0': 10 })], EX));
   });
 });

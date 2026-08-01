@@ -119,6 +119,12 @@ export const LANG = {
     regressedCount: 'Nach der Pause eine Stufe zurückgestuft ({n} Übungen)',
 
     /* Verlauf */
+    histRange: 'Zeitraum', histRange8w: '8 Wochen', histRange26w: '26 Wochen',
+    histRange12m: '12 Monate', histRangeAll: 'Alles',
+    lastMonthSingular: 'letzter Monat', lastMonthsPlural: 'letzte {n} Monate',
+    monthLegend: 'Grün = Monatsziel von {n} Trainings erreicht.',
+    volumeSplitMonth: 'Verteilung im letzten Monat',
+    logShowing: 'Zeigt die letzten {n} von {gesamt} Einheiten im Zeitraum.',
     chartWorkouts: 'Trainings pro Woche',
     chartWorkoutsAria: 'Trainings pro Woche, {range}: {data}',
     lastWeekSingular: 'letzte Woche', lastWeeksPlural: 'letzte {n} Wochen',
@@ -405,6 +411,12 @@ export const LANG = {
     regressAfterBreak: 'Moved down one stage after the break',
     regressedCount: 'Moved down one stage after the break ({n} exercises)',
 
+    histRange: 'Range', histRange8w: '8 weeks', histRange26w: '26 weeks',
+    histRange12m: '12 months', histRangeAll: 'All',
+    lastMonthSingular: 'last month', lastMonthsPlural: 'last {n} months',
+    monthLegend: 'Green = monthly goal of {n} workouts met.',
+    volumeSplitMonth: 'Split over the last month',
+    logShowing: 'Showing the last {n} of {gesamt} sessions in this range.',
     chartWorkouts: 'Workouts per week',
     chartWorkoutsAria: 'Workouts per week, {range}: {data}',
     lastWeekSingular: 'last week', lastWeeksPlural: 'last {n} weeks',

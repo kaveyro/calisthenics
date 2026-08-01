@@ -104,6 +104,18 @@
 
   <!-- ============ VERLAUF ============ -->
   <section id="view-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
+    <!-- Zeitraum für Diagramme UND Liste. Vorher standen die Diagramme fest
+         auf acht Wochen und die Liste auf 25 Einträgen – nach einem Jahr
+         Training war der Rest unerreichbar. -->
+    <div class="inline-row" style="margin-bottom:12px">
+      <label class="lbl2" for="histRange" data-i18n="histRange">Zeitraum</label>
+      <select id="histRange" data-action-change="history:range">
+        <option value="8w" data-i18n="histRange8w">8 Wochen</option>
+        <option value="26w" data-i18n="histRange26w">26 Wochen</option>
+        <option value="12m" data-i18n="histRange12m">12 Monate</option>
+        <option value="all" data-i18n="histRangeAll">Alles</option>
+      </select>
+    </div>
     <div class="section-title" data-i18n="chartWorkouts">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>

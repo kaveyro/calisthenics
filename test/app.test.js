@@ -1469,3 +1469,84 @@ describe('Training nachtragen', () => {
     expect(gespeichert().log).toHaveLength(1);
   });
 });
+
+describe('Verlauf ohne Kappung', () => {
+  const spalten = () => [...document.querySelectorAll('#weekChart .bar-col')];
+  const zeilen = () => document.querySelectorAll('#logList .log-item');
+  const beschriftungen = () => spalten().map(c => c.querySelector('.bar-lbl').textContent);
+
+  /* 60 Einheiten im Wochenabstand – gut 14 Monate zurueck. */
+  function langesLog(n = 60){
+    const log = [];
+    for(let i = n - 1; i >= 0; i--){
+      const d = new Date();
+      d.setDate(d.getDate() - i * 7);
+      log.push({
+        d: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+        day: 'A', ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {}, dauer: 0
+      });
+    }
+    return log;
+  }
+
+  async function mitVerlauf(log = langesLog()){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 9, workouts: log.length, log }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    return app;
+  }
+
+  const stellen = async (app, wert) => {
+    await app.actions['history:range']({}, null, { value: wert });
+    await ruhe();
+  };
+
+  it('zeigt in der Vorgabe acht Wochen', async () => {
+    await mitVerlauf();
+    expect(spalten()).toHaveLength(8);
+    expect(beschriftungen().every(l => /KW|W\d/.test(l))).toBe(true);
+  });
+
+  /* Der eigentliche Punkt: der Rest war vorher unerreichbar. */
+  it('oeffnet laengere Zeitraeume', async () => {
+    const app = await mitVerlauf();
+    await stellen(app, '26w');
+    expect(spalten()).toHaveLength(26);
+  });
+
+  it('gruppiert lange Zeitraeume nach Monaten statt nach Wochen', async () => {
+    const app = await mitVerlauf();
+    await stellen(app, '12m');
+    expect(spalten()).toHaveLength(12);
+    expect(beschriftungen().some(l => /KW/.test(l))).toBe(false);
+
+    await stellen(app, 'all');
+    /* Gut 14 Monate, also mehr als die zwoelf von eben. */
+    expect(spalten().length).toBeGreaterThan(12);
+  });
+
+  it('zieht die Liste mit dem Zeitraum mit', async () => {
+    const app = await mitVerlauf();
+    const kurz = zeilen().length;
+    expect(kurz).toBeLessThanOrEqual(9);
+    await stellen(app, 'all');
+    expect(zeilen().length).toBe(60);
+  });
+
+  /* Anders als die frueheren 25 sagt die Kappung, dass sie eine ist. */
+  it('nennt die Zahl, wenn nicht alles in die Liste passt', async () => {
+    const app = await mitVerlauf(langesLog(130));
+    await stellen(app, 'all');
+    expect(zeilen()).toHaveLength(100);
+    expect(document.getElementById('logSummary').textContent).toMatch(/100/);
+    expect(document.getElementById('logSummary').textContent).toMatch(/130/);
+  });
+
+  it('faellt bei einem unbekannten Zeitraum auf acht Wochen zurueck', async () => {
+    const app = await mitVerlauf();
+    await stellen(app, 'all');
+    await stellen(app, 'quatsch');
+    expect(spalten()).toHaveLength(8);
+  });
+});
