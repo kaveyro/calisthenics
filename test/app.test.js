@@ -1300,3 +1300,68 @@ describe('Bibliothek: was liegen geblieben ist', () => {
     expect(ids()).toEqual(standard);
   });
 });
+
+describe('Tastatur: zwischen den Uebungen springen', () => {
+  /* cancelable: true ist hier nicht Kosmetik. Ohne das bleibt
+     defaultPrevented false, und der Schutz gegen doppelte Behandlung
+     greift nicht – in diesem Dokument haengt je Test ein weiterer
+     keydown-Zuhoerer, weil jeder Start ein frisches Modul laedt. */
+  const taste = key => document.dispatchEvent(
+    new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  const karten = () => [...document.querySelectorAll('#content .ex')].map(el => el.dataset.exid);
+  const fokusKarte = () => document.activeElement.closest('.ex')?.dataset.exid;
+
+  async function training(){
+    const app = await starten();
+    /* jsdom kennt scrollIntoView nicht. */
+    window.HTMLElement.prototype.scrollIntoView = function(){};
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    return app;
+  }
+
+  it('springt ohne Ausgangspunkt in die erste Uebung', async () => {
+    await training();
+    taste('ArrowDown');
+    expect(fokusKarte()).toBe(karten()[0]);
+  });
+
+  it('geht vorwaerts und rueckwaerts', async () => {
+    await training();
+    taste('ArrowDown');
+    taste('ArrowDown');
+    expect(fokusKarte()).toBe(karten()[1]);
+    taste('ArrowUp');
+    expect(fokusKarte()).toBe(karten()[0]);
+  });
+
+  it('laeuft am Ende um', async () => {
+    await training();
+    taste('ArrowUp');
+    expect(fokusKarte()).toBe(karten()[karten().length - 1]);
+  });
+
+  /* Der Fokus soll auf dem Satz landen, an dem es weitergeht. */
+  it('zielt auf den ersten offenen Satz', async () => {
+    await training();
+    taste('ArrowDown');
+    const ziel = document.activeElement;
+    expect(ziel.classList.contains('set-dot')).toBe(true);
+    expect(ziel.classList.contains('done')).toBe(false);
+  });
+
+  /* In einem Eingabefeld bewegen die Pfeile den Cursor, nicht die Ansicht. */
+  it('haelt sich aus Eingabefeldern heraus', async () => {
+    await training();
+    const feld = document.querySelector('.rep-input');
+    feld.focus();
+    feld.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(feld);
+  });
+
+  it('tut ohne laufende Einheit nichts', async () => {
+    await starten();
+    taste('ArrowDown');
+    expect(document.activeElement).toBe(document.body);
+  });
+});

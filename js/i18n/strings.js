@@ -298,7 +298,7 @@ export const LANG = {
     level: 'Stufe', sets: 'Sätze', reps: 'Wdh', sec: 'Sek', cm: 'cm', kg: 'kg',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
-    keyboardHints: 'Tastatur: Leertaste = Satz, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
+    keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
   },
 
   en: {
@@ -570,6 +570,6 @@ export const LANG = {
     level: 'Stage', sets: 'sets', reps: 'reps', sec: 'sec', cm: 'cm', kg: 'kg',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
-    keyboardHints: 'Keyboard: Space = set, R = rest, 1-5 = tab, ←/→ in the tab bar'
+    keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar'
   }
 };

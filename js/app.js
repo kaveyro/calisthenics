@@ -761,8 +761,25 @@ function addTablistNavigation(){
 }
 
 /* ================= Tab Keyboard Navigation ================= */
+/* Fokus auf den ersten offenen Satz einer Uebungskarte – das ist die Stelle,
+   an der es weitergeht. Ist alles geschafft, genuegt der erste Punkt: die
+   Karte soll auch dann erreichbar sein, um einen Haken zurueckzunehmen. */
+function fokusAufKarte(karte){
+  if(!karte) return;
+  const ziel = karte.querySelector('.set-dot:not(.done)') ||
+    karte.querySelector('.set-dot') ||
+    karte.querySelector(FOCUSABLE);
+  if(!ziel) return;
+  ziel.focus({ preventScroll: true });
+  ziel.scrollIntoView({ block: 'center', behavior: wenigerBewegung() ? 'auto' : 'smooth' });
+}
+
 function addKeyboardShortcuts(){
   document.addEventListener('keydown', e => {
+    /* Was ein anderer Zuhoerer schon behandelt hat, hier nicht ein zweites
+       Mal ausfuehren. Die Tableiste faengt die waagerechten Pfeile ab, und
+       jede Taste, die dort verbraucht wurde, ist hier keine mehr. */
+    if(e.defaultPrevented) return;
     /* Escape zuerst und unabhaengig vom Fokus – schliesst den jeweils
        offenen Dialog, nicht nur die Einstellungen. */
     if(e.key === 'Escape'){
@@ -795,6 +812,29 @@ function addKeyboardShortcuts(){
         persistSession();
         toast(__('restLabel', { sec: defaultRest }));
       }
+      return;
+    }
+    /* Zwischen den Uebungen einer Einheit springen.
+
+       Die Leertaste trifft immer den ersten offenen Satz der ganzen Seite –
+       das ist der richtige Weg durch eine Einheit, die man der Reihe nach
+       abarbeitet. Wer eine Uebung ueberspringen oder zu einer frueheren
+       zurueck will, hatte bisher nur die Maus. Hoch und runter statt links
+       und rechts: die Tableiste hoert schon auf die waagerechten Pfeile. */
+    if((e.key === 'ArrowDown' || e.key === 'ArrowUp') && session.dayKey){
+      const karten = [...document.querySelectorAll('#content .ex:not(.ex--skipped)')];
+      if(!karten.length) return;
+      e.preventDefault();
+      /* Ausgangspunkt ist der Fokus, nicht e.target: das Ereignis wird hier
+         am document abgefangen, und ohne Fokus in einer Karte gibt es keinen
+         Bezugspunkt. */
+      const aktiv = document.activeElement;
+      const i = karten.indexOf(aktiv && aktiv.closest ? aktiv.closest('.ex') : null);
+      const schritt = e.key === 'ArrowDown' ? 1 : -1;
+      /* Ohne Ausgangspunkt am jeweiligen Ende beginnen, sonst umlaufend. */
+      fokusAufKarte(i < 0
+        ? karten[schritt > 0 ? 0 : karten.length - 1]
+        : karten[(i + schritt + karten.length) % karten.length]);
       return;
     }
     if(e.key >= '1' && e.key <= '5'){
