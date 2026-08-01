@@ -19,7 +19,9 @@ const EXERCISES = [
   { id: 'row', cat: 'pull', equip: ['chair', 'bar'], levels: leiter(5) },
   { id: 'squat', cat: 'legs', equip: ['none'], levels: leiter(9) },
   { id: 'plank', cat: 'core', equip: ['none'], levels: leiter(5) },
-  { id: 'planche', cat: 'skill', equip: ['none'], levels: leiter(7) }
+  { id: 'planche', cat: 'skill', equip: ['none'], levels: leiter(7) },
+  /* Skill-Progression, aber unter 'push' abgelegt – wie im echten Datensatz. */
+  { id: 'wall_hs', cat: 'push', equip: ['none'], levels: leiter(5) }
 ];
 
 const ALLES = ['chair', 'bar', 'parallettes', 'rings', 'band'];
@@ -101,6 +103,14 @@ describe('startStufen', () => {
       antworten: { push: 8, pull: 8, legs: 8, core: 4 }
     });
     expect(out.planche).toBeUndefined();
+  });
+
+  /* Im Browser aufgefallen: wall_hs steht unter 'push' und bekam ueber die
+     Liegestuetze eine halbe Handstand-Stufe geschenkt. Wer ordentlich
+     Liegestuetze macht, hat deswegen keinen halben Handstand. */
+  it('laesst auch Skills unangetastet, die in einer anderen Kategorie stehen', () => {
+    expect(stufen({ push: 8 }).wall_hs).toBeUndefined();
+    expect(stufen({ push: 8 }).dips).toBe(2);
   });
 
   /* Ohne Parallettes enden die Dips bei Stufe 1 – dorthin und nicht weiter. */

@@ -36,10 +36,17 @@ export const ANKER = [
    ausfuehren laesst – und eine Progression, die auf einer Luege aufbaut. */
 const DAEMPFUNG = 0.5;
 
-/* Skills bleiben unangetastet. Planche, Front Lever und Handstand sind die
-   Uebungen, bei denen eine zu hohe Startstufe nicht nur unpassend, sondern
-   gefaehrlich ist – und niemand faengt bei ihnen woanders an als vorn. */
+/* Skills bleiben unangetastet. Bei ihnen ist eine zu hohe Startstufe nicht
+   nur unpassend, sondern gefaehrlich – und niemand faengt bei ihnen woanders
+   an als ganz vorn.
+
+   Die Kategorie allein reicht dafuer nicht: Wand-Handstand und Planche Lean
+   stehen unter 'push', der Front Lever unter 'pull'. Wer ordentlich
+   Liegestuetze macht, hat deswegen keinen halben Handstand. Dieselbe Liste
+   behandelt der Skill-Fahrplan als Skills, obwohl die Kategorie etwas
+   anderes sagt. */
 const NICHT_UEBERTRAGEN = new Set(['skill']);
+const NICHT_UEBERTRAGEN_IDS = new Set(['wall_hs', 'planche_lean', 'front_lever']);
 
 const liste = v => Array.isArray(v) ? v : [];
 
@@ -100,7 +107,7 @@ export function startStufen({ exercises, equipment, antworten } = {}){
 
     alle.forEach(ex => {
       if(!ex || ex.id === anker.id || ex.cat !== kat) return;
-      if(NICHT_UEBERTRAGEN.has(ex.cat)) return;
+      if(NICHT_UEBERTRAGEN.has(ex.cat) || NICHT_UEBERTRAGEN_IDS.has(ex.id)) return;
       const eigeneGrenze = hoechsteStufe(ex, equipment);
       if(eigeneGrenze < 0) return;
       const ziel = Math.min(
