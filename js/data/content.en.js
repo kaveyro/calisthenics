@@ -57,6 +57,22 @@ export const CONTENT_EN = {
              'Lower under control until the upper arm is roughly parallel.',
              'If the front of the shoulder hurts: reduce the range of motion.']
     },
+    ring_pushup: {
+      name: 'Ring push-ups',
+      levels: ['Rings high, body steep', 'Rings low, body flatter', 'Rings just above the floor',
+               'Feet elevated', 'With turned-out grip (RTO)'],
+      tips: ['The rings wobble – that is exactly the point. Shoulders and core hold against it.',
+             'Set the load through the height, not the reps: the lower the rings, the harder it gets.',
+             'RTO means turning the palms outwards at the top. Only once the basic form is steady.']
+    },
+    ring_dip: {
+      name: 'Ring dips',
+      levels: ['Support hold on the rings', 'Support hold with turned-out grip',
+               'Negative, 5-second lower', 'Ring dips', 'Ring dips with RTO at the top'],
+      tips: ['Clearly harder than dips on parallettes: the rings also want to be stabilised.',
+             'Guide the rings close to the body, wrists neutral – do not let them tip outwards.',
+             'Only start once the support hold is steady for 30 seconds.']
+    },
     pike: {
       name: 'Pike progression',
       levels: ['Pike hold', 'Pike hold', 'Pike, feet elevated (hold)',
@@ -104,6 +120,22 @@ export const CONTENT_EN = {
              'Retract the shoulder blades first, then bend the arms.',
              'The underrated exercise for a first pull-up – same pulling direction, less load.']
     },
+    ring_row: {
+      name: 'Ring rows',
+      levels: ['Body steep, feet under the rings', 'Body flatter', 'Horizontal, heels on the floor',
+               'Horizontal, feet elevated', 'One-arm assisted'],
+      tips: ['The angle sets the load – a step forwards or back adjusts it more finely than any weight plate.',
+             'Retract the shoulder blades first, then bend the arms.',
+             'The body stays a plank: do not let the hips sag.']
+    },
+    band_pullup: {
+      name: 'Band-assisted pull-up',
+      levels: ['Thick band, lots of assistance', 'Medium band', 'Thin band',
+               'Thin band, final reps only'],
+      tips: ['Loop the band over the bar and step in with a knee or foot. It helps most at the bottom, barely at the top.',
+             'The second route to a first pull-up alongside negatives – here the full range of motion is kept.',
+             'Once a thin band carries 6 clean reps: try the first unassisted pull-up.']
+    },
     pullup: {
       name: 'Pull-up progression',
       levels: ['Negative, 3-second lower', 'Negative, 5–8 second lower',
@@ -126,6 +158,13 @@ export const CONTENT_EN = {
       tips: ['Arms straight, pull the shoulders down and back.',
              'Keep the back rounded (hollow) – no arching.',
              'Only worth starting once you manage 5+ clean pull-ups.']
+    },
+    face_pull: {
+      name: 'Band face pulls',
+      levels: ['Face pulls standing', 'With a 2-second hold at the back', 'With external rotation at the end'],
+      tips: ['Fix the band at face height and pull towards the ears – the elbows stay high.',
+             'The counterpart to all the pushing. Keeps the shoulders healthy when the plan is full of push-ups and dips.',
+             'Light band, clean execution. What counts here is the movement, not the resistance.']
     },
     squat: {
       name: 'Squats',
@@ -259,6 +298,13 @@ export const CONTENT_EN = {
              'Only as far as it goes without pain and without the back compensating.',
              'Good overhead shoulder mobility is the prerequisite for a straight handstand.']
     },
+    band_pullapart: {
+      name: 'Band pull-aparts',
+      levels: ['In front of the chest, arms straight', 'Overhead and back', 'Dislocates with the band'],
+      tips: ['The arms stay straight – the movement comes from the shoulder blades.',
+             'The more comfortable stand-in for towel dislocates: the band gives way and allows more range.',
+             'Fits into the warm-up of every push session.']
+    },
     pike_stretch: {
       name: 'Pike / forward fold',
       levels: ['Seated forward fold', 'Forward fold with active pulling', 'Elevated pike compression'],
@@ -294,10 +340,12 @@ export const CONTENT_EN = {
     pushup15: '15 full push-ups in a row',
     hang60: '60-second dead hang',
     row10: '10 Australian pull-ups',
+    ringrow10: '10 horizontal ring rows',
     chinup1: 'First chin-up',
     pullup1: 'First real pull-up',
     pullup5: '5 pull-ups in a row',
     dip1: 'First dip on the parallettes',
+    ringdip1: 'First ring dip',
     tuck15: '15-second tuck L-sit',
     lsit10: 'Full L-sit, 10 seconds',
     wall30: '30-second wall handstand (chest to wall)',

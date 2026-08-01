@@ -112,6 +112,36 @@ export const EXERCISES = [
     ]
   },
   {
+    id: 'ring_pushup', name: 'Ring-Liegestütze', cat: 'push', equip: ['rings'], rest: 90,
+    levels: [
+      { stage: 'Ringe hoch, Körper steil', target: '4 × 8–12' },
+      { stage: 'Ringe tief, Körper flacher', target: '4 × 6–10' },
+      { stage: 'Ringe knapp über dem Boden', target: '3 × 6–10' },
+      { stage: 'Füße erhöht', target: '3 × 5–8' },
+      { stage: 'Mit Auswärtsdrehung (RTO)', target: '3 × 5–8' }
+    ],
+    tips: [
+      'Die Ringe wackeln – genau das ist der Reiz. Schultern und Rumpf halten dagegen.',
+      'Die Last stellst du über die Höhe ein, nicht über die Wiederholungen: je tiefer die Ringe, desto schwerer.',
+      'RTO heißt, oben die Handflächen nach außen zu drehen. Erst wenn die Grundform ruhig steht.'
+    ]
+  },
+  {
+    id: 'ring_dip', name: 'Ring-Dips', cat: 'push', equip: ['rings'], rest: 150,
+    levels: [
+      { stage: 'Stützhalte an den Ringen', target: '4 × 10–20 Sek' },
+      { stage: 'Stützhalte mit Auswärtsdrehung', target: '4 × 15–25 Sek' },
+      { stage: 'Negativ, 5 Sek ablassen', target: '3 × 3–5' },
+      { stage: 'Ring-Dips', target: '3 × 4–8' },
+      { stage: 'Ring-Dips mit RTO oben', target: '3 × 5–8' }
+    ],
+    tips: [
+      'Deutlich schwerer als Dips auf Parallettes: die Ringe wollen zusätzlich stabilisiert werden.',
+      'Ringe eng am Körper führen, Handgelenke neutral – nicht nach außen kippen lassen.',
+      'Erst angehen, wenn die Stützhalte 30 Sekunden ruhig steht.'
+    ]
+  },
+  {
     id: 'pike', name: 'Pike-Progression', cat: 'push', equip: ['none'], rest: 90,
     levels: [
       { stage: 'Pike-Halte', target: '3 × 15–20 Sek' },
@@ -200,6 +230,35 @@ export const EXERCISES = [
     ]
   },
   {
+    id: 'ring_row', name: 'Ring-Rows', cat: 'pull', equip: ['rings'], rest: 90,
+    levels: [
+      { stage: 'Körper steil, Füße unter den Ringen', target: '4 × 8–12' },
+      { stage: 'Körper flacher', target: '4 × 8–12' },
+      { stage: 'Waagerecht, Fersen am Boden', target: '4 × 8–12' },
+      { stage: 'Waagerecht, Füße erhöht', target: '4 × 8–12' },
+      { stage: 'Einarmig unterstützt', target: '3 × 5–8' }
+    ],
+    tips: [
+      'Der Winkel bestimmt die Last – ein Schritt nach vorn oder zurück verstellt sie feiner als jede Gewichtsscheibe.',
+      'Schulterblätter zuerst zusammenziehen, dann die Arme beugen.',
+      'Der Körper bleibt ein Brett: Hüfte nicht durchhängen lassen.'
+    ]
+  },
+  {
+    id: 'band_pullup', name: 'Klimmzug mit Band', cat: 'pull', equip: ['bar+band', 'rings+band'], rest: 150,
+    levels: [
+      { stage: 'Dickes Band, viel Unterstützung', target: '4 × 5–8' },
+      { stage: 'Mittleres Band', target: '4 × 5–8' },
+      { stage: 'Dünnes Band', target: '4 × 4–6' },
+      { stage: 'Dünnes Band, nur die letzten Wiederholungen', target: '4 × 3–5' }
+    ],
+    tips: [
+      'Band über die Stange schlingen und Knie oder Fuß hineinstellen. Unten hilft es am meisten, oben kaum.',
+      'Der zweite Weg zum ersten Klimmzug neben den Negativen – hier bleibt die volle Bewegung erhalten.',
+      'Sobald ein dünnes Band 6 saubere Wiederholungen trägt: den ersten freien Klimmzug versuchen.'
+    ]
+  },
+  {
     id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], rest: 150,
     levels: [
       { stage: 'Negativ, 3 Sek ablassen', target: '4 × 3–5' },
@@ -240,6 +299,20 @@ export const EXERCISES = [
       'Arme gestreckt, Schultern nach unten und hinten ziehen.',
       'Rücken rund halten (Hollow) – kein Hohlkreuz.',
       'Erst sinnvoll, wenn du 5+ saubere Klimmzüge schaffst.'
+    ]
+  },
+
+  {
+    id: 'face_pull', name: 'Face Pulls mit Band', cat: 'pull', equip: ['band'], rest: 60,
+    levels: [
+      { stage: 'Face Pulls im Stehen', target: '3 × 12–15' },
+      { stage: 'Mit 2 Sek Halten hinten', target: '3 × 10–12' },
+      { stage: 'Mit Außenrotation am Ende', target: '3 × 10–12' }
+    ],
+    tips: [
+      'Band auf Gesichtshöhe befestigen und zu den Ohren ziehen – die Ellbogen bleiben oben.',
+      'Der Gegenspieler zu allem Drücken. Hält die Schultern gesund, wenn viel Liegestütz und Dip im Plan steht.',
+      'Leichtes Band, saubere Ausführung. Hier zählt die Bewegung, nicht der Widerstand.'
     ]
   },
 
@@ -499,6 +572,19 @@ export const EXERCISES = [
     ]
   },
   {
+    id: 'band_pullapart', name: 'Band-Auseinanderziehen', cat: 'mobility', equip: ['band'], rest: 30,
+    levels: [
+      { stage: 'Vor der Brust, Arme gestreckt', target: '2 × 12–15' },
+      { stage: 'Über Kopf und zurück', target: '3 × 10–12' },
+      { stage: 'Dislocates mit dem Band', target: '3 × 8–10' }
+    ],
+    tips: [
+      'Arme bleiben gestreckt – die Bewegung kommt aus den Schulterblättern.',
+      'Der bequemere Ersatz für die Handtuch-Dislocates: das Band gibt nach und lässt mehr Weg zu.',
+      'Passt in jedes Warm-up vor einer Push-Einheit.'
+    ]
+  },
+  {
     id: 'pike_stretch', name: 'Pike / Vorbeuge', cat: 'mobility', equip: ['none'], rest: 30,
     levels: [
       { stage: 'Sitzende Vorbeuge', target: '3 × 45 Sek' },
@@ -613,10 +699,12 @@ export const MILESTONES = [
   { id: 'pushup15', name: '15 volle Liegestütze am Stück' },
   { id: 'hang60', name: '60 Sekunden Dead Hang' },
   { id: 'row10', name: '10 Australian Pull-ups' },
+  { id: 'ringrow10', name: '10 waagerechte Ring-Rows' },
   { id: 'chinup1', name: 'Erster Chin-up' },
   { id: 'pullup1', name: 'Erster echter Klimmzug' },
   { id: 'pullup5', name: '5 Klimmzüge am Stück' },
   { id: 'dip1', name: 'Erster Dip auf den Parallettes' },
+  { id: 'ringdip1', name: 'Erster Ring-Dip' },
   { id: 'tuck15', name: '15 Sekunden Tuck L-Sit' },
   { id: 'lsit10', name: 'Voller L-Sit, 10 Sekunden' },
   { id: 'wall30', name: '30 Sek Wand-Handstand (Brust zur Wand)' },
