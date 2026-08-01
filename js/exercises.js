@@ -696,26 +696,46 @@ export const PLAN_TEMPLATES = {
   }
 };
 
-/* Meilensteine */
+/* Meilensteine
+
+   `when` beschreibt, woran die App erkennt, dass ein Meilenstein erreicht
+   sein dürfte:
+
+     ex    die Übung
+     lvl   der Mindest-Stufenindex (0-basiert, wie state.levels)
+     reps  ODER sek: der Mindestwert der Bestleistung
+
+   Beides zusammen, weil keines allein trägt. Die Stufe allein nicht: „5
+   volle Liegestütze" heißt nicht „auf der Stufe angekommen". Der Wert allein
+   auch nicht: 15 Wiederholungen auf Knie-Liegestützen sind keine 15 vollen.
+
+   Daraus folgt eine Pflege-Regel: Wer eine Leiter umbaut, muss die Indizes
+   hier nachziehen. Ein Test in test/milestones.test.js prüft gegen die echten
+   Daten, dass jede genannte Übung existiert und jeder Index innerhalb ihrer
+   Leiter liegt – eine gekürzte Leiter fällt damit sofort auf.
+
+   Erkannt heißt NICHT abgehakt: die App schlägt vor, eingetragen wird von
+   Hand. „Sauber geschafft" ist eine Aussage über die Ausführung, und die
+   folgt aus keiner Zahl. */
 export const MILESTONES = [
-  { id: 'pushup5', name: '5 volle Liegestütze am Stück' },
-  { id: 'pushup15', name: '15 volle Liegestütze am Stück' },
-  { id: 'hang60', name: '60 Sekunden Dead Hang' },
-  { id: 'row10', name: '10 Australian Pull-ups' },
-  { id: 'ringrow10', name: '10 waagerechte Ring-Rows' },
-  { id: 'chinup1', name: 'Erster Chin-up' },
-  { id: 'pullup1', name: 'Erster echter Klimmzug' },
-  { id: 'pullup5', name: '5 Klimmzüge am Stück' },
-  { id: 'dip1', name: 'Erster Dip auf den Parallettes' },
-  { id: 'ringdip1', name: 'Erster Ring-Dip' },
-  { id: 'tuck15', name: '15 Sekunden Tuck L-Sit' },
-  { id: 'lsit10', name: 'Voller L-Sit, 10 Sekunden' },
-  { id: 'wall30', name: '30 Sek Wand-Handstand (Brust zur Wand)' },
-  { id: 'hs5', name: 'Erster freier Handstand (5 Sekunden)' },
-  { id: 'hs30', name: 'Freier Handstand, 30 Sekunden' },
-  { id: 'lean20', name: '20 Sek Planche Lean mit deutlicher Vorlage' },
-  { id: 'tuckplanche', name: 'Tuck Planche, 10 Sekunden' },
-  { id: 'lsit_hs1', name: 'L-Sit zum Handstand – erste Wiederholung' }
+  { id: 'pushup5', name: '5 volle Liegestütze am Stück', when: { ex: 'pushup', lvl: 3, reps: 5 } },
+  { id: 'pushup15', name: '15 volle Liegestütze am Stück', when: { ex: 'pushup', lvl: 3, reps: 15 } },
+  { id: 'hang60', name: '60 Sekunden Dead Hang', when: { ex: 'hang', lvl: 2, sek: 60 } },
+  { id: 'row10', name: '10 Australian Pull-ups', when: { ex: 'row', lvl: 2, reps: 10 } },
+  { id: 'ringrow10', name: '10 waagerechte Ring-Rows', when: { ex: 'ring_row', lvl: 2, reps: 10 } },
+  { id: 'chinup1', name: 'Erster Chin-up', when: { ex: 'chinup', lvl: 1, reps: 1 } },
+  { id: 'pullup1', name: 'Erster echter Klimmzug', when: { ex: 'pullup', lvl: 2, reps: 1 } },
+  { id: 'pullup5', name: '5 Klimmzüge am Stück', when: { ex: 'pullup', lvl: 3, reps: 5 } },
+  { id: 'dip1', name: 'Erster Dip auf den Parallettes', when: { ex: 'dips', lvl: 3, reps: 1 } },
+  { id: 'ringdip1', name: 'Erster Ring-Dip', when: { ex: 'ring_dip', lvl: 3, reps: 1 } },
+  { id: 'tuck15', name: '15 Sekunden Tuck L-Sit', when: { ex: 'lsit', lvl: 1, sek: 15 } },
+  { id: 'lsit10', name: 'Voller L-Sit, 10 Sekunden', when: { ex: 'lsit', lvl: 3, sek: 10 } },
+  { id: 'wall30', name: '30 Sek Wand-Handstand (Brust zur Wand)', when: { ex: 'wall_hs', lvl: 2, sek: 30 } },
+  { id: 'hs5', name: 'Erster freier Handstand (5 Sekunden)', when: { ex: 'handstand', lvl: 2, sek: 5 } },
+  { id: 'hs30', name: 'Freier Handstand, 30 Sekunden', when: { ex: 'handstand', lvl: 4, sek: 30 } },
+  { id: 'lean20', name: '20 Sek Planche Lean mit deutlicher Vorlage', when: { ex: 'planche_lean', lvl: 2, sek: 20 } },
+  { id: 'tuckplanche', name: 'Tuck Planche, 10 Sekunden', when: { ex: 'planche', lvl: 1, sek: 10 } },
+  { id: 'lsit_hs1', name: 'L-Sit zum Handstand – erste Wiederholung', when: { ex: 'lsit_hs', lvl: 4, reps: 1 } }
 ];
 
 /* Warm-up-Bausteine (fest, vor jeder Einheit) */
