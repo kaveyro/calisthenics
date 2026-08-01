@@ -1550,3 +1550,107 @@ describe('Verlauf ohne Kappung', () => {
     expect(spalten()).toHaveLength(8);
   });
 });
+
+describe('Einstieg', () => {
+  const banner = () => document.getElementById('banners').textContent;
+  const dialog = () => document.querySelector('.overlay.open');
+  const auswahl = kat => dialog().querySelector('#ob-' + kat);
+  const geraet = eq => dialog().querySelector('[data-ob-eq="' + eq + '"]');
+
+  it('laedt mit einer Einladung, aber ohne Dialog', async () => {
+    await starten();
+    expect(banner()).toMatch(/Willkommen/);
+    /* Ein Dialog vor der ersten Ansicht wird weggeklickt. */
+    expect(dialog()).toBeNull();
+  });
+
+  /* Wer schon trainiert, hat seine Stufen laengst. */
+  it('schweigt bei einem benutzten Stand', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, workouts: 12, log: [{ d: '2026-01-01', day: 'A' }]
+    }));
+    await starten();
+    expect(banner()).not.toMatch(/Willkommen/);
+  });
+
+  it('verschwindet nach "Spaeter" und bleibt weg', async () => {
+    const app = await starten();
+    await app.actions['onboarding:skip']();
+    await ruhe();
+    expect(banner()).not.toMatch(/Willkommen/);
+    expect(gespeichert().onboarded).toBe(true);
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    await starten();
+    expect(banner()).not.toMatch(/Willkommen/);
+  });
+
+  it('setzt Ausruestung und Startstufen', async () => {
+    const app = await starten();
+    const p = app.actions['onboarding:start']();
+    await ruhe();
+
+    /* Nur Stange behalten. */
+    ['chair', 'parallettes', 'rings', 'band'].forEach(e => {
+      const box = geraet(e);
+      if(box.checked){ box.checked = false; box.dispatchEvent(new window.Event('change')); }
+    });
+    await ruhe();
+
+    auswahl('push').value = '4';
+    auswahl('push').dispatchEvent(new window.Event('change'));
+    dialog().querySelector('[data-dlg=ok]').click();
+    await p; await ruhe();
+
+    const s = gespeichert();
+    expect(s.equipment).toEqual(['bar']);
+    expect(s.levels.pushup).toBe(4);
+    expect(s.onboarded).toBe(true);
+    /* Gedaempft weitergegeben, aber nie an Skills. */
+    expect(s.levels.planche).toBeUndefined();
+  });
+
+  /* Ohne Stange ist der Klimmzug keine sinnvolle Frage. */
+  it('richtet die Fragen nach der Ausruestung', async () => {
+    const app = await starten();
+    const p = app.actions['onboarding:start']();
+    await ruhe();
+    expect(auswahl('pull')).not.toBeNull();
+    const vorher = auswahl('pull').options.length;
+
+    ['bar', 'rings'].forEach(e => {
+      const box = geraet(e);
+      if(box.checked){ box.checked = false; box.dispatchEvent(new window.Event('change')); }
+    });
+    await ruhe();
+    /* Jetzt steht dort das Rudern mit weniger Stufen, nicht der Klimmzug. */
+    expect(auswahl('pull').options.length).toBeLessThan(vorher);
+
+    dialog().querySelector('[data-dlg=abbrechen]').click();
+    await p;
+  });
+
+  it('beendet den Einstieg auch beim Abbrechen', async () => {
+    const app = await starten();
+    const p = app.actions['onboarding:start']();
+    await ruhe();
+    dialog().querySelector('[data-dlg=abbrechen]').click();
+    await p; await ruhe();
+    expect(gespeichert().onboarded).toBe(true);
+    expect(banner()).not.toMatch(/Willkommen/);
+  });
+
+  it('laesst sich aus den Einstellungen wiederholen', async () => {
+    const app = await starten();
+    await app.actions['onboarding:skip']();
+    await ruhe();
+
+    const p = app.actions['onboarding:again']();
+    await ruhe();
+    expect(dialog()).not.toBeNull();
+    expect(auswahl('push')).not.toBeNull();
+    dialog().querySelector('[data-dlg=abbrechen]').click();
+    await p;
+  });
+});

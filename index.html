@@ -249,6 +249,9 @@
          nur Skalare kennt. Die Werte stehen in js/domain/equipment.js. -->
     <div class="section-title" data-i18n="myEquipment">Meine Ausrüstung</div>
     <p class="muted" style="margin:-4px 0 8px" data-i18n="myEquipmentHint">Filtert Bibliothek, Plan und Alternativen</p>
+    <!-- Der Einstieg setzt Ausrüstung und Startstufen in einem Zug. Wer ihn
+         übersprungen hat oder ein Jahr weiter ist, kommt hier wieder hin. -->
+    <button class="btn secondary" data-action="onboarding:again" data-i18n="onboardAgain">Einstieg wiederholen</button>
     <div class="set-row">
       <span><label class="lbl2" for="eq-chair" data-i18n="equipChair">Stuhl/Tisch</label></span>
       <input type="checkbox" id="eq-chair" data-action-change="equipment:toggle" data-eq="chair">

@@ -264,8 +264,9 @@ describe('migrateState – Einstieg', () => {
     expect(migrateState({ v: 8, settings: { rest: 60 }, theme: 'dark' }).onboarded).toBe(false);
   });
 
-  /* Ein ausdrueckliches false ueberlebt: wer den Einstieg abbricht und nie
-     trainiert, soll ihn beim naechsten Start wiedersehen. */
+  /* Ein ausdruecklich gespeicherter Wert schlaegt die Vermutung oben. Sonst
+     wuerde ein Backup, in dem der Einstieg bewusst offen steht, beim Laden
+     stillschweigend als erledigt gelten. */
   it('respektiert einen ausdruecklich gesetzten Wert', () => {
     expect(migrateState({ onboarded: false, workouts: 9 }).onboarded).toBe(false);
     expect(migrateState({ onboarded: true }).onboarded).toBe(true);
