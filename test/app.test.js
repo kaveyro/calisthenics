@@ -597,6 +597,126 @@ describe('Ausruestung', () => {
   });
 });
 
+describe('Ersetzen und Auslassen', () => {
+  async function training(){
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const punkteVon = id => [...document.querySelectorAll('.ex[data-exid="' + id + '"] .set-dot')];
+  const waehlen = async name => {
+    const b = [...document.querySelectorAll('.overlay.open .dlg-choice')]
+      .find(x => x.textContent.includes(name));
+    expect(b, 'Auswahl "' + name + '" nicht im Dialog').toBeTruthy();
+    b.click();
+    await ruhe();
+  };
+
+  /* Der Fehler: session.sets wurde komplett geleert, obwohl die Schluessel
+     nach Uebung benannt sind ("pushup-0"). Wer die vierte Uebung ersetzte,
+     nachdem drei fertig waren, verlor ALLE Haken der Einheit. */
+  it('laesst beim Ersetzen die Haken der anderen Uebungen stehen', async () => {
+    const app = await training();
+    punkteVon('pushup').forEach(d => d.click());
+    punkteVon('dips').forEach(d => d.click());
+    await ruhe();
+    const beiPushup = punkteVon('pushup').filter(d => d.classList.contains('done')).length;
+    const beiDips = punkteVon('dips').filter(d => d.classList.contains('done')).length;
+    expect(beiPushup).toBeGreaterThan(0);
+    expect(beiDips).toBeGreaterThan(0);
+
+    const p = app.actions['exercise:substitute']({ ex: 'dips' });
+    await ruhe();
+    await waehlen('Diamant');
+    await waehlen('Nur heute');
+    await p; await ruhe();
+
+    /* Nur die ersetzte Uebung faengt bei null an. */
+    expect(document.querySelectorAll('.set-dot.done')).toHaveLength(beiPushup);
+    expect(punkteVon('pushup').filter(d => d.classList.contains('done')))
+      .toHaveLength(beiPushup);
+    expect(punkteVon('diamond').filter(d => d.classList.contains('done'))).toHaveLength(0);
+  });
+
+  it('ersetzt nur heute, ohne den Plan anzufassen', async () => {
+    const app = await training();
+    const p = app.actions['exercise:substitute']({ ex: 'pike' });
+    await ruhe();
+    await waehlen('Diamant');
+    await waehlen('Nur heute');
+    await p; await ruhe();
+
+    const s = gespeichert();
+    expect(s.customPlan == null).toBe(true);
+    expect(s.activeSession.subs).toEqual({ pike: 'diamond' });
+    expect(document.querySelector('.ex[data-exid="diamond"]')).toBeTruthy();
+    expect(document.querySelector('.ex[data-exid="pike"]')).toBeNull();
+  });
+
+  it('haelt die Ersetzung ueber ein Neuladen', async () => {
+    const app = await training();
+    const p = app.actions['exercise:substitute']({ ex: 'pike' });
+    await ruhe();
+    await waehlen('Diamant');
+    await waehlen('Nur heute');
+    await p; await ruhe();
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    await starten();
+    expect(document.querySelector('.ex[data-exid="diamond"]')).toBeTruthy();
+    expect(gespeichert().customPlan == null).toBe(true);
+  });
+
+  it('schreibt die Ersetzung auf Wunsch dauerhaft in den Plan', async () => {
+    const app = await training();
+    const p = app.actions['exercise:substitute']({ ex: 'pike' });
+    await ruhe();
+    await waehlen('Diamant');
+    await waehlen('Dauerhaft');
+    await p; await ruhe();
+
+    const s = gespeichert();
+    expect(s.customPlan.days[0].ex).toContain('diamond');
+    expect(s.customPlan.days[0].ex).not.toContain('pike');
+    expect(s.activeSession.subs).toEqual({});
+  });
+
+  it('laesst eine Uebung heute aus und holt sie zurueck', async () => {
+    const app = await training();
+    punkteVon('pike').forEach(d => d.click());
+    await ruhe();
+
+    app.actions['exercise:skip']({ ex: 'pike' });
+    await ruhe();
+    expect(document.querySelector('.ex[data-exid="pike"]').classList.contains('ex--skipped')).toBe(true);
+    expect(punkteVon('pike')).toHaveLength(0);
+    expect(gespeichert().activeSession.skip).toEqual({ pike: true });
+
+    app.actions['exercise:unskip']({ ex: 'pike' });
+    await ruhe();
+    expect(punkteVon('pike').length).toBeGreaterThan(0);
+    /* Die Haken kommen NICHT zurueck – die Uebung war ausgelassen. */
+    expect(punkteVon('pike').filter(d => d.classList.contains('done'))).toHaveLength(0);
+  });
+
+  it('nimmt eine ausgelassene Uebung nicht in den Log-Eintrag auf', async () => {
+    const app = await training();
+    punkteVon('pushup').forEach(d => d.click());
+    punkteVon('pike').forEach(d => d.click());
+    await ruhe();
+    app.actions['exercise:skip']({ ex: 'pike' });
+    await ruhe();
+
+    await app.actions['workout:finish']();
+    await ruhe();
+    const eintrag = gespeichert().log[0];
+    expect(eintrag.ex).toContain('pushup');
+    expect(eintrag.ex).not.toContain('pike');
+  });
+});
+
 describe('Plangenerator', () => {
   async function dialogOeffnen(equipment){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 8, equipment }));

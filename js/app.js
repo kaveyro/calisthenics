@@ -28,7 +28,13 @@ import {
 let state = DEFAULT_STATE();
 /* Alles, was zur laufenden Einheit gehoert – an einer Stelle, damit keine
    Sammlung beim Zuruecksetzen vergessen wird. */
-const leereSession = () => ({ dayKey: null, sets: {}, top: {}, reps: {}, notes: {} });
+const leereSession = () => ({
+  dayKey: null, sets: {}, top: {}, reps: {}, notes: {},
+  /* Nur fuer heute: origId -> ersatzId bzw. origId -> true. Beides steht
+     bewusst in der Session und nicht im Plan – wer eine Uebung heute nicht
+     machen kann, will deswegen nicht seinen Plan umbauen. */
+  subs: {}, skip: {}
+});
 let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
 /* Beide Timer richten sich nach einem absoluten Zielzeitpunkt statt nach
@@ -211,6 +217,7 @@ function spiegleSession(){
       dayKey: session.dayKey, d: today(), tab: fensterId,
       sets: { ...session.sets }, top: { ...session.top },
       reps: { ...session.reps }, notes: { ...session.notes },
+      subs: { ...session.subs }, skip: { ...session.skip },
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
          uebersteht – eine Restdauer waere nach dem Laden wertlos. */
       restEnde: restEnde || null
@@ -267,7 +274,8 @@ function restoreActiveSession(){
   if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
   session = {
     dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
-    reps: a.reps || {}, notes: a.notes || {}
+    reps: a.reps || {}, notes: a.notes || {},
+    subs: a.subs || {}, skip: a.skip || {}
   };
   renderDaySelect(); renderWorkout(); restoreSession(session.reps);
 
@@ -771,11 +779,23 @@ function renderWorkout(){
      jedem Log-Eintrag (entry.reps) und wurden nirgends gelesen – man
      trainierte also ohne jede Sicht auf die vorige Einheit, obwohl die App
      sie mitschreibt. Einmal fuer den ganzen Tag ermittelt, nicht je Uebung. */
-  const letzte = lastRepsByExercise(state.log, day.ex, getDay);
+  /* Was heute wirklich drankommt: der Plan-Tag, durch die Ersetzungen dieser
+     Einheit gereicht. session.subs bleibt dabei unangetastet – der Plan auch. */
+  const heute = day.ex.map(origId => ({ origId, id: session.subs[origId] || origId }));
+  const letzte = lastRepsByExercise(state.log, heute.map(h => h.id), getDay);
 
-  day.ex.forEach(id => {
+  heute.forEach(({ origId, id }) => {
     const ex = EX_BY_ID[id];
     if(!ex) return;
+
+    if(session.skip[origId]){
+      html += '<div class="ex ex--skipped" data-exid="' + ex.id + '">' +
+        '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div></div>' +
+        '<div class="ex-stage">' + esc(__('skippedToday')) + '</div>' +
+        '<button class="tip-btn" data-action="exercise:unskip" data-ex="' + origId + '">↩ ' + __('undoSkip') + '</button>' +
+        '</div>';
+      return;
+    }
     const lvl = lvlOf(ex), level = ex.levels[lvl], maxed = lvl >= ex.levels.length - 1;
     const t = parseTarget(level.target), streak = state.streaks[ex.id] || 0;
 
@@ -854,7 +874,11 @@ function renderWorkout(){
         esc(session.notes[ex.id] || '') + '</textarea>' +
       '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
       '<ul class="tips" id="tips-' + ex.id + '">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + ex.id + '">↻ ' + __('substitute') + '</button>' +
+      /* Ersetzen und Auslassen greifen auf die PLAN-Zeile zu, nicht auf die
+         gerade angezeigte Uebung – sonst liesse sich eine Ersetzung nicht
+         zurueckdrehen. */
+      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + origId + '">↻ ' + __('substitute') + '</button>' +
+      '<button class="sub-btn" data-action="exercise:skip" data-ex="' + origId + '">⤳ ' + __('skipToday') + '</button>' +
       '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div>';
   });
@@ -907,7 +931,10 @@ function adjustLevel(id, d){
 }
 
 /* ================= Substitute Exercise ================= */
-async function substituteExercise(id){
+/* origId ist die Uebung, wie sie im PLAN steht. Was gerade angezeigt wird,
+   kann davon abweichen – dann liegt hier schon eine Ersetzung fuer heute. */
+async function substituteExercise(origId){
+  const id = session.subs[origId] || origId;
   const ex = EX_BY_ID[id]; if(!ex) return;
   /* Nur Alternativen, die mit der vorhandenen Ausruestung auch gehen. Genau
      dafuer ist dieser Knopf da: "ich stehe heute ohne Stange da" soll eine
@@ -925,20 +952,72 @@ async function substituteExercise(id){
   })));
   if(!gewaehlt) return;
 
-  const p = ensureCustom();
-  const day = p.days.find(d => d.key === session.dayKey);
-  if(!day) return;
-  const ei = day.ex.indexOf(id);
-  if(ei >= 0) day.ex[ei] = gewaehlt;
-  save();
+  /* Frueher landete jede Ersetzung ueber ensureCustom() dauerhaft im Plan und
+     zog den Nutzer von seiner Vorlage auf "Eigener Plan" – auch wenn er nur
+     heute ohne Stange dastand. */
+  const dauer = await askChoice(__('substituted', { name: exName(EX_BY_ID[gewaehlt]) }), [
+    { name: __('subOnce'), sub: __('subOnceSub'), value: 'heute' },
+    { name: __('subPermanent'), sub: __('subPermanentSub'), value: 'immer' }
+  ]);
+  if(!dauer) return;
+
+  if(dauer === 'immer'){
+    const p = ensureCustom();
+    const day = p.days.find(d => d.key === session.dayKey);
+    if(!day) return;
+    const ei = day.ex.indexOf(origId);
+    if(ei >= 0) day.ex[ei] = gewaehlt;
+    delete session.subs[origId];
+    save();
+  } else {
+    /* Ueber die Plan-ID abgelegt, nicht ueber die angezeigte: ein zweites
+       Ersetzen derselben Zeile ueberschreibt die erste und bildet keine Kette.
+       Zurueck zum Original heisst: gar kein Eintrag. */
+    if(gewaehlt === origId) delete session.subs[origId];
+    else session.subs[origId] = gewaehlt;
+  }
+
   /* cancelHold() zuerst, wie in adjustLevel(): der Countdown haelt den alten
      DOM-Knoten fest und lief nach dem Neuzeichnen dagegen weiter – am Ende
      hakte er einen Satz ab, den es nicht mehr gab, und startete eine Pause. */
   cancelHold();
-  session.sets = {}; session.top = {};
+  vergissUebung(id);
   persistSession();
   renderWorkout(); restoreSession(session.reps);
   toast(__('substituted', { name: exName(EX_BY_ID[gewaehlt]) }));
+}
+
+/* Alles aus der laufenden Einheit entfernen, was zu EINER Uebung gehoert.
+
+   Hier stand  session.sets = {}; session.top = {};  – die Schluessel sind aber
+   nach Uebung benannt ("pushup-0"). Wer die vierte Uebung ersetzte, nachdem
+   drei fertig waren, verlor damit ALLE Haken der Einheit, waehrend die
+   Wiederholungsfelder gefuellt blieben, weil restoreSession() sie zurueckholt.
+   reps und notes muessen mit weg, sonst tauchen sie wieder auf, falls dieselbe
+   ID spaeter noch einmal im Tag steht. */
+function vergissUebung(id){
+  const zurUebung = k => k.slice(0, k.lastIndexOf('-')) === id;
+  Object.keys(session.sets).forEach(k => { if(zurUebung(k)) delete session.sets[k]; });
+  Object.keys(session.reps).forEach(k => { if(zurUebung(k)) delete session.reps[k]; });
+  delete session.top[id];
+  delete session.notes[id];
+}
+
+/* Heute auslassen – ohne den Plan anzufassen und ohne die Uebung zu
+   verstecken: die Karte bleibt stehen und laesst sich zurueckholen. */
+function skipExercise(origId){
+  cancelHold();
+  session.skip[origId] = true;
+  vergissUebung(session.subs[origId] || origId);
+  persistSession();
+  renderWorkout(); restoreSession(session.reps);
+  updateFinish();
+}
+function unskipExercise(origId){
+  delete session.skip[origId];
+  persistSession();
+  renderWorkout(); restoreSession(session.reps);
+  updateFinish();
 }
 
 /* ================= Per-Exercise History ================= */
@@ -1095,7 +1174,10 @@ function toggleTips(id){ document.getElementById('tips-' + id).classList.toggle(
    sonst geht die halb fertige Einheit verloren. */
 function sessionExerciseIds(){
   const day = getDay(session.dayKey);
-  if(day) return day.ex;
+  /* Durch die Ersetzungen dieser Einheit gereicht, Ausgelassenes heraus. Ohne
+     das stuende im Log die Uebung, die gerade NICHT gemacht wurde, und die
+     Progression am Ende von finishWorkout() liefe auf die falsche Leiter. */
+  if(day) return day.ex.filter(id => !session.skip[id]).map(id => session.subs[id] || id);
   const fromSets = Object.keys(session.sets).map(k => k.slice(0, k.lastIndexOf('-')));
   return [...new Set(Object.keys(session.top).concat(fromSets))].filter(id => EX_BY_ID[id]);
 }
@@ -2689,6 +2771,8 @@ export const actions = {
   'level:adjust':       d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
   'tips:toggle':        d => toggleTips(d.ex),
   'exercise:substitute': d => substituteExercise(d.ex),
+  'exercise:skip':      d => skipExercise(d.ex),
+  'exercise:unskip':    d => unskipExercise(d.ex),
   'exercise:history':   d => showExHistory(d.ex),
   'exHistory:close':    () => closeExHistory(),
   'workout:finish':     () => finishWorkout(),

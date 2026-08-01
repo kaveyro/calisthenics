@@ -164,6 +164,10 @@ export const LANG = {
     fullBody: 'Ganzkörper',
     overwriteCustomPlan: 'Dein eigener Plan wird durch den neuen ersetzt. Fortfahren?',
     planBuilt: 'Plan mit {n} Tagen erstellt.',
+    subOnce: 'Nur heute', subOnceSub: 'Der Plan bleibt, wie er ist',
+    subPermanent: 'Dauerhaft im Plan', subPermanentSub: 'Erzeugt deinen eigenen Plan',
+    skipToday: 'Heute auslassen', skippedToday: 'Heute ausgelassen',
+    undoSkip: 'Doch machen',
 
     /* Plan */
     planTitle: 'Trainingsplan', template: 'Vorlage', customPlan: 'Eigener Plan',
@@ -422,6 +426,10 @@ export const LANG = {
     fullBody: 'Full body',
     overwriteCustomPlan: 'Your custom plan will be replaced by the new one. Continue?',
     planBuilt: 'Plan with {n} days created.',
+    subOnce: 'Just for today', subOnceSub: 'Your plan stays as it is',
+    subPermanent: 'Permanently in the plan', subPermanentSub: 'Creates your custom plan',
+    skipToday: 'Skip today', skippedToday: 'Skipped today',
+    undoSkip: 'Do it after all',
 
     planTitle: 'Workout plan', template: 'Template', customPlan: 'Custom plan',
     customPlanDesc: 'Adjusted by you',

@@ -198,6 +198,10 @@ details.acc li{margin-bottom:5px}
 .last-reps{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:4px}
 /* Fehlendes Gerät: ein Hinweis, keine Sperre – deshalb warn und nicht danger. */
 .equip-warn{font-size:12.5px;color:var(--warn);margin-top:5px}
+/* Heute ausgelassen: die Karte bleibt stehen, damit man sie zurückholen kann –
+   nur eben schmal und blass, statt die Liste zu füllen. */
+.ex--skipped{opacity:.55;padding:11px 14px}
+.ex--skipped .ex-name{font-weight:600;font-size:14.5px}
 /* Kalenderkopf mit Monatsnavigation */
 .cal-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cal-nav{display:flex;gap:4px;flex:none}
