@@ -2,7 +2,7 @@
 
 Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten zur Laufzeit – alle Daten bleiben auf deinem Gerät, und es geht keine einzige Anfrage an einen fremden Server. Auch die Schriften liegen lokal (`fonts/`, SIL OFL 1.1).
 
-**Funktionen:** Einstieg mit Selbsteinschätzung · automatische Progression über Stufen · Halte- und Pausen-Timer mit Signal · 42 Übungen mit 166 Progressionsstufen · Geräteauswahl mit Plangenerator · vier Plan-Vorlagen plus eigener Plan-Editor · Verlauf mit Diagrammen, Trainingsdauer und frei wählbarem Zeitraum · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 18 Meilensteine · Skill-Fahrplan · Entlastungswoche · Dark Mode · Backup als JSON/CSV.
+**Funktionen:** Einstieg mit Selbsteinschätzung · automatische Progression über Stufen · Halte- und Pausen-Timer mit Signal · 42 Übungen mit 166 Progressionsstufen · Geräteauswahl mit Plangenerator · vier Plan-Vorlagen plus eigener Plan-Editor · Verlauf mit Diagrammen, Trainingsdauer und frei wählbarem Zeitraum · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 18 Meilensteine, die sich selbst erkennen · Skill-Fahrplan · Entlastungswoche · Dark Mode · Backup als JSON/CSV.
 
 ---
 
@@ -113,7 +113,7 @@ progression/
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
 │   │                   dates · escape · target · csv · plateau · state
 │   │                   log · backup · merge · equipment · planbuilder
-│   │                   volume · einstieg
+│   │                   volume · einstieg · milestones
 │   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
 │   ├── data/
 │   │   └── content.en.js  Englische Übungsinhalte
@@ -191,7 +191,7 @@ Meilensteine erweitern: Eintrag in `MILESTONES` ergänzen (`{ id: 'muscleup1', n
 ### Zwei Regeln, damit kein Fortschritt verloren geht
 
 1. **IDs nie umbenennen oder löschen** – der gespeicherte Fortschritt (`state.levels`) referenziert sie. Entfernst du eine Übung aus einem Plan, bleibt ihr Stufenstand erhalten und ist in der Bibliothek weiter sichtbar.
-2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. Zuletzt geschah das für v9: `onboarded` (ob der Einstieg durchlaufen wurde) und `log[].dauer` (die Trainingsdauer in Sekunden; `0` heißt „nicht gemessen“ und gilt für jeden Eintrag von vor v9, für CSV-Importe und für nachgetragene Einheiten). Ob ein bestehender Stand als eingerichtet gilt, entscheidet die Migration am Verlauf und nicht am Vorgabewert – wer schon trainiert hat, wird nicht nach seinen Startstufen gefragt. Davor v8, mit zwei Feldern in einem Schritt: `equipment` (die vorhandenen Geräte, Vorgabe „alles" – ein bestehender Stand verhält sich damit unverändert; ein *leeres* Array bleibt leer, denn „ich habe gar nichts" ist eine gültige Antwort) und `deload` (`{ bis: 'YYYY-MM-DD' }` oder `null`). Beide gehören zur Einrichtung dieses Geräts und werden beim Zusammenführen zweier Stände nicht gemischt. Davor v7: der Stand führt seither in `rev` einen Revisionszähler mit, an dem zwei offene Fenster erkennen, wessen Stand der neuere ist (siehe Abschnitt 4). Davor v6: ein Log-Eintrag führt seither in `ex` die tatsächlich trainierten Übungen mit. Vorher wurden sie im *heutigen* Plan nachgeschlagen, was nach jeder Ersetzung, jedem Plan-Reset und jedem CSV-Import falsch war; für Altbestände fällt `js/domain/log.js` weiterhin auf Plan und Wiederholungsschlüssel zurück. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
+2. **Beim Ändern der Datenstruktur** die Konstante `STATE_VERSION` in `js/domain/state.js` hochzählen und in `migrateState()` einen Schritt ergänzen. Zuletzt geschah das für v10: eine Bestleistung trägt jetzt `art` (`'sek'` oder `'reps'`) und `lvl`. Ohne beides verglich `besserePR()` Sekunden mit Wiederholungen — siehe Abschnitt 8. Für Altbestände wird die Maßeinheit aus dem Text erschlossen (`'30 Sek'` → `sek`); die Stufe bleibt offen statt geraten zu werden und zählt im Vergleich als 0. Davor v9: `onboarded` (ob der Einstieg durchlaufen wurde) und `log[].dauer` (die Trainingsdauer in Sekunden; `0` heißt „nicht gemessen“ und gilt für jeden Eintrag von vor v9, für CSV-Importe und für nachgetragene Einheiten). Ob ein bestehender Stand als eingerichtet gilt, entscheidet die Migration am Verlauf und nicht am Vorgabewert – wer schon trainiert hat, wird nicht nach seinen Startstufen gefragt. Davor v8, mit zwei Feldern in einem Schritt: `equipment` (die vorhandenen Geräte, Vorgabe „alles" – ein bestehender Stand verhält sich damit unverändert; ein *leeres* Array bleibt leer, denn „ich habe gar nichts" ist eine gültige Antwort) und `deload` (`{ bis: 'YYYY-MM-DD' }` oder `null`). Beide gehören zur Einrichtung dieses Geräts und werden beim Zusammenführen zweier Stände nicht gemischt. Davor v7: der Stand führt seither in `rev` einen Revisionszähler mit, an dem zwei offene Fenster erkennen, wessen Stand der neuere ist (siehe Abschnitt 4). Davor v6: ein Log-Eintrag führt seither in `ex` die tatsächlich trainierten Übungen mit. Vorher wurden sie im *heutigen* Plan nachgeschlagen, was nach jeder Ersetzung, jedem Plan-Reset und jedem CSV-Import falsch war; für Altbestände fällt `js/domain/log.js` weiterhin auf Plan und Wiederholungsschlüssel zurück. `migrateState()` ist eine reine Funktion (`Rohwert → Stand`) und übernimmt Deep-Merge der Defaults sowie Typprüfung; `clampBackup()` daneben beschneidet importierte Backups, und der Import läuft durch beide. `LEGACY_KEYS` in `storage.js` zeigt, wie ältere Speicherschlüssel gelesen werden. Nach erfolgreicher Übernahme entfernt die App die Altschlüssel selbst.
 
 ---
 
@@ -223,6 +223,8 @@ Jede Übung hat Stufen. Angezeigt wird immer die aktuelle. Hakst du nach dem Tra
 
 **Trainingsdauer.** Gemessen wird vom ersten Haken bis zu „Fertig" – nicht ab der Tagesauswahl, denn dazwischen liegen Umziehen und Aufwärmen. Bei Halteübungen zählt der Beginn des Haltens. Über vier Stunden gilt die Einheit als nicht gemessen: wer die App offen liegen lässt, hat keine Vierstunden-Einheit trainiert, und eine erfundene Zahl wäre schlechter als gar keine. Der Verlauf zeigt die Dauer je Einheit und einen Durchschnitt, der nur über gemessene Einheiten mittelt.
 
+**Bestleistungen** entstehen von selbst: die höchste Wiederholungszahl und die längste geschaffte Haltezeit je Übung. Sie tragen ihre **Maßeinheit** mit, denn sieben Leitern wechseln unterwegs von Sekunden auf Wiederholungen oder zurück (`handstand`, `planche`, `ring_dip`, `pike`, `hollow`, `pancake`, `hip_mob`). Bei gleicher Maßeinheit gewinnt die größere Zahl; wechselt sie, gewinnt der Eintrag von der höheren Stufe — die alte Zahl misst dann etwas anderes und ist für das, was jetzt trainiert wird, kein Rekord mehr. Alle zusammen stehen im Tab *Ziele*.
+
 **Satz-Modi** (Einstellungen): *Einsteiger* deckelt alles auf 3 Sätze, *Standard* nutzt die Vorgaben (3–4), *Fortgeschritten* gibt überall einen Satz dazu.
 
 **Entlastungswoche.** Nach der eingestellten Anzahl Einheiten erinnert ein Banner daran; ein Klick startet sie für sieben Tage. Solange sie läuft, sind alle Sätze halbiert – Wiederholungen und Haltezeiten bleiben, denn im Deload sinkt das Volumen, nicht die Intensität. Stufen steigen in dieser Woche nicht: das obere Limit bezieht sich auf halbierte Sätze und ist nicht dasselbe wie sonst. Der Streak bleibt dabei stehen, wird also weder erhöht noch zurückgesetzt.
@@ -253,6 +255,10 @@ Auf die übrigen Übungen derselben Kategorie wird nur zur **Hälfte** übertrag
 
 **Training nachtragen.** Datum, Trainingstag und Satzzahl – für Einheiten ohne Handy. Die Satzzahl ist mit dem vorbelegt, was der Plan für den Tag vorsieht, die Übungsliste kommt aus dem Plan, und die Dauer bleibt leer. Stufen, Serien und Bestleistungen bleiben unberührt: aus einer nachgetragenen Satzzahl lässt sich nicht ablesen, was an dem Tag am oberen Limit lag.
 
+**Meilensteine erkennen sich selbst.** Jeder trägt in `js/exercises.js` ein `when` aus Übung, Mindeststufe und Mindestwert. Beides zusammen, weil keines allein trägt: auf der Stufe angekommen zu sein heißt nicht, die Zahl zu schaffen, und 15 Wiederholungen auf Knie-Liegestützen sind keine 15 vollen. Ist die Bedingung erfüllt, trägt der Meilenstein einen Hinweis und einen Knopf — **abgehakt wird nichts von selbst.** „Sauber geschafft" ist eine Aussage über die Ausführung, und die folgt aus keiner Zahl. Offene Meilensteine nennen umgekehrt, was ihnen noch fehlt.
+
+Wer eine Leiter umbaut, muss die Stufenindizes dort nachziehen. `test/milestones.test.js` prüft gegen die echten Daten, dass jede genannte Übung existiert, jeder Index in der Leiter liegt und die geforderte Zahl dort überhaupt erreichbar ist.
+
 **Bibliothek.** Jeder Eintrag nennt, wann die Übung zuletzt dran war; ab zwei Wochen steht ein Hinweis daneben. Sortieren lässt sich nach Kategorie (Vorgabe), „am längsten nicht trainiert" (nie Trainiertes zuerst) oder Fortschritt.
 
 ---
@@ -269,6 +275,7 @@ Bewusste Entscheidungen, keine offenen Aufgaben – damit niemand danach sucht:
 - **Der CSV-Export enthält kein Volumen.** Eine zusätzliche Spalte wäre eine Formatänderung mit Rückwirkung auf den Import.
 - **Gewichts- und Messreihen sind bei 1000 Einträgen gekappt** (`MAX_SERIES_ENTRIES`), das Trainingslog bei 2000. Bei täglichem Wiegen ist die erste Grenze nach knapp drei Jahren erreicht, die zweite bei vier Einheiten pro Woche nach gut neun. Gekappt wird beim Laden und bei jedem Import, und zwar am älteren Ende ohne Hinweis.
 - **Die Startstufen des Einstiegs sind für die Ankerübung genau und für alles andere geschätzt.** Die Übertragung auf die übrige Kategorie ist bewusst gedämpft und bleibt eine Vermutung – jede Stufe lässt sich in der Bibliothek mit ± nachziehen.
+- **Die Meilenstein-Erkennung ist ein Vorschlag, kein Urteil.** Sie liest Stufe und Bestleistung, sieht aber keine Ausführung. Ein Meilenstein ohne `when` bliebe stumm statt als „nicht geschafft" zu gelten — derzeit tragen alle 18 eine Bedingung.
 - **Geräte markieren nur Angeschafftes.** Wand, Türrahmen, Treppenstufe und erhöhte Flächen gelten als „kein Gerät"; ein Filter darauf wäre Schikane statt Hilfe.
 
 ---
