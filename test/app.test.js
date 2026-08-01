@@ -1728,3 +1728,82 @@ describe('Bestleistungen mit Masseinheit', () => {
     expect(prVon('pike')).toMatchObject({ art: 'sek', lvl: 2, n: 25 });
   });
 });
+
+describe('Ziele: erkannte Meilensteine und Bestleistungen', () => {
+  const zeile = id => document.querySelector('#msList [data-id="' + id + '"]')?.closest('.ms-row');
+  const chip = id => zeile(id)?.querySelector('.cat-chip');
+  const knopf = id => zeile(id)?.querySelector('[data-action="milestone:accept"]');
+  const kasten = id => document.querySelector('#msList [data-id="' + id + '"]');
+
+  async function mitStand(zusatz = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 10, onboarded: true,
+      levels: { pullup: 3 },
+      prs: { pullup: { v: '5 Wdh', n: 5, d: '2026-07-01', art: 'reps', lvl: 3 } },
+      ...zusatz
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'milestones' });
+    await ruhe();
+    return app;
+  }
+
+  it('markiert einen erkannten Meilenstein, hakt ihn aber nicht ab', async () => {
+    await mitStand();
+    expect(chip('pullup1').textContent).toMatch(/geschafft/);
+    expect(kasten('pullup1').checked).toBe(false);
+    expect((gespeichert().milestones || {}).pullup1).toBeUndefined();
+  });
+
+  it('traegt ihn auf Knopfdruck ein', async () => {
+    const app = await mitStand();
+    await app.actions['milestone:accept']({ id: 'pullup1' });
+    await ruhe();
+    expect(gespeichert().milestones.pullup1).toBeTruthy();
+    expect(kasten('pullup1').checked).toBe(true);
+    expect(chip('pullup1')).toBeNull();
+  });
+
+  /* Ein Button IM Label loest aus UND schaltet das Kontrollkaestchen um –
+     der Meilenstein waere danach wieder offen. Deshalb steht er daneben. */
+  it('haelt beim echten Klick auf den Knopf, statt zurueckzuspringen', async () => {
+    await mitStand();
+    knopf('pullup1').click();
+    await ruhe();
+    expect(gespeichert().milestones.pullup1).toBeTruthy();
+    expect(kasten('pullup1').checked).toBe(true);
+  });
+
+  it('nennt bei einem offenen Meilenstein, was ihm fehlt', async () => {
+    await mitStand();
+    /* pushup5 braucht Stufe 4 und 5 Wdh – beides fehlt. */
+    const text = zeile('pushup5').querySelector('.ms-need').textContent;
+    expect(text).toMatch(/Stufe 4/);
+    expect(text).toMatch(/5 Wdh/);
+  });
+
+  it('nennt nur den fehlenden Teil, wenn die Stufe schon reicht', async () => {
+    await mitStand({ levels: { pullup: 3, pushup: 5 } });
+    const text = zeile('pushup5').querySelector('.ms-need').textContent;
+    expect(text).not.toMatch(/Stufe/);
+    expect(text).toMatch(/5 Wdh/);
+  });
+
+  it('zeigt die Bestleistungen an einer Stelle, neueste zuerst', async () => {
+    await mitStand({ prs: {
+      pullup: { v: '5 Wdh', n: 5, d: '2026-07-01', art: 'reps', lvl: 3 },
+      squat: { v: '30 Wdh', n: 30, d: '2026-08-01', art: 'reps', lvl: 1 },
+      gibtsnicht: { v: '9', n: 9, d: '2026-09-01' }
+    }});
+    const zeilen = [...document.querySelectorAll('#bestsList .log-item')];
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen[0].textContent).toMatch(/30 Wdh/);
+    expect(zeilen[1].textContent).toMatch(/5 Wdh/);
+  });
+
+  it('sagt es, wenn es noch keine Bestleistung gibt', async () => {
+    await mitStand({ prs: {} });
+    expect(document.querySelectorAll('#bestsList .log-item')).toHaveLength(0);
+    expect(document.getElementById('bestsList').textContent).toMatch(/Noch keine/);
+  });
+});

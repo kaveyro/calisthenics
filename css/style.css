@@ -303,8 +303,14 @@ details.acc li{margin-bottom:5px}
 .cal-day.empty{background:none}
 
 /* ---------- Meilensteine ---------- */
-.ms{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+/* Die Zeile trägt den Rahmen, das Label nur noch den Inhalt – der
+   „Eintragen"-Knopf steht daneben und darf nicht im Label liegen. */
+.ms-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.ms-row:last-child{border-bottom:none}
+.ms{display:flex;align-items:center;gap:12px;padding:11px 0;flex:1;min-width:0;cursor:pointer}
 .ms:last-child{border-bottom:none}
+.ms-need{font-size:11px;color:var(--ink-soft)}
+.best-val{font-family:var(--mono);font-weight:700;margin-left:auto}
 .ms input{width:28px;height:28px;accent-color:var(--success);flex:none;cursor:pointer}
 .ms-name{font-weight:600;font-size:14px}
 .ms-date{font-family:var(--mono);font-size:11px;color:var(--success)}

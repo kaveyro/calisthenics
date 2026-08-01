@@ -96,6 +96,12 @@ export const LANG = {
     restStarted: 'Pause gestartet, {sec} Sekunden',
     holdStarted: 'Halten, {sec} Sekunden', holdOver: 'Haltezeit geschafft',
     warmupRemoveAria: 'Warm-up-Eintrag entfernen: {item}',
+    msLooksDone: 'sieht geschafft aus', msAccept: 'Eintragen',
+    msNeeds: 'braucht {list}', andJoin: ' und ',
+    msNeedsLevel: 'Stufe {n}', msNeedsReps: '{n} Wdh', msNeedsSecs: '{n} Sek',
+    msDetectedToast: 'Sieht so aus, als hättest du „{name}" geschafft – im Ziele-Tab eintragen.',
+    bestsTitle: 'Bestleistungen',
+    bestsEmpty: 'Noch keine. Sie entstehen von selbst: die App merkt sich die höchste Wiederholungszahl und die längste Haltezeit je Übung.',
     welcomeTitle: 'Willkommen.',
     welcomeBody: 'Zwei Fragen, dann fängst du nicht bei null an: Was hast du an Geräten, und wo stehst du?',
     welcomeStart: 'Einstieg starten',
@@ -230,7 +236,7 @@ export const LANG = {
     /* Ziele */
     milestonesTitle: 'Meilensteine',
     milestoneSearch: 'Meilenstein suchen …', milestoneSearchAria: 'Meilenstein suchen',
-    milestoneNote: 'Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert.',
+    milestoneNote: 'Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert. „Sieht geschafft aus" ist ein Hinweis aus deinen Zahlen, kein Urteil über die Ausführung.',
     roadmap: 'Skill-Fahrplan', nextStage: '{name} → nächste Stufe: {stage}',
 
     /* Einstellungen */
@@ -400,6 +406,12 @@ export const LANG = {
     restStarted: 'Rest started, {sec} seconds',
     holdStarted: 'Hold, {sec} seconds', holdOver: 'Hold complete',
     warmupRemoveAria: 'Remove warm-up item: {item}',
+    msLooksDone: 'looks done', msAccept: 'Log it',
+    msNeeds: 'needs {list}', andJoin: ' and ',
+    msNeedsLevel: 'stage {n}', msNeedsReps: '{n} reps', msNeedsSecs: '{n} sec',
+    msDetectedToast: 'Looks like you hit “{name}” – log it in the Goals tab.',
+    bestsTitle: 'Personal bests',
+    bestsEmpty: 'None yet. They appear on their own: the app keeps the highest rep count and the longest hold per exercise.',
     welcomeTitle: 'Welcome.',
     welcomeBody: 'Two questions and you will not be starting from zero: what equipment do you have, and where are you now?',
     welcomeStart: 'Start setup',
@@ -527,7 +539,7 @@ export const LANG = {
 
     milestonesTitle: 'Milestones',
     milestoneSearch: 'Search milestones …', milestoneSearchAria: 'Search milestones',
-    milestoneNote: 'Tick a milestone the first time you hit it cleanly – the date is saved.',
+    milestoneNote: 'Tick a milestone the first time you hit it cleanly – the date is saved. “Looks done” is a hint from your numbers, not a judgement about form.',
     roadmap: 'Skill roadmap', nextStage: '{name} → next stage: {stage}',
 
     setsMode: 'Set mode',

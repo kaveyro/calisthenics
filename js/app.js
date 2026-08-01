@@ -19,6 +19,7 @@ import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { buildPlan } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
+import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
@@ -755,7 +756,7 @@ function showTab(t, ausHistory = false){
   if(t === 'history') renderHistory();
   if(t === 'library') { renderCatFilter(); renderLibrary(); }
   if(t === 'plan') renderPlanTab();
-  if(t === 'milestones') { renderMilestones(); renderRoadmap(); }
+  if(t === 'milestones') { renderMilestones(); renderBests(); renderRoadmap(); }
   window.scrollTo({ top: 0, behavior: wenigerBewegung() ? 'auto' : 'smooth' });
 }
 
@@ -1671,6 +1672,16 @@ async function finishWorkout(){
     }), true), 2600);
   }
 
+  /* Ein Meilenstein, dessen Bedingung jetzt erfuellt ist. Nur ein Hinweis –
+     abgehakt wird im Ziele-Tab, und zwar von Hand. Nur der erste, sonst
+     stapeln sich nach dem Einstieg drei Toaste uebereinander. */
+  const neuErkannt = erkannteMs();
+  if(neuErkannt.length){
+    const m = MILESTONES.find(x => x.id === neuErkannt[0]);
+    if(m) setTimeout(() => toast(__('msDetectedToast', { name: msName(m) }), true),
+      gesperrt.length ? 5200 : 2600);
+  }
+
   /* Offer undo for 5 seconds */
   clearTimeout(undoTimeout);
   const undoBtn = document.createElement('button');
@@ -2562,6 +2573,24 @@ function moveEx(di, ei, d){
 }
 
 /* ================= Meilensteine & Fahrplan ================= */
+/* Der Stand eines Meilensteins gegen den aktuellen Zustand. */
+const msStatus = m => meilensteinStatus(m, {
+  levels: state.levels, prs: state.prs, exById: EX_BY_ID
+});
+
+/* Was fehlt, in Worten: "Stufe 4 und 5 Wdh" – oder nur der Teil, der
+   tatsaechlich aussteht. Aus der blossen Liste wird damit eine
+   Wegbeschreibung. */
+function fehltText(fehlt){
+  if(!fehlt) return '';
+  const teile = [];
+  if(fehlt.lvl !== undefined) teile.push(__('msNeedsLevel', { n: fehlt.lvl + 1 }));
+  if(fehlt.wert !== undefined){
+    teile.push(__(fehlt.art === 'sek' ? 'msNeedsSecs' : 'msNeedsReps', { n: fehlt.wert }));
+  }
+  return teile.length ? __('msNeeds', { list: teile.join(__('andJoin')) }) : '';
+}
+
 function renderMilestones(){
   const search = (document.getElementById('msSearch')?.value || '').toLowerCase();
   let list = MILESTONES;
@@ -2569,10 +2598,56 @@ function renderMilestones(){
 
   document.getElementById('msList').innerHTML = list.map(m => {
     const d = (state.milestones || {})[m.id];
-    return '<label class="ms' + (d ? ' done' : '') + '"><input type="checkbox" ' + (d ? 'checked' : '') +
-      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span><span class="ms-name">' + esc(msName(m)) + '</span>' +
-      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') + '</span></label>';
+    const s = d ? null : msStatus(m);
+    /* Erkannt, aber nicht eingetragen: die App schlaegt vor und hakt nicht
+       ab. "Sauber geschafft" folgt aus keiner Zahl. */
+    const erkannt = s && s.bekannt && s.erfuellt;
+    /* Der Knopf steht NEBEN dem Label, nicht darin: ein Button in einem
+       Label wird beim Klick doppelt wirksam – er loest aus UND schaltet das
+       Kontrollkaestchen um. Dieselbe Falle wie frueher beim Warm-up-Knopf
+       im <summary>. */
+    return '<div class="ms-row' + (erkannt ? ' erkannt' : '') + '">' +
+      '<label class="ms' + (d ? ' done' : '') + '">' +
+      '<input type="checkbox" ' + (d ? 'checked' : '') +
+      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span>' +
+      '<span class="ms-name">' + esc(msName(m)) +
+        (erkannt ? ' <span class="cat-chip">' + esc(__('msLooksDone')) + '</span>' : '') + '</span>' +
+      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') +
+      (!d && s && s.bekannt && !erkannt
+        ? '<br><span class="ms-need">' + esc(fehltText(s.fehlt)) + '</span>' : '') +
+      '</span></label>' +
+      (erkannt ? '<button type="button" class="mini-btn" data-action="milestone:accept" data-id="' +
+        m.id + '">' + esc(__('msAccept')) + '</button>' : '') +
+      '</div>';
   }).join('');
+}
+
+/* Alle erkannten, noch nicht eingetragenen Meilensteine. */
+const erkannteMs = () => erkannteMeilensteine(MILESTONES, {
+  levels: state.levels, prs: state.prs, exById: EX_BY_ID, milestones: state.milestones
+});
+
+/* Alle Bestleistungen an einer Stelle.
+
+   Erfasst werden sie seit jeher automatisch, angezeigt wurden sie nur im
+   jeweiligen Bibliothekseintrag – nach einem halben Jahr ist das die
+   Zahlenreihe, die man sehen will, und die einzige, die man 42-mal
+   aufklappen musste. Neueste zuerst. */
+function renderBests(){
+  const el = document.getElementById('bestsList');
+  if(!el) return;
+  const liste = Object.keys(state.prs || {})
+    .map(id => ({ id, ex: EX_BY_ID[id], pr: state.prs[id] }))
+    /* Eine Uebung, die es nicht mehr gibt, hat auch keinen Namen. */
+    .filter(e => e.ex && e.pr && typeof e.pr === 'object')
+    .sort((a, b) => String(b.pr.d || '').localeCompare(String(a.pr.d || '')) ||
+      exName(a.ex).localeCompare(exName(b.ex)));
+
+  el.innerHTML = liste.length ? liste.map(({ ex, pr }) =>
+    '<div class="log-item"><span class="log-day">' + esc(exName(ex)) + '</span>' +
+    '<span class="best-val">' + esc(pr.v) + '</span>' +
+    '<span class="log-date">' + esc(pr.d ? fmtDate(pr.d) : '') + '</span></div>').join('')
+    : '<div class="empty-hint">' + esc(__('bestsEmpty')) + '</div>';
 }
 async function toggleMilestone(id, on){
   if(on){
@@ -2940,7 +3015,7 @@ function updateSetting(k, v){
        Tabs behielten sonst die alte Sprache, bis man sie zufaellig neu
        rendert. */
     renderWarmup(); renderCatFilter(); renderLibrary();
-    renderPlanTab(); renderMilestones(); renderRoadmap(); renderHistory();
+    renderPlanTab(); renderMilestones(); renderBests(); renderRoadmap(); renderHistory();
   }
   if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest'].includes(k)){
     if(k === 'setsMode') verwerfeUeberzaehligeSaetze();
@@ -3417,6 +3492,7 @@ export const actions = {
 
   /* Ziele */
   'milestone:toggle':   (d, ev, el) => mitFokus(() => toggleMilestone(d.id, el.checked)),
+  'milestone:accept':   d => mitFokus(() => toggleMilestone(d.id, true)),
   'milestone:search':   () => mitFokus(() => renderMilestones()),
 
   /* Einstellungen */
