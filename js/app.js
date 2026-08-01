@@ -169,6 +169,23 @@ function zeigeInstallSchalter(){
   if(b) b.hidden = !installAngebot;
 }
 
+/* Kann dieses Geraet Dateien teilen? Gefragt wird mit einer Beispieldatei,
+   nicht nur nach dem Vorhandensein von navigator.share: Desktop-Browser
+   kennen share() haeufig, canShare({files}) aber nicht – ein Knopf, der
+   dort ins Leere liefe, waere schlimmer als keiner. */
+function kannTeilen(){
+  try{
+    return !!(navigator.canShare && navigator.share &&
+      navigator.canShare({ files: [new File(['{}'], 'p.json', { type: 'application/json' })] }));
+  }catch{
+    return false;
+  }
+}
+function zeigeTeilenSchalter(){
+  const b = document.getElementById('shareBtn');
+  if(b) b.hidden = !kannTeilen();
+}
+
 async function appInstallieren(){
   if(!installAngebot) return;
   installAngebot.prompt();
@@ -3106,6 +3123,7 @@ function openSettings(){
   });
   zeigeSpeicherinfo();
   zeigeInstallSchalter();
+  zeigeTeilenSchalter();
   openDialog(document.getElementById('settingsOverlay'));
 }
 function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
@@ -3165,6 +3183,40 @@ function exportJSON(){
     toast(__('backupDownloaded'));
   }catch(err){ console.error('[exportJSON]', err); toast(__('exportFailed')); }
 }
+
+/* Dieselbe Sicherung, nur ueber das Systemblatt statt in den Download-Ordner.
+
+   Auf dem Handy ist das der Unterschied zwischen "liegt irgendwo" und "ist
+   in der Cloud" – und die Sicherung ist laut eigener Ansage das groesste
+   Datenrisiko dieser App.
+
+   Gebucht wird NUR nach erfolgreichem Teilen. Bricht der Nutzer das Blatt
+   ab, wirft share() einen AbortError; dann bleibt die Erinnerung stehen,
+   denn ein abgebrochenes Teilen ist keine Sicherung. Dieselbe Regel wie
+   oben, nur schaerfer. */
+async function shareJSON(){
+  if(!kannTeilen()) return;
+  const name = 'progression-backup-' + today() + '.json';
+  try{
+    await navigator.share({
+      files: [new File([JSON.stringify(state, null, 2)], name, { type: 'application/json' })],
+      title: name
+    });
+  }catch(err){
+    /* Der Abbruch ist kein Fehler und braucht keine Meldung. */
+    if(!(err && err.name === 'AbortError')){
+      console.error('[shareJSON]', err);
+      toast(__('shareFailed'));
+    }
+    return;
+  }
+  state.lastBackup = today();
+  state.backupWorkouts = state.workouts || 0;
+  state.backupDismissed = 0;
+  await save(); renderBanners();
+  toast(__('backupShared'));
+}
+
 function exportCSV(){
   download('progression-verlauf-' + today() + '.csv', '\uFEFF' + serializeLog(state.log), 'text/csv');
   toast(__('csvDownloaded'));
@@ -3618,6 +3670,7 @@ export const actions = {
 
   /* Backup */
   'backup:exportJSON':  () => exportJSON(),
+  'backup:shareJSON':   () => shareJSON(),
   'backup:exportCSV':   () => exportCSV(),
   'backup:exportText':  () => exportText(),
   'backup:importJSON':  (d, ev, el) => importJSON(el),

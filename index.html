@@ -356,6 +356,9 @@
     <div class="section-title" data-i18n="dataBackup">Daten &amp; Backup</div>
     <div class="data-btns">
       <button class="btn" data-action="backup:exportJSON" data-i18n="downloadBackup">Backup herunterladen</button>
+      <!-- Nur sichtbar, wo das Gerät Dateien teilen kann. Auf dem Handy
+           landet ein Download sonst im Ordner und muss von Hand weiter. -->
+      <button class="btn" id="shareBtn" hidden data-action="backup:shareJSON" data-i18n="shareBackup">Backup teilen</button>
       <!-- Der Text steht in einem span: data-i18n setzt textContent, das
            würde das darin liegende File-Input sonst mit entfernen. -->
       <label class="btn secondary" style="cursor:pointer"><span data-i18n="importBackup">Backup importieren</span>

@@ -2011,3 +2011,84 @@ describe('Wochenrhythmus', () => {
     expect(app).toBeTruthy();
   });
 });
+
+describe('Backup teilen', () => {
+  const knopf = () => document.getElementById('shareBtn');
+
+  /* Das Ergebnis wird erst im Aufruf erzeugt. Ein vorab abgelehntes Promise
+     gilt bis zum ersten await als unbehandelt und laesst den Lauf mit einem
+     Fehler enden, obwohl der Test durchgeht. */
+  function teilenErlauben(ergebnis){
+    navigator.canShare = () => true;
+    navigator.share = vi.fn(() => ergebnis());
+    return navigator.share;
+  }
+  function teilenAbschalten(){
+    delete navigator.canShare;
+    delete navigator.share;
+  }
+
+  async function mitBackupStand(){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 11, onboarded: true, workouts: 20, lastBackup: null,
+      log: [{ d: '2026-01-01', day: 'A', ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 }]
+    }));
+    const app = await starten();
+    app.actions['settings:open']();
+    await ruhe();
+    return app;
+  }
+
+  afterEach(() => teilenAbschalten());
+
+  /* Desktop-Browser kennen share() haeufig, canShare({files}) aber nicht –
+     ein Knopf, der dort ins Leere liefe, waere schlimmer als keiner. */
+  it('bleibt verborgen, wo das Geraet nicht teilen kann', async () => {
+    teilenAbschalten();
+    await mitBackupStand();
+    expect(knopf().hidden).toBe(true);
+  });
+
+  it('erscheint, wo es geht', async () => {
+    teilenErlauben(() => Promise.resolve());
+    await mitBackupStand();
+    expect(knopf().hidden).toBe(false);
+  });
+
+  it('teilt die Sicherung und bucht sie', async () => {
+    const share = teilenErlauben(() => Promise.resolve());
+    const app = await mitBackupStand();
+    await app.actions['backup:shareJSON']();
+    await ruhe();
+
+    expect(share).toHaveBeenCalled();
+    const datei = share.mock.calls[0][0].files[0];
+    expect(datei.name).toMatch(/^progression-backup-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(gespeichert().lastBackup).toBe(new Date().toISOString().slice(0, 10));
+    expect(gespeichert().backupWorkouts).toBe(20);
+  });
+
+  /* Ein abgebrochenes Teilen ist keine Sicherung – sonst verstummt die
+     Erinnerung fuer ein Backup, das es nicht gibt. */
+  it('bucht nichts, wenn der Nutzer abbricht', async () => {
+    const fehler = new Error('abgebrochen');
+    fehler.name = 'AbortError';
+    teilenErlauben(() => Promise.reject(fehler));
+    const app = await mitBackupStand();
+    await app.actions['backup:shareJSON']();
+    await ruhe();
+
+    const s = gespeichert();
+    expect(s === null || s.lastBackup === null).toBe(true);
+    expect(document.getElementById('banners').textContent).toMatch(/Sicherung|backup/i);
+  });
+
+  it('meldet einen echten Fehler, bucht aber ebenfalls nicht', async () => {
+    teilenErlauben(() => Promise.reject(new Error('kaputt')));
+    const app = await mitBackupStand();
+    await app.actions['backup:shareJSON']();
+    await ruhe();
+    const s = gespeichert();
+    expect(s === null || s.lastBackup === null).toBe(true);
+  });
+});
