@@ -21,9 +21,14 @@ const nachDatum = (a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
 
 /* Der Leitgedanke der Aufteilung: der Verlauf wird vereinigt, die Einrichtung
    des Geraets bleibt. Einstellungen, Design, Plan, Warm-up, die laufende
-   Einheit, der Revisionszaehler und alles rund um die letzte Sicherung
-   gehoeren zu diesem Geraet – sie stehen in `eigen` und werden nicht
-   angefasst. Alles darunter ist Verlauf und wird zusammengelegt. */
+   Einheit, die vorhandene Ausruestung, eine laufende Entlastungswoche, der
+   Revisionszaehler und alles rund um die letzte Sicherung gehoeren zu diesem
+   Geraet – sie stehen in `eigen` und werden nicht angefasst. Alles darunter
+   ist Verlauf und wird zusammengelegt.
+
+   Zur Ausruestung im Besonderen: welche Geraete hier stehen, weiss nur dieses
+   Geraet. Das Backup vom Rechner mit Klimmzugstange darf die Auswahl auf dem
+   Handy nicht umschreiben. */
 export function mergeStates(eigen, fremd){
   const a = objekt(eigen), b = objekt(fremd);
   const out = { ...a };

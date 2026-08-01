@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(7);
+    expect(s.v).toBe(8);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });

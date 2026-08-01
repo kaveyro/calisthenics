@@ -10,6 +10,7 @@
    mit exById bereits genauso. */
 
 import { sanitizeDayKey } from './escape.js';
+import { EQUIP, EQUIP_ALL } from './equipment.js';
 
 export const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
@@ -19,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -45,7 +46,15 @@ export const DEFAULT_STATE = () => ({
      fremden Stand, und ohne einen Vergleich waere nicht zu erkennen, ob er
      neuer ist als der eigene oder nur das Echo des eigenen Schreibens.
      Geraetelokal – aus einem Backup wird er nie uebernommen. */
-  rev: 0
+  rev: 0,
+  /* Welche Geraete tatsaechlich zur Verfuegung stehen. Vorgabe ist "alles",
+     damit ein bestehender Stand sich nach dem Update genauso verhaelt wie
+     vorher – erst wer etwas abwaehlt, bekommt einen Filter. Ein LEERES Array
+     ist gueltig und heisst "gar nichts, nur Boden". */
+  equipment: [...EQUIP_ALL],
+  /* Laufende Entlastungswoche: { bis: 'YYYY-MM-DD' } oder null. Halbiert die
+     Saetze und setzt die Progression aus, solange sie laeuft. */
+  deload: null
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -67,7 +76,9 @@ export const DEFAULT_STATE = () => ({
    Wiederholungsschluessel zurueck. Ebenfalls v6: lastBackup, backupWorkouts
    und backupDismissed – additiv und ueber die Defaults abgedeckt. v7 ergaenzt
    rev, den Revisionszaehler fuer den Abgleich zwischen zwei Fenstern; ein
-   Stand ohne ihn faengt bei 0 an. */
+   Stand ohne ihn faengt bei 0 an. v8 ergaenzt equipment (vorhandene Geraete,
+   Vorgabe "alles" – ein alter Stand verhaelt sich damit unveraendert) und
+   deload (laufende Entlastungswoche, Vorgabe null). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -98,6 +109,14 @@ export function migrateState(raw){
      eine -1 aus einem handgeschriebenen Stand wuerde den Vergleich zwischen
      zwei Fenstern still verdrehen. */
   if(!Number.isInteger(out.rev) || out.rev < 0) out.rev = 0;
+  /* Nur bekannte Geraete, entdoppelt, ohne 'none' (das ist keine Anschaffung
+     und immer vorhanden). Ein leeres Ergebnis bleibt leer und faellt NICHT auf
+     die Vorgabe zurueck: "ich habe gar nichts" ist eine gueltige Antwort, und
+     sie zurueckzusetzen wuerde die Einstellung bei jedem Laden verwerfen. */
+  out.equipment = [...new Set(out.equipment.filter(e => EQUIP.includes(e) && e !== 'none'))];
+  /* Wie lastBackup: Default null laesst oben jeden Typ durch, hier laeuft
+     spaeter aber ein Datumsvergleich. */
+  if(out.deload && (typeof out.deload !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(out.deload.bis)))) out.deload = null;
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log

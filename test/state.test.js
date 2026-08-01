@@ -4,6 +4,7 @@ import {
   MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY,
   migrateState, clampBackup
 } from '../js/domain/state.js';
+import { EQUIP_ALL } from '../js/domain/equipment.js';
 
 const EX = { pushup: { id: 'pushup' }, dips: { id: 'dips' } };
 
@@ -167,6 +168,52 @@ describe('migrateState – Revisionszaehler', () => {
   it('setzt alles Unbrauchbare auf 0 zurueck', () => {
     [-1, 2.5, NaN, Infinity, '7', null, {}].forEach(wert => {
       expect(migrateState({ rev: wert }).rev).toBe(0);
+    });
+  });
+});
+
+describe('migrateState – Ausruestung', () => {
+  /* Ein Stand von vor v8 kennt das Feld nicht. Er muss sich danach genauso
+     verhalten wie vorher, also mit allem verfuegbar – nicht mit nichts. */
+  it('gibt einem alten Stand die volle Ausruestung', () => {
+    expect(migrateState({ workouts: 3 }).equipment).toEqual(EQUIP_ALL);
+  });
+
+  it('uebernimmt eine Auswahl', () => {
+    expect(migrateState({ equipment: ['bar', 'rings'] }).equipment).toEqual(['bar', 'rings']);
+  });
+
+  /* "Ich habe gar nichts" ist eine gueltige Antwort. Faellt sie auf die
+     Vorgabe zurueck, verwirft jedes Laden die Einstellung wieder. */
+  it('laesst eine leere Auswahl leer', () => {
+    expect(migrateState({ equipment: [] }).equipment).toEqual([]);
+  });
+
+  it('wirft unbekannte Werte, Doppel und none heraus', () => {
+    expect(migrateState({ equipment: ['bar', 'auto', 'bar', 'none'] }).equipment).toEqual(['bar']);
+  });
+
+  it('faellt bei einem Nicht-Array auf die Vorgabe zurueck', () => {
+    expect(migrateState({ equipment: 'bar' }).equipment).toEqual(EQUIP_ALL);
+    expect(migrateState({ equipment: { bar: true } }).equipment).toEqual(EQUIP_ALL);
+    expect(migrateState({ equipment: null }).equipment).toEqual(EQUIP_ALL);
+  });
+});
+
+describe('migrateState – Entlastungswoche', () => {
+  it('ist standardmaessig nicht aktiv', () => {
+    expect(migrateState({}).deload).toBe(null);
+  });
+
+  it('uebernimmt ein Enddatum', () => {
+    expect(migrateState({ deload: { bis: '2026-08-08' } }).deload).toEqual({ bis: '2026-08-08' });
+  });
+
+  /* Default null laesst oben jeden Typ durch, hier laeuft aber ein
+     Datumsvergleich hinein – wie bei lastBackup. */
+  it('verwirft alles ohne brauchbares Datum', () => {
+    [{ bis: 'bald' }, { bis: 20260808 }, {}, 'ja', 5, []].forEach(wert => {
+      expect(migrateState({ deload: wert }).deload).toBe(null);
     });
   });
 });

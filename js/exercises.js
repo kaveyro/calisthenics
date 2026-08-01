@@ -9,12 +9,22 @@
      id        eindeutiger Schlüssel (klein, ohne Leerzeichen)
      name      Anzeigename
      cat       push | pull | legs | core | skill | mobility
-     equip     Array: none | parallettes | bar | chair
+     equip     Array: none | chair | bar | parallettes | rings | band
+               ODER-Liste; ein Eintrag darf mit "+" eine Kombination
+               ausdrücken ("bar+band" = Stange UND Band). Die Auswertung
+               steht in js/domain/equipment.js.
      rest      empfohlene Satzpause in Sekunden (optional)
      levels    Progressionsstufen, von leicht nach schwer
                { stage: Variantenname, target: "4 × 6–10" }
                Halteübungen: "4 × 10–20 Sek"
+               Eine Stufe darf ein eigenes "equip" tragen und überschreibt
+               damit die Angabe der Übung – nötig, weil Progressionen
+               unterwegs das Gerät wechseln (Dips: Bank → Parallettes).
      tips      Array mit Ausführungshinweisen
+
+   Zur Geräteangabe: markiert wird nur eigens angeschafftes Gerät. Eine
+   erhöhte Fläche, eine Wand, ein Türrahmen oder eine Treppenstufe gilt als
+   "none" – wer die nicht hat, dem hilft ein Filter auch nicht weiter.
    ========================================================= */
 
 export const CATS = {
@@ -37,7 +47,7 @@ export const EXERCISES = [
       { stage: 'Knie-Liegestütze', target: '4 × 8–12' },
       { stage: 'Volle Liegestütze', target: '4 × 5–10' },
       { stage: 'Volle Liegestütze', target: '4 × 10–15' },
-      { stage: 'Auf Parallettes (tiefer)', target: '4 × 8–12' },
+      { stage: 'Auf Parallettes (tiefer)', target: '4 × 8–12', equip: ['parallettes'] },
       { stage: 'Pseudo-Planche Liegestütze', target: '4 × 4–8' }
     ],
     tips: [
@@ -87,13 +97,13 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes'], rest: 120,
+    id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes', 'rings'], rest: 120,
     levels: [
-      { stage: 'Bank-Dips (Füße am Boden)', target: '3 × 8–12' },
-      { stage: 'Bank-Dips, Füße erhöht', target: '3 × 8–12' },
-      { stage: 'Negativ-Dips (Parallettes)', target: '3 × 4–6' },
-      { stage: 'Dips auf Parallettes', target: '3 × 5–8' },
-      { stage: 'Dips auf Parallettes', target: '3 × 8–12' }
+      { stage: 'Bank-Dips (Füße am Boden)', target: '3 × 8–12', equip: ['chair'] },
+      { stage: 'Bank-Dips, Füße erhöht', target: '3 × 8–12', equip: ['chair'] },
+      { stage: 'Negativ-Dips (Parallettes)', target: '3 × 4–6', equip: ['parallettes', 'rings'] },
+      { stage: 'Dips auf Parallettes', target: '3 × 5–8', equip: ['parallettes', 'rings'] },
+      { stage: 'Dips auf Parallettes', target: '3 × 8–12', equip: ['parallettes', 'rings'] }
     ],
     tips: [
       'Schultern unten halten, nicht zu den Ohren ziehen.',
@@ -148,7 +158,7 @@ export const EXERCISES = [
 
   /* ================= ZIEHEN ================= */
   {
-    id: 'hang', name: 'Dead Hang', cat: 'pull', equip: ['bar'], rest: 60,
+    id: 'hang', name: 'Dead Hang', cat: 'pull', equip: ['bar', 'rings'], rest: 60,
     levels: [
       { stage: 'Passiv hängen', target: '4 × 15–30 Sek' },
       { stage: 'Passiv hängen', target: '4 × 30–45 Sek' },
@@ -163,7 +173,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar'], rest: 60,
+    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], rest: 60,
     levels: [
       { stage: 'Scapula Pull-ups', target: '3 × 5–8' },
       { stage: 'Scapula Pull-ups', target: '3 × 8–12' },
@@ -176,12 +186,12 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'row', name: 'Rudern (horizontal)', cat: 'pull', equip: ['chair', 'bar'], rest: 90,
+    id: 'row', name: 'Rudern (horizontal)', cat: 'pull', equip: ['chair', 'bar', 'rings'], rest: 90,
     levels: [
-      { stage: 'Tisch-Rudern, Knie gebeugt', target: '4 × 8–12' },
-      { stage: 'Tisch-Rudern, Beine gestreckt', target: '4 × 8–12' },
-      { stage: 'Australian Pull-ups (tiefe Stange)', target: '4 × 8–12' },
-      { stage: 'Australian, Füße erhöht', target: '4 × 8–12' }
+      { stage: 'Tisch-Rudern, Knie gebeugt', target: '4 × 8–12', equip: ['chair'] },
+      { stage: 'Tisch-Rudern, Beine gestreckt', target: '4 × 8–12', equip: ['chair'] },
+      { stage: 'Australian Pull-ups (tiefe Stange)', target: '4 × 8–12', equip: ['bar', 'rings'] },
+      { stage: 'Australian, Füße erhöht', target: '4 × 8–12', equip: ['bar', 'rings'] }
     ],
     tips: [
       'Unter einem stabilen Tisch oder einer tiefen Stange: Brust zur Kante ziehen.',
@@ -190,7 +200,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar'], rest: 150,
+    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], rest: 150,
     levels: [
       { stage: 'Negativ, 3 Sek ablassen', target: '4 × 3–5' },
       { stage: 'Negativ, 5–8 Sek ablassen', target: '4 × 3–5' },
@@ -206,7 +216,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'chinup', name: 'Chin-ups (Kammgriff)', cat: 'pull', equip: ['bar'], rest: 150,
+    id: 'chinup', name: 'Chin-ups (Kammgriff)', cat: 'pull', equip: ['bar', 'rings'], rest: 150,
     levels: [
       { stage: 'Negativ, 3–5 Sek', target: '3 × 3–5' },
       { stage: 'Chin-ups', target: '3 × 1–3' },
@@ -219,7 +229,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'front_lever', name: 'Front Lever', cat: 'pull', equip: ['bar'], rest: 120,
+    id: 'front_lever', name: 'Front Lever', cat: 'pull', equip: ['bar', 'rings'], rest: 120,
     levels: [
       { stage: 'Tuck Hang (Knie an Brust)', target: '4 × 10–15 Sek' },
       { stage: 'Tuck Front Lever', target: '4 × 8–15 Sek' },
@@ -264,10 +274,10 @@ export const EXERCISES = [
   {
     id: 'pistol', name: 'Einbeinige Kniebeuge', cat: 'legs', equip: ['chair'], rest: 120,
     levels: [
-      { stage: 'Assisted (an Türrahmen)', target: '3 × 5–8' },
-      { stage: 'Box Squat einbeinig (hoch)', target: '3 × 5–8' },
-      { stage: 'Box Squat einbeinig (tief)', target: '3 × 5–8' },
-      { stage: 'Pistol Squat', target: '3 × 3–6' }
+      { stage: 'Assisted (an Türrahmen)', target: '3 × 5–8', equip: ['none'] },
+      { stage: 'Box Squat einbeinig (hoch)', target: '3 × 5–8', equip: ['chair'] },
+      { stage: 'Box Squat einbeinig (tief)', target: '3 × 5–8', equip: ['chair'] },
+      { stage: 'Pistol Squat', target: '3 × 3–6', equip: ['none'] }
     ],
     tips: [
       'Angaben gelten je Bein.',
@@ -331,7 +341,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'knee_raise', name: 'Hängendes Beinheben', cat: 'core', equip: ['bar'], rest: 60,
+    id: 'knee_raise', name: 'Hängendes Beinheben', cat: 'core', equip: ['bar', 'rings'], rest: 60,
     levels: [
       { stage: 'Knieheben', target: '3 × 6–10' },
       { stage: 'Knieheben', target: '3 × 10–15' },
@@ -387,7 +397,7 @@ export const EXERCISES = [
 
   /* ================= SKILLS ================= */
   {
-    id: 'lsit', name: 'L-Sit', cat: 'skill', equip: ['parallettes'], rest: 90,
+    id: 'lsit', name: 'L-Sit', cat: 'skill', equip: ['parallettes', 'rings'], rest: 90,
     levels: [
       { stage: 'Tuck L-Sit', target: '4 × 5–10 Sek' },
       { stage: 'Tuck L-Sit', target: '4 × 10–15 Sek' },
@@ -419,7 +429,7 @@ export const EXERCISES = [
   {
     id: 'planche', name: 'Planche', cat: 'skill', equip: ['parallettes'], rest: 150,
     levels: [
-      { stage: 'Frog Stand (Krähe)', target: '4 × 15–30 Sek' },
+      { stage: 'Frog Stand (Krähe)', target: '4 × 15–30 Sek', equip: ['none'] },
       { stage: 'Tuck Planche', target: '4 × 8–15 Sek' },
       { stage: 'Advanced Tuck Planche', target: '4 × 8–12 Sek' },
       { stage: 'Straddle Planche Negativ', target: '4 × 4–6' },
@@ -480,7 +490,7 @@ export const EXERCISES = [
     levels: [
       { stage: 'Handtuch-Dislocates + Armkreisen', target: '2 × 10–12' },
       { stage: 'Dislocates enger + Wand-Slides', target: '3 × 10–12' },
-      { stage: 'Skin the Cat (an der Stange)', target: '3 × 4–6' }
+      { stage: 'Skin the Cat (an der Stange)', target: '3 × 4–6', equip: ['bar', 'rings'] }
     ],
     tips: [
       'Handtuch weit greifen, langsam über den Kopf nach hinten führen.',
