@@ -132,6 +132,9 @@
 
     <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
     <div class="muted" id="logSummary"></div>
+    <!-- Ohne das ging eine Einheit ohne Handy nur über eine von Hand
+         gebaute CSV wieder herein. -->
+    <button class="btn secondary" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
     <div class="card" id="logList"></div>
 
     <!-- Calendar container (rendered by JS) -->

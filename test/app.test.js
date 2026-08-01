@@ -1365,3 +1365,107 @@ describe('Tastatur: zwischen den Uebungen springen', () => {
     expect(document.activeElement).toBe(document.body);
   });
 });
+
+describe('Training nachtragen', () => {
+  const dialog = () => document.querySelector('.overlay.open');
+  const feld = id => dialog().querySelector('#' + id);
+  const klick = w => dialog().querySelector('[data-dlg=' + w + ']').click();
+
+  /* Nicht awaiten: das Promise loest erst auf, wenn der Dialog beantwortet
+     ist. Erst oeffnen, dann fuellen, dann bestaetigen, dann warten. */
+  async function oeffnen(app){
+    const p = app.actions['log:add']();
+    await ruhe();
+    return p;
+  }
+
+  it('schreibt einen Eintrag mit Datum, Tag und Saetzen', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    const p = oeffnen(app);
+    await ruhe();
+
+    feld('le-datum').value = '2026-05-04';
+    feld('le-saetze').value = '9';
+    const tag = feld('le-tag').value;
+    klick('ok');
+    await (await p); await ruhe();
+
+    const log = gespeichert().log;
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ d: '2026-05-04', day: tag, sets: 9, tops: 0, dauer: 0 });
+    /* Aus dem Plan uebernommen - sonst waere die Einheit fuer "zuletzt
+       trainiert" und die Uebungshistorie unsichtbar. */
+    expect(log[0].ex.length).toBeGreaterThan(0);
+    expect(gespeichert().workouts).toBe(1);
+  });
+
+  it('belegt die Satzzahl mit dem vor, was der Plan vorsieht', async () => {
+    const app = await starten();
+    const p = oeffnen(app);
+    await ruhe();
+    expect(Number(feld('le-saetze').value)).toBeGreaterThan(0);
+    klick('abbrechen');
+    await (await p);
+  });
+
+  async function nachtragen(app, d, n){
+    const p = oeffnen(app);
+    await ruhe();
+    feld('le-datum').value = d;
+    if(n !== undefined) feld('le-saetze').value = n;
+    klick('ok');
+    await (await p); await ruhe();
+  }
+
+  it('sortiert nach Datum ein, statt hinten anzuhaengen', async () => {
+    const app = await starten();
+    await nachtragen(app, '2026-06-01', '5');
+    await nachtragen(app, '2026-03-01', '6');
+    expect(gespeichert().log.map(l => l.d)).toEqual(['2026-03-01', '2026-06-01']);
+    /* Das groesste Datum, nicht das zuletzt eingetragene. */
+    expect(gespeichert().lastDate).toBe('2026-06-01');
+  });
+
+  /* Nichts geschrieben heisst hier woertlich nichts: ein frischer Start
+     ohne Aenderung legt noch gar keinen Stand an. */
+  const keinEintrag = () => {
+    const s = gespeichert();
+    expect((s && s.log) || []).toHaveLength(0);
+    expect(document.getElementById('logList').textContent).toMatch(/noch keine|no entries/i);
+  };
+
+  it('weist ein Datum in der Zukunft ab', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    await nachtragen(app, '2099-01-01');
+    keinEintrag();
+  });
+
+  it('weist ein leeres Datum ab', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    await nachtragen(app, '');
+    keinEintrag();
+  });
+
+  it('fragt beim zweiten Eintrag am selben Tag nach', async () => {
+    const app = await starten();
+    await nachtragen(app, '2026-05-04', '4');
+    expect(gespeichert().log).toHaveLength(1);
+
+    const p = oeffnen(app);
+    await ruhe();
+    feld('le-datum').value = '2026-05-04';
+    klick('ok');
+    await ruhe();
+    /* Jetzt steht die Rueckfrage, nicht mehr der Eingabedialog. */
+    expect(feld('le-datum')).toBeNull();
+    klick('abbrechen');
+    await (await p); await ruhe();
+    expect(gespeichert().log).toHaveLength(1);
+  });
+});

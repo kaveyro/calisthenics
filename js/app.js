@@ -1827,6 +1827,102 @@ function renderLogSummary(){
   el.textContent = __('avgDuration', { v: dauerText(schnitt), n: dauern.length });
 }
 
+/* ================= Eine Einheit nachtragen =================
+   Der Verlauf konnte Eintraege nur loeschen. Wer ohne Handy trainiert hat,
+   bekam die Einheit nur ueber eine von Hand gebaute CSV wieder hinein, und
+   ein falsches Datum liess sich gar nicht korrigieren – nur loeschen und
+   neu anlegen, was ebenfalls nicht ging.
+
+   Bewusst schmal: Datum, Trainingstag, Satzzahl. Stufen, Serien und
+   Bestleistungen bleiben unberuehrt, wie schon beim Loeschen – aus einer
+   nachgetragenen Satzzahl laesst sich nicht ableiten, was an dem Tag am
+   oberen Limit lag. Der Dialog sagt das. */
+function geplanteSaetze(key){
+  const day = getDay(key);
+  if(!day) return 0;
+  return day.ex.reduce((summe, id) => {
+    const ex = EX_BY_ID[id];
+    return ex ? summe + parseTarget(ex.levels[lvlOf(ex)].target).sets : summe;
+  }, 0);
+}
+
+function askLogEntry(){
+  const tage = getDays();
+  return askDialog((modal, finish) => {
+    const titel = __('addLogEntry');
+    modal.setAttribute('aria-label', titel);
+    modal.innerHTML = dialogKopf(titel) +
+      '<p class="dlg-text">' + esc(__('addLogEntryBody')) + '</p>' +
+      '<div class="set-row"><span><label class="lbl2" for="le-datum">' + esc(__('logDate')) + '</label></span>' +
+        '<input type="date" id="le-datum" max="' + today() + '" value="' + today() + '"></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="le-tag">' + esc(__('logDay')) + '</label></span>' +
+        '<select id="le-tag">' + tage.map(d =>
+          '<option value="' + esc(d.key) + '">' + esc(d.key + ' · ' + dayTitleOf(d)) + '</option>').join('') +
+        '</select></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="le-saetze">' + esc(__('logSets')) + '</label></span>' +
+        '<input type="number" id="le-saetze" min="1" max="99" inputmode="numeric"></div>' +
+      dialogFuss(__('save'));
+
+    const datum = modal.querySelector('#le-datum');
+    const tag = modal.querySelector('#le-tag');
+    const saetze = modal.querySelector('#le-saetze');
+    /* Vorbelegt mit dem, was der Plan fuer diesen Tag vorsieht – in aller
+       Regel ist genau das die Antwort, und der Rest ist ein Tippen. */
+    const vorbelegen = () => { saetze.value = String(geplanteSaetze(tag.value) || 1); };
+    tag.onchange = vorbelegen;
+    vorbelegen();
+
+    modal.querySelector('[data-dlg=ok]').onclick = () => finish({
+      d: datum.value, day: tag.value, sets: parseInt(saetze.value, 10)
+    });
+    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
+  });
+}
+
+async function addLogEntry(){
+  if(!getDays().length){ toast(__('noPlanDays')); return; }
+  const eingabe = await askLogEntry();
+  if(!eingabe) return;
+
+  /* Ein leeres Datumsfeld liefert '' – und ein Datum in der Zukunft laesst
+     sich trotz max-Attribut eintippen. */
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(eingabe.d) || eingabe.d > today()){
+    toast(__('logDateInvalid')); return;
+  }
+  const day = getDay(eingabe.day);
+  if(!day) return;
+  const sets = Math.min(99, Math.max(1, Number.isFinite(eingabe.sets) ? eingabe.sets : 1));
+
+  const doppelt = (state.log || []).some(l => l.d === eingabe.d && l.day === eingabe.day);
+  if(doppelt && !await askConfirm(__('logDuplicateTitle'),
+    __('logDuplicateBody', { date: fmtDate(eingabe.d), day: eingabe.day }), __('save'))) return;
+
+  /* ex aus dem Plan: eine Vermutung, aber die bestmoegliche. Ohne sie waere
+     der Eintrag fuer "zuletzt trainiert" und die Uebungshistorie unsichtbar,
+     und der Rueckfall in domain/log.js kaeme spaeter zum selben Ergebnis –
+     nur dann anhand des DANN gueltigen Plans. Lieber jetzt festhalten.
+     dauer bleibt 0: nachgetragen heisst nicht gemessen. */
+  const entry = {
+    d: eingabe.d, day: eingabe.day, ex: [...day.ex],
+    sets, tops: 0, ups: [], reps: {}, dauer: 0
+  };
+  state.log.push(entry);
+  /* Nach Datum einsortieren wie beim CSV-Import: der Verlauf zeigt die
+     letzten Eintraege ueber die Position in der Liste. */
+  state.log.sort((a, b) => a.d.localeCompare(b.d));
+  if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
+
+  state.workouts = (state.workouts || 0) + 1;
+  state.byDay[eingabe.day] = (state.byDay[eingabe.day] || 0) + 1;
+  /* Das groesste Datum, nicht das neueste Element – nachgetragen wird meist
+     rueckwaerts. */
+  state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
+
+  await save();
+  renderAll(); renderHistory();
+  toast(__('logAdded', { date: fmtDate(eingabe.d) }));
+}
+
 /* Einen einzelnen Eintrag entfernen.
 
    Das Undo nach "Fertig" lebt fuenf Sekunden; danach war ein Fehleintrag nur
@@ -3114,6 +3210,7 @@ export const actions = {
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
+  'log:add':            () => addLogEntry(),
   'log:remove':         d => removeLogEntry(zahl(d.i)),
   'calendar:shift':     (d, ev, el) => {
     if(el.getAttribute('aria-disabled') === 'true') return;
