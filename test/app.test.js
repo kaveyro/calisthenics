@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(9);
+    expect(s.v).toBe(10);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -1652,5 +1652,79 @@ describe('Einstieg', () => {
     expect(auswahl('push')).not.toBeNull();
     dialog().querySelector('[data-dlg=abbrechen]').click();
     await p;
+  });
+});
+
+describe('Bestleistungen mit Masseinheit', () => {
+  /* pike zaehlt bis Stufe 2 Sekunden und ab Stufe 3 Wiederholungen – eine
+     der sieben Uebungen, deren Leiter die Masseinheit wechselt. */
+  async function mitStand(prs, levels){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 10, onboarded: true, prs, levels }));
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    return app;
+  }
+  const prVon = id => (gespeichert().prs || {})[id];
+
+  /* Der Fehler: "30 Sek" von Stufe 3 blockierte jede Wiederholungszahl unter
+     30 – die Bestleistung stand fuer immer still. */
+  it('laesst Wiederholungen eine aeltere Haltezeit abloesen', async () => {
+    const app = await mitStand(
+      { pike: { v: '30 Sek', n: 30, d: '2026-01-01', art: 'sek', lvl: 2 } },
+      { pike: 3 });
+
+    const feld = document.getElementById('rep-pike-0');
+    expect(feld).not.toBeNull();
+    feld.value = '8';
+    feld.dispatchEvent(new window.Event('input', { bubbles: true }));
+    document.getElementById('set-pike-0').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    expect(prVon('pike')).toMatchObject({ n: 8, art: 'reps', lvl: 3 });
+  });
+
+  it('laesst eine niedrigere Stufe die hoehere nicht ueberschreiben', async () => {
+    const app = await mitStand(
+      { pike: { v: '12 Wdh', n: 12, d: '2026-01-01', art: 'reps', lvl: 4 } },
+      { pike: 0 });
+
+    /* Stufe 0 ist eine Halteuebung: der Punkt startet einen Countdown. */
+    document.getElementById('set-pike-0').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    expect(prVon('pike')).toMatchObject({ n: 12, art: 'reps' });
+  });
+
+  it('vergleicht innerhalb derselben Masseinheit weiter ueber die Zahl', async () => {
+    const app = await mitStand(
+      { pike: { v: '15 Wdh', n: 15, d: '2026-01-01', art: 'reps', lvl: 3 } },
+      { pike: 3 });
+
+    const feld = document.getElementById('rep-pike-0');
+    feld.value = '9';
+    feld.dispatchEvent(new window.Event('input', { bubbles: true }));
+    document.getElementById('set-pike-0').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    expect(prVon('pike').n).toBe(15);
+  });
+
+  /* Eine Handeingabe ohne Stufe wuerde vom naechsten automatischen Eintrag
+     mit anderer Masseinheit sofort ueberschrieben. */
+  it('schreibt bei der Handeingabe Masseinheit und Stufe mit', async () => {
+    const app = await mitStand({}, { pike: 2 });
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    document.getElementById('pr-pike').value = '25 Sek';
+    await app.actions['pr:save']({ ex: 'pike' });
+    await ruhe();
+    expect(prVon('pike')).toMatchObject({ art: 'sek', lvl: 2, n: 25 });
   });
 });

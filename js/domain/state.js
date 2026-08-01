@@ -20,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -93,7 +93,9 @@ export const DEFAULT_STATE = () => ({
    deload (laufende Entlastungswoche, Vorgabe null). v9 ergaenzt onboarded
    (siehe unten – ein benutzter Stand gilt als eingerichtet) und log[].dauer
    (Trainingsdauer in Sekunden; 0 heisst "nicht aufgezeichnet" und gilt fuer
-   jeden Eintrag von vor v9). */
+   jeden Eintrag von vor v9). v10 ergaenzt prs[].art und prs[].lvl – siehe
+   besserePR(); fuer Altbestaende wird die Masseinheit aus dem Text
+   erschlossen und die Stufe bleibt offen. */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -192,8 +194,30 @@ export function migrateState(raw){
   });
   out.settings = settings;
 
+  /* Bestleistungen auf die Form seit v10 bringen. */
+  const prs = {};
+  Object.keys(out.prs).forEach(id => {
+    const p = out.prs[id];
+    if(!p || typeof p !== 'object') return;
+    const lvl = parseInt(p.lvl, 10);
+    prs[id] = { ...p, art: p.art === 'sek' || p.art === 'reps' ? p.art : artAusText(p.v) };
+    /* Die Stufe bleibt offen, statt geraten zu werden: eine erfundene Zahl
+       wuerde in besserePR() eine Entscheidung tragen, fuer die es keine
+       Grundlage gibt. */
+    if(Number.isInteger(lvl) && lvl >= 0) prs[id].lvl = lvl; else delete prs[id].lvl;
+  });
+  out.prs = prs;
+
   out.v = STATE_VERSION;
   return out;
+}
+
+/* Die Masseinheit einer alten Bestleistung aus ihrem Text erschliessen.
+   Die Zeichenketten stammen aus der App selbst ('30 Sek', '8 Wdh'), das ist
+   verlaesslich; ein reiner Freitext ("sauber!") gilt als Wiederholung und
+   traegt ohnehin keine Zahl, die in einen Vergleich liefe. */
+function artAusText(v){
+  return /\bsek|\bsec/i.test(String(v == null ? '' : v)) ? 'sek' : 'reps';
 }
 
 /* Die Dauer eines Log-Eintrags auf eine ganze, plausible Sekundenzahl
@@ -218,6 +242,37 @@ export function prNumber(pr){
   const n = typeof pr.n === 'number' ? pr.n : parseInt(pr.v, 10);
   return Number.isFinite(n) ? n : -Infinity;
 }
+
+/* Loest eine neue Bestleistung die bisherige ab?
+
+   Bis v10 wurde stumpf  neu.n > alt.n  verglichen – ueber Masseinheiten
+   hinweg. Sieben Leitern wechseln unterwegs von Sekunden auf Wiederholungen
+   oder zurueck (handstand, planche, ring_dip, pike, hollow, pancake,
+   hip_mob). Beim Handstand hiess das: "8 Versuche" auf Stufe 2 setzt n = 8,
+   und danach kam ein freier Handstand ueber 5 und ueber 20 Sekunden NIE
+   durch, weil 5 und 20 zwar Sekunden, aber nicht groesser als 8 sind. Erst
+   ab 25 Sekunden griff es wieder – neben einer Zahl, die Versuche zaehlte.
+
+   Die Regel:
+     - Nichts da       -> die neue gewinnt.
+     - Gleiche Art     -> die groessere Zahl gewinnt.
+     - Andere Art      -> die neue gewinnt, wenn sie von einer mindestens so
+                          hohen Stufe stammt. Die Leiter hat die Masseinheit
+                          gewechselt; die alte Zahl misst etwas anderes und
+                          ist fuer das, was jetzt trainiert wird, kein Rekord
+                          mehr. Die Stufenbedingung verhindert, dass ein
+                          Rueckschritt auf eine leichtere Stufe die
+                          schwerere ueberschreibt.
+
+   Eine fehlende Stufe (Altbestand, Handeingabe vor v10) zaehlt als 0 und
+   verliert damit gegen jede eingetragene – der neuere Eintrag weiss mehr. */
+export function besserePR(alt, neu){
+  if(!neu || typeof neu !== 'object') return false;
+  if(!alt || typeof alt !== 'object') return true;
+  if(alt.art === neu.art) return prNumber(neu) > prNumber(alt);
+  return stufeVon(neu) >= stufeVon(alt);
+}
+const stufeVon = pr => Number.isInteger(pr && pr.lvl) && pr.lvl >= 0 ? pr.lvl : 0;
 
 /* ================= Import beschneiden =================
    Beschneidet ein importiertes Backup auf die bekannte Form.

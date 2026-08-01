@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_STATE, STATE_VERSION, SETTINGS_DEFAULTS,
   MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY, MAX_WORKOUT_SECS,
-  migrateState, clampBackup
+  migrateState, clampBackup, prNumber, besserePR
 } from '../js/domain/state.js';
 import { EQUIP_ALL } from '../js/domain/equipment.js';
 
@@ -400,5 +400,79 @@ describe('clampBackup + migrateState – der Importpfad', () => {
 
   it('liefert auch fuer ein leeres Backup einen vollstaendigen Stand', () => {
     expect(migrateState(clampBackup({}, EX))).toEqual(DEFAULT_STATE());
+  });
+});
+
+describe('besserePR', () => {
+  const reps = (n, lvl) => ({ v: n + ' Wdh', n, d: '2026-01-01', art: 'reps', lvl });
+  const sek = (n, lvl) => ({ v: n + ' Sek', n, d: '2026-01-01', art: 'sek', lvl });
+
+  it('nimmt jede Bestleistung an, wenn noch keine da ist', () => {
+    expect(besserePR(null, reps(5, 0))).toBe(true);
+    expect(besserePR(undefined, sek(30, 2))).toBe(true);
+    expect(besserePR('kaputt', reps(5, 0))).toBe(true);
+  });
+
+  it('nimmt nichts an, was keine Bestleistung ist', () => {
+    expect(besserePR(reps(5, 0), null)).toBe(false);
+    expect(besserePR(reps(5, 0), 'mehr')).toBe(false);
+  });
+
+  it('vergleicht bei gleicher Art die Zahl', () => {
+    expect(besserePR(reps(8, 1), reps(9, 1))).toBe(true);
+    expect(besserePR(reps(8, 1), reps(8, 1))).toBe(false);
+    expect(besserePR(reps(8, 3), reps(7, 4))).toBe(false);
+  });
+
+  /* Der Fehler, um den es geht: der Handstand zaehlt auf Stufe 0-1 Versuche
+     und ab Stufe 2 Sekunden. "8 Versuche" hat einen freien Handstand ueber
+     5 und ueber 20 Sekunden dauerhaft blockiert. */
+  it('laesst eine andere Masseinheit von einer hoeheren Stufe durch', () => {
+    expect(besserePR(reps(8, 1), sek(5, 2))).toBe(true);
+    expect(besserePR(reps(8, 1), sek(20, 3))).toBe(true);
+  });
+
+  it('laesst eine andere Masseinheit von einer niedrigeren Stufe nicht durch', () => {
+    expect(besserePR(sek(30, 3), reps(10, 1))).toBe(false);
+  });
+
+  it('laesst die gleiche Stufe durch – die Leiter hat dort die Einheit gewechselt', () => {
+    expect(besserePR(reps(8, 2), sek(5, 2))).toBe(true);
+  });
+
+  /* Ein Altbestand hat keine Stufe; der neuere Eintrag weiss mehr. */
+  it('behandelt eine fehlende Stufe wie Stufe 0', () => {
+    expect(besserePR({ v: '8 Wdh', n: 8, art: 'reps' }, sek(5, 0))).toBe(true);
+    expect(besserePR({ v: '8 Wdh', n: 8, art: 'reps' }, { v: '5 Sek', n: 5, art: 'sek' })).toBe(true);
+  });
+});
+
+describe('migrateState – Bestleistungen', () => {
+  const pr = roh => migrateState({ prs: { handstand: roh } }).prs.handstand;
+
+  it('erschliesst die Masseinheit aus dem Text', () => {
+    expect(pr({ v: '30 Sek', n: 30 }).art).toBe('sek');
+    expect(pr({ v: '30 sec', n: 30 }).art).toBe('sek');
+    expect(pr({ v: '8 Wdh', n: 8 }).art).toBe('reps');
+    expect(pr({ v: 'sauber!' }).art).toBe('reps');
+  });
+
+  it('laesst eine vorhandene Angabe stehen', () => {
+    expect(pr({ v: '8 Wdh', n: 8, art: 'sek' }).art).toBe('sek');
+    expect(pr({ v: '8 Wdh', n: 8, art: 'quatsch' }).art).toBe('reps');
+  });
+
+  it('uebernimmt eine brauchbare Stufe und laesst den Rest offen', () => {
+    expect(pr({ v: '8 Wdh', n: 8, lvl: 3 }).lvl).toBe(3);
+    expect(pr({ v: '8 Wdh', n: 8, lvl: '2' }).lvl).toBe(2);
+    expect(pr({ v: '8 Wdh', n: 8, lvl: -1 })).not.toHaveProperty('lvl');
+    expect(pr({ v: '8 Wdh', n: 8, lvl: 'oben' })).not.toHaveProperty('lvl');
+    expect(pr({ v: '8 Wdh', n: 8 })).not.toHaveProperty('lvl');
+  });
+
+  it('wirft kaputte Eintraege weg und laesst die Zahl unangetastet', () => {
+    const out = migrateState({ prs: { a: null, b: 'nein', c: { v: '9 Wdh', n: 9 } } });
+    expect(Object.keys(out.prs)).toEqual(['c']);
+    expect(prNumber(out.prs.c)).toBe(9);
   });
 });

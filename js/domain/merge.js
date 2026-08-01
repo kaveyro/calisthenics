@@ -12,7 +12,7 @@
    Aufgerufen wird das vor migrateState() und nach clampBackup(): hier wird
    entschieden, welcher Wert gewinnt, nicht ob er eine gueltige Form hat. */
 
-import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, prNumber } from './state.js';
+import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, prNumber, besserePR } from './state.js';
 
 const objekt = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
 const liste = v => Array.isArray(v) ? v : [];
@@ -110,17 +110,20 @@ function ganzzahl(v){
   return Number.isFinite(n) ? n : null;
 }
 
-/* Bestleistungen: die hoehere Zahl gewinnt. Bei Gleichstand – und das
-   schliesst zwei reine Freitexte ein, die beide -Infinity ergeben – der
-   juengere Eintrag. */
+/* Bestleistungen: dieselbe Regel wie in der App, damit ein Import nicht zu
+   einem anderen Ergebnis kommt als das Training selbst – besonders bei
+   Uebungen, deren Leiter die Masseinheit wechselt (siehe besserePR()).
+
+   Bei Gleichstand – und das schliesst zwei reine Freitexte ein, die beide
+   -Infinity ergeben – gewinnt der juengere Eintrag. */
 function mischePrs(a, b){
   const out = { ...a };
   Object.keys(b).forEach(id => {
     const neu = b[id], alt = out[id];
     if(!neu || typeof neu !== 'object') return;
-    if(!alt || typeof alt !== 'object'){ out[id] = neu; return; }
-    const na = prNumber(alt), nb = prNumber(neu);
-    if(nb > na || (nb === na && String(neu.d || '') > String(alt.d || ''))) out[id] = neu;
+    if(besserePR(alt, neu)){ out[id] = neu; return; }
+    if(alt && alt.art === neu.art && prNumber(neu) === prNumber(alt) &&
+       String(neu.d || '') > String(alt.d || '')) out[id] = neu;
   });
   return out;
 }

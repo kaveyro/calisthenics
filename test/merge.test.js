@@ -112,6 +112,25 @@ describe('mergeStates – Bestleistungen', () => {
     const out = mergeStates({ prs: { a: { v: '1', n: 1 } } }, { prs: { a: 5, b: null } });
     expect(out.prs).toEqual({ a: { v: '1', n: 1 } });
   });
+
+  /* Dieselbe Regel wie in der App, sonst kaeme ein Import zu einem anderen
+     Ergebnis als das Training. Der Handstand zaehlt bis Stufe 1 Versuche und
+     ab Stufe 2 Sekunden – "8 Versuche" darf 20 Sekunden nicht blockieren. */
+  it('vergleicht Sekunden nicht mit Wiederholungen', () => {
+    const out = mergeStates(
+      { prs: { handstand: { v: '8 Wdh', n: 8, d: '2026-01-01', art: 'reps', lvl: 1 } } },
+      { prs: { handstand: { v: '20 Sek', n: 20, d: '2026-06-01', art: 'sek', lvl: 3 } } }
+    );
+    expect(out.prs.handstand.v).toBe('20 Sek');
+  });
+
+  it('laesst eine niedrigere Stufe die hoehere nicht ueberschreiben', () => {
+    const out = mergeStates(
+      { prs: { handstand: { v: '30 Sek', n: 30, d: '2026-06-01', art: 'sek', lvl: 4 } } },
+      { prs: { handstand: { v: '10 Wdh', n: 10, d: '2026-07-01', art: 'reps', lvl: 1 } } }
+    );
+    expect(out.prs.handstand.v).toBe('30 Sek');
+  });
 });
 
 describe('mergeStates – Notizen und Meilensteine', () => {

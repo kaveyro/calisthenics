@@ -13,7 +13,7 @@ import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung } fr
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
-  DEFAULT_STATE, migrateState, prNumber, clampBackup as clampBackupPure
+  DEFAULT_STATE, migrateState, besserePR, clampBackup as clampBackupPure
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
@@ -1608,9 +1608,11 @@ async function finishWorkout(){
     if(!t.isHold && t.maxReps){
       for(let s = 0; s < t.sets; s++){
         const v = session.reps[id + '-' + s];
-        if(v && v > prNumber(state.prs[id])){
-          state.prs[id] = { v: v + ' ' + __('reps'), n: v, d: today() };
-        }
+        /* art und lvl gehoeren dazu: ohne sie vergleicht besserePR()
+           Sekunden mit Wiederholungen. Sieben Leitern wechseln unterwegs
+           die Masseinheit. */
+        const kandidat = { v: v + ' ' + __('reps'), n: v, d: today(), art: 'reps', lvl };
+        if(v && besserePR(state.prs[id], kandidat)) state.prs[id] = kandidat;
       }
     } else if(t.isHold && t.holdSecs){
       /* Halteuebungen bekamen nie automatisch eine Bestleistung: die Schleife
@@ -1619,9 +1621,10 @@ async function finishWorkout(){
          Sekunden kennt – ein abgeschlossener Satz IST die gehaltene Zeit.
          Es genuegt ein geschaffter Satz; die weiteren aendern die Zeit nicht. */
       const geschafft = Array.from({ length: t.sets }, (_, s) => session.sets[id + '-' + s]).some(Boolean);
-      if(geschafft && t.holdSecs > prNumber(state.prs[id])){
-        state.prs[id] = { v: t.holdSecs + ' ' + __('secShort'), n: t.holdSecs, d: today() };
-      }
+      const kandidat = {
+        v: t.holdSecs + ' ' + __('secShort'), n: t.holdSecs, d: today(), art: 'sek', lvl
+      };
+      if(geschafft && besserePR(state.prs[id], kandidat)) state.prs[id] = kandidat;
     }
   });
 
@@ -2357,7 +2360,16 @@ async function savePR(id){
     delete state.prs[id];
   } else {
     const n = parseInt(v, 10);
-    state.prs[id] = Number.isFinite(n) ? { v, n, d: today() } : { v, d: today() };
+    /* Eine Handeingabe gewinnt immer – sie ist ausdruecklich gewollt. art und
+       lvl gehoeren trotzdem dazu, sonst bewertet besserePR() den naechsten
+       automatischen Eintrag falsch: ohne Stufe stuende die Eingabe auf 0 und
+       jede Masseinheit-Aenderung wuerde sie sofort ueberschreiben. */
+    const ex = EX_BY_ID[id];
+    const art = /\bsek|\bsec/i.test(v) ? 'sek' : 'reps';
+    const lvl = ex ? lvlOf(ex) : 0;
+    state.prs[id] = Number.isFinite(n)
+      ? { v, n, d: today(), art, lvl }
+      : { v, d: today(), art, lvl };
   }
   await save(); renderLibrary(); toast(v ? __('bestSaved') : __('bestDeleted'));
 }
