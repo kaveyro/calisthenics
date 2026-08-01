@@ -340,7 +340,50 @@ export const LANG = {
     calendarPlanned: ', geplant: {day}',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
-    keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
+    keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste',
+
+    /* Tastatur-Ansagen fuer Screenreader */
+    shortcutRest: 'Pause gestartet, {sec} Sekunden',
+    shortcutTab: 'Tab gewechselt: {name}',
+    shortcutSet: 'Satz abgehakt',
+    settingChanged: 'Einstellung geändert.',
+    settingUndone: 'Einstellung zurückgesetzt.',
+
+    /* Trainingserinnerungen (Notification API) */
+    reminderTitle: 'Heute trainieren?',
+    reminderBody: 'Dein Plan sieht heute {day} vor.',
+    reminderEnable: 'Trainingserinnerung',
+    reminderEnableHint: 'Erinnert an geplante Trainingstage',
+    reminderEnabled: 'Erinnerungen aktiviert.',
+    reminderDisabled: 'Erinnerungen deaktiviert.',
+    reminderDenied: 'Benachrichtigungen sind im Browser blockiert – in den Einstellungen des Browsers erlauben.',
+
+    /* Jahresrueckblick */
+    yearReview: 'Jahresrückblick',
+    yearReviewTitle: 'Dein Jahr in Zahlen',
+    yearReviewEmpty: 'Noch keine Daten für dieses Jahr.',
+    yearReviewWorkouts: '{n} Trainings',
+    yearReviewLevelUps: '{n} Level-Ups',
+    yearReviewMilestones: '{n} Meilensteine',
+    yearReviewReps: '{n} Wiederholungen',
+    yearReviewTop: 'Meistgeübte Übung: {name}',
+
+    /* Eigene Meilensteine */
+    addMilestone: 'Eigener Meilenstein',
+    milestoneName: 'Name des Meilensteins',
+    milestoneNameLabel: 'z. B. Erster 30-Sek-Handstand',
+    milestoneAdded: 'Meilenstein „{name}“ angelegt.',
+    milestoneRemoveTitle: 'Meilenstein entfernen',
+    milestoneRemoveBody: '„{name}“ wird entfernt. Das Datum, falls schon erreicht, geht verloren.',
+    milestoneRemoved: 'Meilenstein entfernt.',
+
+    /* Wochenzusammenfassung im Text-Export */
+    textWeekSummary: '— Diese Woche —',
+    textWeekWorkouts: '{n} Trainings diese Woche',
+
+    /* Deload-Vorschlag aus Plateau-Erkennung */
+    deloadPlateauTitle: 'Stagnation – Deload erwägen?',
+    deloadPlateauBody: 'Mehrere Übungen machen seit einigen Einheiten keine Fortschritte. Eine Entlastungswoche kann helfen.'
   },
 
   en: {
@@ -650,6 +693,49 @@ export const LANG = {
     calendarPlanned: ', planned: {day}',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
-    keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar'
+    keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar',
+
+    /* Keyboard announcements for screen readers */
+    shortcutRest: 'Rest started, {sec} seconds',
+    shortcutTab: 'Tab switched: {name}',
+    shortcutSet: 'Set completed',
+    settingChanged: 'Setting changed.',
+    settingUndone: 'Setting reverted.',
+
+    /* Workout reminders (Notification API) */
+    reminderTitle: 'Work out today?',
+    reminderBody: 'Your plan has {day} today.',
+    reminderEnable: 'Workout reminder',
+    reminderEnableHint: 'Reminds you on planned workout days',
+    reminderEnabled: 'Reminders enabled.',
+    reminderDisabled: 'Reminders disabled.',
+    reminderDenied: 'Notifications are blocked in the browser – allow them in the browser settings.',
+
+    /* Year in review */
+    yearReview: 'Year in review',
+    yearReviewTitle: 'Your year in numbers',
+    yearReviewEmpty: 'No data for this year yet.',
+    yearReviewWorkouts: '{n} workouts',
+    yearReviewLevelUps: '{n} level-ups',
+    yearReviewMilestones: '{n} milestones',
+    yearReviewReps: '{n} reps',
+    yearReviewTop: 'Most trained exercise: {name}',
+
+    /* Custom milestones */
+    addMilestone: 'Custom milestone',
+    milestoneName: 'Milestone name',
+    milestoneNameLabel: 'e.g. First 30-second handstand',
+    milestoneAdded: 'Milestone “{name}” created.',
+    milestoneRemoveTitle: 'Remove milestone',
+    milestoneRemoveBody: '“{name}” will be removed. The date, if already reached, is lost.',
+    milestoneRemoved: 'Milestone removed.',
+
+    /* Weekly summary in the text export */
+    textWeekSummary: '— This week —',
+    textWeekWorkouts: '{n} workouts this week',
+
+    /* Deload suggestion from plateau detection */
+    deloadPlateauTitle: 'Plateau – consider a deload?',
+    deloadPlateauBody: 'Several exercises have not progressed for a few sessions. A deload week can help.'
   }
 };

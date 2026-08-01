@@ -54,7 +54,7 @@
   --bg:#F3F4F1;
   --card:#FFFFFF;
   --ink:#181C20;
-  --ink-soft:#5A6068;
+  --ink-soft:#4A5058;
   --line:#DDDFD9;
   --accent:#2547D0;
   --accent-soft:#E4E9FB;
@@ -65,6 +65,11 @@
   --toast-bg:#181C20;
   --toast-fg:#FFFFFF;
   --bar-bg:rgba(243,244,241,.95);
+  /* Segmentfarben der Volumen-Verteilung – als Variablen, damit sie
+     konsistent bleiben und sich im Dark Theme feinjustieren lassen. */
+  --vol-core:#7A5CC4;
+  --vol-skill:#C4478F;
+  --vol-mobility:#3E9AA8;
   --radius:14px;
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --display:'Archivo Black',system-ui,sans-serif;
@@ -85,6 +90,11 @@ html[data-theme="dark"]{
   --toast-bg:#ECEDEA;
   --toast-fg:#14161A;
   --bar-bg:rgba(20,22,26,.92);
+  /* Im Dark Theme etwas heller, damit die Segmente auf dem dunklen
+     Grund ablesbar bleiben. */
+  --vol-core:#9A82D6;
+  --vol-skill:#D468A8;
+  --vol-mobility:#5BB3C0;
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -105,7 +115,9 @@ header{padding:24px 0 6px}
 h1{font-family:var(--display);font-size:clamp(26px,7vw,36px);line-height:1.05;text-transform:uppercase;margin:4px 0 2px}
 h1 .thin{color:var(--accent)}
 .head-btns{display:flex;gap:8px;flex:none}
-.icon-btn{background:var(--card);border:1px solid var(--line);border-radius:50%;width:42px;height:42px;font-size:18px;cursor:pointer;flex:none;line-height:1;transition:border-color .15s}
+/* 44px statt 42px: WCAG 2.5.8 empfiehlt 44x44 als Mindestgroesse fuer
+   Touch-Ziele – zwei Pixel mehr, kein sichtbarer Unterschied. */
+.icon-btn{background:var(--card);border:1px solid var(--line);border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;flex:none;line-height:1;transition:border-color .15s}
 .icon-btn:hover{border-color:var(--accent)}
 .icon-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .phase-line{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:6px}
@@ -193,7 +205,7 @@ details.acc li{margin-bottom:5px}
 .cat-chip.warn{border-color:var(--warn);color:var(--warn)}
 .lvl-adjust{display:flex;gap:6px}
 .lvl-adjust button{width:27px;height:27px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:14px;cursor:pointer;line-height:1}
-.lvl-adjust button:focus-visible{outline:2px solid var(--accent)}
+.lvl-adjust button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-name{font-weight:700;font-size:16px}
 .ex-target{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap}
@@ -253,13 +265,14 @@ details.acc li{margin-bottom:5px}
 .note-input::placeholder{color:var(--ink-soft)}
 .inline-row{display:flex;gap:8px;margin-top:10px}
 .inline-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13.5px}
-.inline-row input:focus{outline:2px solid var(--accent)}
+.inline-row input:focus{outline:3px solid var(--accent);outline-offset:2px}
 .inline-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 15px;font-weight:600;cursor:pointer;flex:none}
 .inline-row select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:13.5px}
+.inline-row select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 /* ---------- Substitute & Per-Exercise Buttons ---------- */
 .sub-btn,.tip-btn{margin-top:10px;background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;margin-right:12px}
-.sub-btn:focus-visible,.tip-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sub-btn:focus-visible,.tip-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .tips{display:none;margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;font-size:13.5px}
 .tips.open{display:block}
 .tips li{margin-left:16px;margin-bottom:4px}
@@ -320,7 +333,7 @@ details.acc li{margin-bottom:5px}
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .chip{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer}
 .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.chip:focus-visible{outline:2px solid var(--accent)}
+.chip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .lib-item{border-bottom:1px solid var(--line);padding:12px 0}
 .lib-item:last-child{border-bottom:none}
 /* Als <button>: Browser-Vorgaben zuruecksetzen, Aussehen bleibt gleich */
@@ -353,9 +366,9 @@ details.acc li{margin-bottom:5px}
 .vol-push{background:var(--accent)}
 .vol-pull{background:var(--success)}
 .vol-legs{background:var(--warn)}
-.vol-core{background:#7A5CC4}
-.vol-skill{background:#C4478F}
-.vol-mobility{background:#3E9AA8}
+.vol-core{background:var(--vol-core)}
+.vol-skill{background:var(--vol-skill)}
+.vol-mobility{background:var(--vol-mobility)}
 
 /* Vorschau im Plangenerator */
 .pb-preview{margin-top:12px;max-height:230px;overflow-y:auto}
@@ -384,7 +397,7 @@ details.acc li{margin-bottom:5px}
    Die Buttons waren 28x28 bzw. inline sogar nur 20x20. */
 .mini-btn{min-width:44px;min-height:44px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:13px;cursor:pointer;flex:none;line-height:1;padding:0 6px}
 .mini-btn--inline{margin-left:6px;font-size:11px}
-.mini-btn:focus-visible{outline:2px solid var(--accent)}
+.mini-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .mini-btn.danger{color:var(--warn)}
 
 /* ---------- Fußzeile Training ---------- */
@@ -410,21 +423,40 @@ details.acc li{margin-bottom:5px}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
 .overlay.open{display:flex}
 .modal{background:var(--card);border:1px solid var(--line);border-radius:18px;max-width:500px;width:100%;padding:18px 16px;max-height:86vh;overflow:auto}
+/* Schmale Variante fuer den Uebungsverlauf – ersetzt ein Inline-Style. */
+.modal--narrow{max-width:400px;padding:16px}
 .modal-head{display:flex;justify-content:space-between;align-items:center;font-family:var(--display);text-transform:uppercase;font-size:16px;margin-bottom:8px}
 .modal-head button{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);line-height:1}
 .set-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
 .set-row .lbl2{font-size:14px;font-weight:600}
 .set-row .hint{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:400;margin-top:1px}
 .set-row select,.set-row input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;flex:none;max-width:175px;font-family:var(--body)}
-.set-row select:focus-visible,.set-row input:focus-visible{outline:2px solid var(--accent)}
+.set-row select:focus-visible,.set-row input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .set-row input[type=checkbox]{width:28px;height:28px;accent-color:var(--accent);flex:none;cursor:pointer}
 .modal .section-title{margin:16px 0 4px;font-size:13px}
 .data-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+/* Messwerte: Eingabefeld und Speichern-Knopf ohne Inline-Styles. */
+.meas-col{flex:1}
+.meas-input{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.meas-save{align-self:flex-end}
+.meas-meta{margin-top:10px;font-size:12px;color:var(--ink-soft)}
+/* Tipps in der Bibliothek: ohne Inline-Style einen Abstand nach oben. */
+.tips--inline{margin-top:10px}
+/* Fahrplan-Eintrag: gleiche Struktur wie Bibliothekskoepfe, aber ohne
+   Klick-Hand – ersetzt zwei Inline-Styles. */
+.roadmap-item{padding:10px 0;border-bottom:1px solid var(--line)}
+.roadmap-head{cursor:default}
+.empty-hint--full{width:100%}
+/* cursor:pointer auf Labels/Set-Zeilen – ersetzt style="cursor:pointer". */
+.clickable{cursor:pointer}
 /* Globale Button-Klasse. Frueher nur innerhalb .data-btns definiert – die
    Buttons "Training nachtragen" und "Einstieg wiederholen" stehen aber
    ausserhalb davon und bekamen dadurch keinerlei Styling: heller
    Browser-Standard-Hintergrund mit heller Schrift im Dark Mode (unlesbar). */
-.btn{flex:1;min-width:135px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;font-size:13.5px;text-align:center}
+.btn{flex:1;min-width:135px;max-width:none;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;font-size:13.5px;text-align:center}
+/* Alleinstehend (ausserhalb .data-btns): nicht ueber die ganze Zeile
+   ziehen – flex:1 gilt nur innerhalb des Button-Verbunds. */
+.btn--standalone{flex:auto;max-width:280px}
 .btn.secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 .btn:focus-visible,.btn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
 .data-hint{font-size:12px;color:var(--ink-soft);margin-top:8px}

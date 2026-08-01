@@ -106,6 +106,7 @@ export async function start(){
     restoreActiveSession();
     registerSW();
     speicherSichern();
+    erinnerungPruefen();
     installDelegation(actions);
     installPlanDragAndDrop();
     addKeyboardShortcuts();
@@ -690,6 +691,14 @@ function renderBanners(){
   if(plateaus.length){
     html += '<div class="banner warn">' + esc(__('plateauDetected')) + ': ' + esc(plateaus.join(', ')) +
       '.<br><small>' + esc(__('plateauMsg')) + '</small></div>';
+    /* Deload-Vorschlag: mehrere stagnierende Uebungen sind ein Zeichen fuer
+       eine Entlastungswoche – die Erinnerung zaehlt nur Einheiten. */
+    if(plateaus.length >= 2 && !deloadAktiv() && !state.deloadPlateauDismissed){
+      html += '<div class="banner info"><b>' + esc(__('deloadPlateauTitle')) + '</b> ' +
+        esc(__('deloadPlateauBody')) +
+        '<br><button data-action="deload:start">' + esc(__('deloadStart')) + '</button> ' +
+        '<button data-action="deload:plateauDismiss">' + esc(__('understood')) + '</button></div>';
+    }
   }
   /* Der Verlauf liegt nur in diesem Browser. Exportieren konnte man ihn
      immer, aber nichts hielt fest, wann das zuletzt geschah, und nichts
@@ -860,6 +869,8 @@ function addKeyboardShortcuts(){
         startRest(defaultRest);
         persistSession();
         toast(__('restLabel', { sec: defaultRest }));
+        /* Screenreader-Ansage: der Toast ist sichtbar, aber nicht hoerbar. */
+        melde(__('shortcutRest', { sec: defaultRest }));
       }
       return;
     }
@@ -888,7 +899,9 @@ function addKeyboardShortcuts(){
     }
     if(e.key >= '1' && e.key <= '5'){
       const tabs = ['train', 'history', 'library', 'plan', 'milestones'];
-      showTab(tabs[parseInt(e.key) - 1]);
+      const ziel = tabs[parseInt(e.key) - 1];
+      showTab(ziel);
+      melde(__('shortcutTab', { name: __(ziel) }));
     }
   });
 }
@@ -1252,8 +1265,8 @@ function showExHistory(id){
     .slice(-15).reverse();
   /* role/aria-modal fehlten hier komplett – anders als beim statischen
      Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
-  let html = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '"' +
-    ' style="max-width:400px;padding:16px"><div class="modal-head">' +
+  let html = '<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '">' +
+    '<div class="modal-head">' +
     esc(__('exerciseHistory', { name: exName(ex) })) +
     '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">✕</button></div>';
   if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
@@ -1263,7 +1276,7 @@ function showExHistory(id){
        Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
     /* Die Wiederholungsspalte ist die einzige Angabe hier, die sich wirklich
        auf DIESE Uebung bezieht – Saetze und Top zaehlen die ganze Einheit. */
-    html += '<table style="width:100%;font-size:13px"><tr><th>' + esc(__('colDate')) + '</th><th>' +
+    html += '<table><tr><th>' + esc(__('colDate')) + '</th><th>' +
       esc(__('colReps')) + '</th><th>' +
       esc(__('colSets')) + '</th><th>' + esc(__('colTop')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
     logEntries.forEach(l => {
@@ -1868,7 +1881,7 @@ function renderHistory(){
 
   const wc = document.getElementById('weekChart');
   if(!weeks.length){
-    wc.innerHTML = '<div class="empty-hint" style="width:100%">' + esc(__('noHistory') + __('noHistoryHint')) + '</div>';
+    wc.innerHTML = '<div class="empty-hint empty-hint--full">' + esc(__('noHistory') + __('noHistoryHint')) + '</div>';
     document.getElementById('weekLegend').textContent = '';
     document.getElementById('volChart').innerHTML = '';
     renderVolSplit(null);
@@ -1913,6 +1926,7 @@ function renderHistory(){
 
   renderWeight();
   renderMeasurements();
+  renderYearReview();
 
   const list = document.getElementById('logList');
   /* Mit dem echten Index, nicht dem der Ansicht: geloescht wird in state.log,
@@ -1966,6 +1980,41 @@ function renderLogSummary(imZeitraum = 0, gezeigt = 0){
   if(gezeigt < imZeitraum) teile.push(__('logShowing', { n: gezeigt, gesamt: imZeitraum }));
   el.textContent = teile.join(' ');
   el.hidden = !teile.length;
+}
+
+/* ================= Jahresrueckblick =================
+   Alle Daten liegen im Log. Eine Zusammenfassung des laufenden Jahres ist
+   reine Auswertung – motivierend, ohne dass irgendetwas neu erfasst wird. */
+function renderYearReview(){
+  const el = document.getElementById('yearReview');
+  if(!el) return;
+  const jahr = today().slice(0, 4);
+  const log = (state.log || []).filter(l => l.d && l.d.slice(0, 4) === jahr);
+  if(!log.length){ el.innerHTML = '<div class="muted">' + esc(__('yearReviewEmpty')) + '</div>'; return; }
+
+  const workouts = log.length;
+  const ups = log.reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
+  const ms = Object.keys(state.milestones || {}).length;
+  /* Wiederholungen: nur die, die wirklich trainiert wurden. */
+  let reps = 0;
+  log.forEach(l => {
+    Object.values(l.reps || {}).forEach(v => { if(v > 0) reps += v; });
+  });
+  /* Meistgeuebte Uebung: aus den Log-Eintraegen, nicht aus dem Plan. */
+  const zaehler = {};
+  log.forEach(l => (l.ex || []).forEach(id => { zaehler[id] = (zaehler[id] || 0) + 1; }));
+  const topId = Object.keys(zaehler).sort((a, b) => zaehler[b] - zaehler[a])[0];
+  const top = topId && EX_BY_ID[topId] ? exName(EX_BY_ID[topId]) : null;
+
+  const teile = [
+    __('yearReviewWorkouts', { n: workouts }),
+    __('yearReviewLevelUps', { n: ups }),
+    __('yearReviewMilestones', { n: ms }),
+    __('yearReviewReps', { n: reps })
+  ];
+  if(top) teile.push(__('yearReviewTop', { name: top }));
+  el.innerHTML = '<div class="section-title" style="margin-top:0">' + esc(__('yearReviewTitle')) + '</div>' +
+    '<div class="muted">' + esc(teile.join(' · ')) + '</div>';
 }
 
 /* ================= Eine Einheit nachtragen =================
@@ -2205,16 +2254,15 @@ function renderMeasurements(){
     const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
     /* <small> ist keine Beschriftung – ein Screenreader las hier bisher
        nur "Eingabefeld". */
-    html += '<div style="flex:1"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
+    html += '<div class="meas-col"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
       '<input id="meas-' + p + '" type="number" step="0.5" min="0" max="200"' +
-      ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '"' +
-      ' style="width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></div>';
+      ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '" class="meas-input"></div>';
   });
-  html += '<button data-action="measurement:add" style="align-self:flex-end">' + __('save') + '</button>';
+  html += '<button class="btn btn--standalone meas-save" data-action="measurement:add">' + __('save') + '</button>';
   html += '</div>';
 
   if(dates.length){
-    html += '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft)">';
+    html += '<div class="meas-meta">';
     const last = dates[dates.length - 1];
     parts.forEach(p => {
       if(last[p]) html += esc(labels[p]) + ': <b>' + last[p] + ' ' + __('cm') + '</b> · ';
@@ -2378,7 +2426,7 @@ function renderLibrary(){
           ' value="' + (pr ? esc(pr.v) : '') + '">' +
           '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
         (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
-        '<ul class="tips open" style="margin-top:10px">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+        '<ul class="tips open tips--inline">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
         '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
       '</div></div>';
   }).join('') : '';
@@ -2714,12 +2762,53 @@ function fehltText(fehlt){
   return teile.length ? __('msNeeds', { list: teile.join(__('andJoin')) }) : '';
 }
 
+/* Eigene Meilensteine: der Nutzer kann sich eigene Ziele setzen, die nicht
+   in den Daten stehen. Sie werden in state.customMilestones gehalten und
+   wie die festen Meilensteine abgehakt. */
+function customMilestones(){
+  return state.customMilestones || [];
+}
+async function addCustomMilestone(){
+  const name = await askText(__('addMilestone'), __('milestoneName'), '', 60);
+  if(!name || !name.trim()) return;
+  if(!state.customMilestones) state.customMilestones = [];
+  state.customMilestones.push({ id: 'custom-' + Date.now(), name: name.trim() });
+  await save(); renderMilestones();
+  toast(__('milestoneAdded', { name: name.trim() }));
+}
+async function removeCustomMilestone(id){
+  const m = customMilestones().find(x => x.id === id);
+  if(!m) return;
+  const ok = await askConfirm(__('milestoneRemoveTitle'),
+    __('milestoneRemoveBody', { name: m.name }), __('remove'), true);
+  if(!ok) return;
+  state.customMilestones = customMilestones().filter(x => x.id !== id);
+  delete state.milestones[id];
+  await save(); renderMilestones();
+}
+
 function renderMilestones(){
   const search = (document.getElementById('msSearch')?.value || '').toLowerCase();
   let list = MILESTONES;
   if(search) list = list.filter(m => msName(m).toLowerCase().includes(search));
 
-  document.getElementById('msList').innerHTML = list.map(m => {
+  /* Eigene Meilensteine zuerst – sie sind die persoenlichen Ziele. */
+  const eigene = customMilestones().filter(m => !search || m.name.toLowerCase().includes(search));
+  let html = eigene.map(m => {
+    const d = (state.milestones || {})[m.id];
+    return '<div class="ms-row">' +
+      '<label class="ms' + (d ? ' done' : '') + '">' +
+      '<input type="checkbox" ' + (d ? 'checked' : '') +
+      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span>' +
+      '<span class="ms-name">' + esc(m.name) + '</span>' +
+      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') +
+      '</span></label>' +
+      '<button type="button" class="mini-btn danger" data-action="milestone:removeCustom" data-id="' +
+        m.id + '" title="' + esc(__('remove')) + '">✕</button>' +
+      '</div>';
+  }).join('');
+
+  html += list.map(m => {
     const d = (state.milestones || {})[m.id];
     const s = d ? null : msStatus(m);
     /* Erkannt, aber nicht eingetragen: die App schlaegt vor und hakt nicht
@@ -2743,6 +2832,8 @@ function renderMilestones(){
         m.id + '">' + esc(__('msAccept')) + '</button>' : '') +
       '</div>';
   }).join('');
+
+  document.getElementById('msList').innerHTML = html;
 }
 
 /* Alle erkannten, noch nicht eingetragenen Meilensteine. */
@@ -2788,8 +2879,8 @@ function renderRoadmap(){
   document.getElementById('roadmap').innerHTML = skills.map(ex => {
     const lvl = lvlOf(ex);
     const pct = Math.round(lvl / (ex.levels.length - 1) * 100);
-    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">' +
-      '<div class="lib-head" style="cursor:default"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
+    return '<div class="roadmap-item">' +
+      '<div class="lib-head roadmap-head"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
       '<span class="lib-meta">' + pct + '%</span></div>' +
       '<div class="muted">' + esc(__('nextStage', { name: exStage(ex, lvl), stage: '' })).replace(/\s*$/, ' ') +
       (lvl < ex.levels.length - 1 ? esc(exStage(ex, lvl + 1)) : esc(__('maxLevelReached'))) + '</div></div>';
@@ -3032,7 +3123,7 @@ function askEinstieg(){
     const fragenEl = modal.querySelector('#ob-fragen');
 
     equipEl.innerHTML = EQUIP.filter(e => e !== 'none').map(e =>
-      '<label class="set-row" style="cursor:pointer"><span>' + esc(equipName(e)) + '</span>' +
+      '<label class="set-row clickable"><span>' + esc(equipName(e)) + '</span>' +
       '<input type="checkbox" data-ob-eq="' + e + '"' + (gewaehlt.has(e) ? ' checked' : '') + '></label>').join('');
 
     const fragenZeichnen = () => {
@@ -3112,7 +3203,7 @@ function showTextDialog(titel, text){
 }
 
 function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'lang'].forEach(k => {
+  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'reminder', 'lang'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
@@ -3130,8 +3221,60 @@ function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')
 /* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
    hat closeSettings() pro Tastendruck doppelt aufgerufen. */
 
+/* ================= Trainingserinnerungen (Notification API) =================
+   Der Wochenrhythmus weiss, welche Tage trainiert werden. Eine Erinnerung
+   nutzt die Notification API – der Pausenton erreicht zwar keinen gesperrten
+   Bildschirm, aber eine Systembenachrichtigung schon. Bewusst dezent: nur
+   ein Hinweis, keine Sperre, und nur wenn ein Rhythmus eingerichtet ist. */
+function erinnerungAktiv(){
+  return !!(state.settings && state.settings.reminder);
+}
+function erinnerungErlauben(){
+  if(!('Notification' in window)){ toast(__('reminderDenied')); return; }
+  if(Notification.permission === 'granted') return;
+  Notification.requestPermission().then(p => {
+    if(p === 'granted') toast(__('reminderEnabled'));
+    else toast(__('reminderDenied'));
+  });
+}
+function erinnerungPruefen(){
+  if(!erinnerungAktiv() || !('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  /* Nur an Tagen mit geplantem Training erinnern – und nur, wenn heute noch
+     nicht trainiert wurde. */
+  const key = heutigerPlanTag();
+  if(!key) return;
+  const heute = today();
+  const schon = (state.log || []).some(l => l.d === heute);
+  if(schon) return;
+  const d = getDay(key);
+  if(!d) return;
+  try{
+    new Notification(__('reminderTitle'), {
+      body: __('reminderBody', { day: d.key + ' · ' + dayTitleOf(d) }),
+      icon: 'icons/icon-192.png'
+    });
+  }catch{ /* Benachrichtigung nicht moeglich – dann eben nicht */ }
+}
+
+/* ================= Undo fuer Einstellungsaenderungen =================
+   Eine Aenderung in den Einstellungen wird sofort gespeichert. Ein
+   versehentlicher Klick liess sich bisher nicht zuruecknehmen. Der Toast
+   bietet deshalb kurzzeitig ein Rueckgaengig an – wie beim Workout-Undo. */
+let settingsUndo = null;
+let settingsUndoTimeout = null;
 function updateSetting(k, v){
+  /* Vorherigen Wert merken, falls der Nutzer zurueck will. */
+  const vorher = state.settings[k];
   state.settings[k] = v; save();
+  /* Rueckgaengig anbieten – aber nicht fuer die Sprache (dort wuerde ein
+     Undo die Oberflaeche mitten im Wechsel zurueckreissen). */
+  if(k !== 'lang'){
+    clearTimeout(settingsUndoTimeout);
+    settingsUndo = { k, vorher };
+    settingsUndoTimeout = setTimeout(() => { settingsUndo = null; }, 5000);
+    toast(__('settingChanged'), false, { text: __('undo'), action: 'setting:undo' });
+  }
   if(k === 'lang'){
     setLang(v);
     applyLanguage();
@@ -3225,6 +3368,9 @@ function exportText(){
   const lines = [__('textHeader', { date: fmtDate(today()) }),
     __('textPlan', { name: planLabel() }),
     __('textWorkouts', { n: state.workouts || 0 }), '', __('textLevels')];
+  /* Wochenzusammenfassung: wie viele Einheiten diese Woche. */
+  const dieseWoche = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
+  if(dieseWoche > 0) lines.push('', __('textWeekSummary'), __('textWeekWorkouts', { n: dieseWoche }));
   getDays().forEach(d => {
     lines.push('', '[' + d.key + '] ' + d.title);
     d.ex.forEach(id => {
@@ -3611,6 +3757,7 @@ export const actions = {
   'deload:dismiss':     d => dismissDeload(zahl(d.due)),
   'deload:start':       d => startDeload(zahl(d.due)),
   'deload:end':         () => endDeload(),
+  'deload:plateauDismiss': () => { state.deloadPlateauDismissed = true; save(); renderBanners(); },
 
   /* Warm-up */
   'warmup:add':         () => addWarmupItem(),
@@ -3653,6 +3800,8 @@ export const actions = {
   'milestone:toggle':   (d, ev, el) => mitFokus(() => toggleMilestone(d.id, el.checked)),
   'milestone:accept':   d => mitFokus(() => toggleMilestone(d.id, true)),
   'milestone:search':   () => mitFokus(() => renderMilestones()),
+  'milestone:add':      () => addCustomMilestone(),
+  'milestone:removeCustom': d => removeCustomMilestone(d.id),
 
   /* Einstellungen */
   'setting:update':     (d, ev, el) => {
@@ -3661,6 +3810,15 @@ export const actions = {
       : el.value;
     updateSetting(d.key, wert);
   },
+  'setting:undo':       () => {
+    if(!settingsUndo) return;
+    state.settings[settingsUndo.k] = settingsUndo.vorher;
+    settingsUndo = null;
+    clearTimeout(settingsUndoTimeout);
+    save(); renderAll();
+    toast(__('settingUndone'));
+  },
+  'reminder:enable':    () => erinnerungErlauben(),
   /* Eigene Aktion statt setting:update: dort liegen Skalare in
      state.settings, hier ein Array auf oberster Ebene. */
   'equipment:toggle':   d => toggleEquipment(d.eq),

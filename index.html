@@ -45,6 +45,9 @@
   base-uri 'none';
   form-action 'none';
   frame-ancestors 'none'">
+<!-- Theme vor dem ersten Rendern setzen – verhindert Dark-Mode-Aufblitzen.
+     Muss vor dem Stylesheet laden, sonst flackert kurz das helle Theme. -->
+<script src="js/theme-init.js"></script>
 <link rel="stylesheet" href="css/style.css">
 <!-- crossorigin ist bei Font-Preloads auch für dieselbe Herkunft Pflicht;
      ohne das Attribut lädt der Browser die Datei ein zweites Mal. -->
@@ -145,11 +148,14 @@
     <!-- Measurements container (rendered by JS) -->
     <div id="measContainer"></div>
 
+    <div class="section-title" data-i18n="yearReview">Jahresrückblick</div>
+    <div class="card" id="yearReview"></div>
+
     <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
     <div class="muted" id="logSummary"></div>
     <!-- Ohne das ging eine Einheit ohne Handy nur über eine von Hand
          gebaute CSV wieder herein. -->
-    <button class="btn secondary" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
+    <button class="btn secondary btn--standalone" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
     <div class="card" id="logList"></div>
 
     <!-- Calendar container (rendered by JS) -->
@@ -211,6 +217,9 @@
   <!-- ============ ZIELE ============ -->
   <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
     <div class="section-title" data-i18n="milestonesTitle">Meilensteine</div>
+    <div class="data-btns">
+      <button class="btn secondary btn--standalone" data-action="milestone:add" data-i18n="addMilestone">Eigener Meilenstein</button>
+    </div>
     <div class="inline-row" style="margin-bottom:10px">
       <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen" data-i18n-placeholder="milestoneSearch" data-i18n-aria-label="milestoneSearchAria">
     </div>
@@ -263,7 +272,7 @@
     <p class="muted" style="margin:-4px 0 8px" data-i18n="myEquipmentHint">Filtert Bibliothek, Plan und Alternativen</p>
     <!-- Der Einstieg setzt Ausrüstung und Startstufen in einem Zug. Wer ihn
          übersprungen hat oder ein Jahr weiter ist, kommt hier wieder hin. -->
-    <button class="btn secondary" data-action="onboarding:again" data-i18n="onboardAgain">Einstieg wiederholen</button>
+    <button class="btn secondary btn--standalone" data-action="onboarding:again" data-i18n="onboardAgain">Einstieg wiederholen</button>
     <div class="set-row">
       <span><label class="lbl2" for="eq-chair" data-i18n="equipChair">Stuhl/Tisch</label></span>
       <input type="checkbox" id="eq-chair" data-action-change="equipment:toggle" data-eq="chair">
@@ -331,6 +340,13 @@
     <div class="set-row">
       <span><label class="lbl2" for="cfg-regress" data-i18n="regress">Stufe zurück nach Pause</label><span class="hint" id="hint-cfg-regress" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
       <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress" aria-describedby="hint-cfg-regress">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="cfg-reminder" data-i18n="reminderEnable">Trainingserinnerung</label><span class="hint" id="hint-cfg-reminder" data-i18n="reminderEnableHint">Erinnert an geplante Trainingstage</span></span>
+      <input type="checkbox" id="cfg-reminder" data-action-change="setting:update" data-key="reminder" aria-describedby="hint-cfg-reminder">
+    </div>
+    <div class="data-btns">
+      <button class="btn secondary" data-action="reminder:enable" data-i18n="reminderEnable">Trainingserinnerung</button>
     </div>
     <div class="set-row">
       <span><label class="lbl2" for="cfg-lang" data-i18n="language">Sprache</label><span class="hint" id="hint-cfg-lang" data-i18n="languageHint">Oberfläche und Übungsinhalte</span></span>
