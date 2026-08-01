@@ -182,6 +182,7 @@ details.acc li{margin-bottom:5px}
 .ex-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
 .rung-label{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
 .cat-chip{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
+.cat-chip.warn{border-color:var(--warn);color:var(--warn)}
 .lvl-adjust{display:flex;gap:6px}
 .lvl-adjust button{width:27px;height:27px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:14px;cursor:pointer;line-height:1}
 .lvl-adjust button:focus-visible{outline:2px solid var(--accent)}
@@ -195,6 +196,8 @@ details.acc li{margin-bottom:5px}
 /* Was beim letzten Mal stand – bewusst neutral gefärbt, nicht wie die
    Bestleistung: die Zahl daneben ist ein Vergleichswert, kein Erfolg. */
 .last-reps{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+/* Fehlendes Gerät: ein Hinweis, keine Sperre – deshalb warn und nicht danger. */
+.equip-warn{font-size:12.5px;color:var(--warn);margin-top:5px}
 /* Kalenderkopf mit Monatsnavigation */
 .cal-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cal-nav{display:flex;gap:4px;flex:none}
@@ -311,6 +314,10 @@ details.acc li{margin-bottom:5px}
 .lvl-list li{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 8px;border-radius:8px;color:var(--ink-soft)}
 .lvl-list li.at{background:var(--accent-soft);color:var(--ink);font-weight:600}
 .lvl-list li.passed{color:var(--success)}
+/* Stufe, für die das Gerät fehlt. Zusätzlich zur Farbe eine schräge Schrift
+   im Zusatz – der Grund steht als Text daneben, nicht nur im Farbwert. */
+.lvl-list li.gesperrt{opacity:.6}
+.lvl-list li.gesperrt small{font-style:italic;color:var(--warn)}
 .lvl-list .t{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
 
 /* ---------- Planer ---------- */

@@ -16,6 +16,7 @@ import {
   DEFAULT_STATE, migrateState, prNumber, clampBackup as clampBackupPure
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
+import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -39,6 +40,7 @@ let restEnde = 0;
 /* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
 let restLetzteSek = 0;
 let libFilter = 'all';
+let libNurMachbar = false;
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
 
@@ -826,6 +828,12 @@ function renderWorkout(){
         '">' + rungs + '</div>' +
       '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
+      /* Nur ein Hinweis, keine Sperre – der Ersetzen-Knopf steht weiter
+         unten in derselben Karte. Wer sein Gerät heute nicht dabei hat,
+         soll die Übung sehen und selbst entscheiden. */
+      (fehlt(ex, lvl).length
+        ? '<div class="equip-warn">' + esc(__('needsEquip', { list: equipListe(fehlt(ex, lvl)) })) + '</div>'
+        : '') +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       (letzte[ex.id]
         ? '<div class="last-reps">' + esc(__('lastReps', {
@@ -900,7 +908,10 @@ function adjustLevel(id, d){
 /* ================= Substitute Exercise ================= */
 async function substituteExercise(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
-  const sameCat = EXERCISES.filter(e => e.cat === ex.cat && e.id !== id);
+  /* Nur Alternativen, die mit der vorhandenen Ausruestung auch gehen. Genau
+     dafuer ist dieser Knopf da: "ich stehe heute ohne Stange da" soll eine
+     Liste liefern, aus der man ohne Nachdenken waehlen kann. */
+  const sameCat = EXERCISES.filter(e => e.cat === ex.cat && e.id !== id && machbar(e));
   if(!sameCat.length){ toast(__('noAlternative')); return; }
 
   /* Frueher wurde die Liste in ein prompt() gerendert und der Nutzer musste
@@ -1227,6 +1238,9 @@ async function finishWorkout(){
   if(!exIds.length){ toast(__('nothingToSave')); return; }
   const need = cfg('streak');
   const ups = [];
+  /* Aufstiege, die an fehlendem Geraet haengen – sie werden am Ende gemeldet,
+     sonst bliebe die Stufe ohne jede Erklaerung stehen. */
+  const gesperrt = [];
   let tops = 0;
 
   /* Snapshot VOR der Mutationsschleife. Er wurde frueher danach gezogen und
@@ -1259,8 +1273,20 @@ async function finishWorkout(){
       tops++;
       state.streaks[id] = (state.streaks[id] || 0) + 1;
       if(!maxed && state.streaks[id] >= need){
-        state.levels[id] = lvl + 1; state.streaks[id] = 0;
-        ups.push(exName(ex) + ' → ' + exStage(ex, lvl + 1));
+        /* Die naechste Stufe kann ein Geraet verlangen, das nicht da ist –
+           bei Dips wechselt sie von der Bank auf die Parallettes. Ein
+           Aufstieg dorthin waere kein Fortschritt, sondern eine Uebung, die
+           sich nicht mehr ausfuehren laesst.
+
+           Der Streak wird gedeckelt statt genullt: sobald das Geraet
+           dazukommt, steigt die Stufe beim naechsten Abschluss sofort. */
+        if(!stufeMachbar(ex, lvl + 1)){
+          state.streaks[id] = need;
+          gesperrt.push({ name: exName(ex), fehlt: fehlt(ex, lvl + 1) });
+        } else {
+          state.levels[id] = lvl + 1; state.streaks[id] = 0;
+          ups.push(exName(ex) + ' → ' + exStage(ex, lvl + 1));
+        }
       }
     } else state.streaks[id] = 0;
 
@@ -1321,6 +1347,15 @@ async function finishWorkout(){
 
   if(ups.length){ signal(true); toast(__('levelUpToast', { list: ups.join(' · ') }), true); }
   else toast(__('workoutSaved', { n: state.workouts }));
+
+  /* Nach dem eigentlichen Ergebnis, nicht statt seiner: der Abschluss soll
+     zuerst den Erfolg melden. Verzoegert, damit der erste Toast lesbar bleibt. */
+  if(gesperrt.length){
+    const g = gesperrt[0];
+    setTimeout(() => toast(__('levelBlockedByEquip', {
+      name: g.name, list: equipListe(g.fehlt)
+    }), true), 2600);
+  }
 
   /* Offer undo for 5 seconds */
   clearTimeout(undoTimeout);
@@ -1675,19 +1710,34 @@ function renderLibrary(){
        Ein Sprachwechsel laeuft ueber renderAll() und baut ohnehin neu auf. */
     const suchtext = [exName(ex), ...ex.levels.map((l, i) => exStage(ex, i))]
       .join(' ').toLowerCase();
-    return '<div class="lib-item" data-such="' + esc(suchtext) + '">' +
+    /* Nicht machbare Uebungen verschwinden nicht von selbst: sie bekommen
+       einen Hinweis und lassen sich ueber das Kontrollkaestchen ausblenden.
+       Wer die Ausruestung gerade erst eingetragen hat, soll nicht raten
+       muessen, warum die Haelfte der Bibliothek fehlt. */
+    const geht = machbar(ex);
+    return '<div class="lib-item" data-such="' + esc(suchtext) + '" data-eqok="' + (geht ? '1' : '0') + '">' +
       /* Echter Button statt eines klickbaren div: der Kopf ist die
          Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
       '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
         ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
-        '<span class="lib-name">' + esc(exName(ex)) + (planIds.has(ex.id) ? ' <span class="cat-chip">' + esc(__('inPlan')) + '</span>' : '') + '</span>' +
+        '<span class="lib-name">' + esc(exName(ex)) +
+          (planIds.has(ex.id) ? ' <span class="cat-chip">' + esc(__('inPlan')) + '</span>' : '') +
+          (geht ? '' : ' <span class="cat-chip warn">' + esc(__('equipMissing')) + '</span>') + '</span>' +
         '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
       '</button>' +
       '<div class="lib-body' + (open ? ' open' : '') + '" id="libbody-' + ex.id + '">' +
-        '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(ex.equip.map(equipName).join(', ')) +
+        '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(equipListe(ex.equip)) +
           (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') + '</div>' +
-        '<ul class="lvl-list">' + ex.levels.map((l, i) =>
-          '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + '"><span>' + (i + 1) + '. ' + esc(exStage(ex, i)) + '</span><span class="t">' + esc(zielText(l.target)) + '</span></li>').join('') + '</ul>' +
+        /* Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen
+           an der Bank machbar und erst die spaeteren brauchen Parallettes.
+           Genau das soll hier ablesbar sein. */
+        '<ul class="lvl-list">' + ex.levels.map((l, i) => {
+          const luecke = fehlt(ex, i);
+          return '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + (luecke.length ? ' gesperrt' : '') + '">' +
+            '<span>' + (i + 1) + '. ' + esc(exStage(ex, i)) +
+            (luecke.length ? ' <small>(' + esc(__('needsEquip', { list: equipListe(luecke) })) + ')</small>' : '') +
+            '</span><span class="t">' + esc(zielText(l.target)) + '</span></li>';
+        }).join('') + '</ul>' +
         '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
           '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
         /* Der Platzhalter war die einzige Beschriftung; er verschwindet beim
@@ -1712,7 +1762,8 @@ function filterLibrary(){
   const eintraege = document.querySelectorAll('#libList .lib-item');
   let sichtbar = 0;
   eintraege.forEach(el => {
-    const passt = !q || (el.dataset.such || '').includes(q);
+    const passt = (!q || (el.dataset.such || '').includes(q)) &&
+      (!libNurMachbar || el.dataset.eqok === '1');
     el.hidden = !passt;
     if(passt) sichtbar++;
   });
@@ -1720,8 +1771,35 @@ function filterLibrary(){
   if(leer) leer.hidden = sichtbar > 0;
 }
 
-const EQUIP_KEYS = { none: 'equipNone', parallettes: 'equipParallettes', bar: 'equipBar', chair: 'equipChair' };
+const EQUIP_KEYS = {
+  none: 'equipNone', chair: 'equipChair', bar: 'equipBar',
+  parallettes: 'equipParallettes', rings: 'equipRings', band: 'equipBand'
+};
 const equipName = eq => EQUIP_KEYS[eq] ? __(EQUIP_KEYS[eq]) : eq;
+/* Eine Kombination wie 'bar+band' wird als "Klimmzugstange + Widerstandsband"
+   gelesen – im Datenformat trennt das Pluszeichen, in der Anzeige verbindet es. */
+const equipLabel = eq => String(eq).split('+').map(equipName).join(' + ');
+const equipListe = arr => (arr || []).map(equipLabel).join(', ');
+
+/* Kurzform fuer die vielen Aufrufstellen: geprueft wird immer gegen das, was
+   der Nutzer in den Einstellungen angehakt hat. */
+const machbar = ex => exMoeglich(ex, state.equipment);
+const stufeMachbar = (ex, i) => levelMoeglich(ex, i, state.equipment);
+const fehlt = (ex, i) => fehlendeGeraete(ex, i, state.equipment);
+
+function toggleEquipment(eq){
+  if(!EQUIP.includes(eq) || eq === 'none') return;
+  const da = new Set(state.equipment || []);
+  if(da.has(eq)) da.delete(eq); else da.add(eq);
+  /* In der Reihenfolge des Vokabulars ablegen, nicht in Klickreihenfolge –
+     sonst sieht ein Backup je nach Bedienweg anders aus. */
+  state.equipment = EQUIP.filter(e => e !== 'none' && da.has(e));
+  save();
+  /* Der Filter wirkt in mehreren Ansichten gleichzeitig; die verborgenen
+     Tabs behielten sonst ihren alten Stand, bis man sie zufaellig neu baut. */
+  renderLibrary(); renderPlanTab();
+  if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
+}
 function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
 
 async function savePR(id){
@@ -1766,9 +1844,16 @@ function renderPlanTab(){
           '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '">↓</button>' +
           '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '">✕</button></div>';
       }).join('') +
+      /* Nicht machbare Uebungen werden gesperrt statt entfernt: ein verkuerztes
+         Menue laesst offen, warum eine Uebung fehlt – ein ausgegrauter Eintrag
+         mit Grund erklaert sich selbst. */
       '<div class="inline-row"><select id="add-' + di + '">' +
         Object.keys(CATS).map(c => '<optgroup label="' + esc(catName(c, CATS[c].name)) + '">' +
-          EXERCISES.filter(e => e.cat === c).map(e => '<option value="' + e.id + '">' + esc(exName(e)) + '</option>').join('') +
+          EXERCISES.filter(e => e.cat === c).map(e => {
+            const geht = machbar(e);
+            return '<option value="' + e.id + '"' + (geht ? '' : ' disabled') + '>' +
+              esc(exName(e)) + (geht ? '' : ' (' + esc(__('equipMissing')) + ')') + '</option>';
+          }).join('') +
           '</optgroup>').join('') +
       '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
@@ -2080,6 +2165,11 @@ function openSettings(){
   ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'lang'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
+  });
+  const da = new Set(state.equipment || []);
+  EQUIP.filter(e => e !== 'none').forEach(e => {
+    const el = document.getElementById('eq-' + e);
+    if(el) el.checked = da.has(e);
   });
   zeigeSpeicherinfo();
   zeigeInstallSchalter();
@@ -2545,6 +2635,7 @@ export const actions = {
   'library:toggle':     d => mitFokus(() => toggleLib(d.ex)),
   /* Kein mitFokus mehr: das Suchfeld wird nicht mehr ersetzt. */
   'library:search':     () => filterLibrary(),
+  'library:onlyAvailable': (d, ev, el) => { libNurMachbar = el.checked; filterLibrary(); },
   'pr:save':            d => mitFokus(() => savePR(d.ex)),
 
   /* Plan */
@@ -2568,6 +2659,9 @@ export const actions = {
       : el.value;
     updateSetting(d.key, wert);
   },
+  /* Eigene Aktion statt setting:update: dort liegen Skalare in
+     state.settings, hier ein Array auf oberster Ebene. */
+  'equipment:toggle':   d => toggleEquipment(d.eq),
 
   /* Backup */
   'backup:exportJSON':  () => exportJSON(),

@@ -148,6 +148,13 @@ export const LANG = {
     equipment: 'Equipment', restOf: 'Pause {sec} Sek',
     equipNone: 'kein Gerät', equipParallettes: 'Parallettes',
     equipBar: 'Klimmzugstange', equipChair: 'Stuhl/Tisch',
+    equipRings: 'Turnringe', equipBand: 'Widerstandsband',
+    myEquipment: 'Meine Ausrüstung',
+    myEquipmentHint: 'Filtert Bibliothek, Plan und Alternativen',
+    onlyAvailable: 'Nur mit meiner Ausrüstung',
+    needsEquip: 'braucht: {list}',
+    equipMissing: 'Gerät fehlt',
+    levelBlockedByEquip: 'Nächste Stufe von {name} braucht {list}.',
 
     /* Plan */
     planTitle: 'Trainingsplan', template: 'Vorlage', customPlan: 'Eigener Plan',
@@ -390,6 +397,13 @@ export const LANG = {
     equipment: 'Equipment', restOf: 'Rest {sec} sec',
     equipNone: 'no equipment', equipParallettes: 'parallettes',
     equipBar: 'pull-up bar', equipChair: 'chair/table',
+    equipRings: 'gymnastic rings', equipBand: 'resistance band',
+    myEquipment: 'My equipment',
+    myEquipmentHint: 'Filters the library, the plan and alternatives',
+    onlyAvailable: 'Only what my equipment allows',
+    needsEquip: 'needs: {list}',
+    equipMissing: 'equipment missing',
+    levelBlockedByEquip: 'The next level of {name} needs {list}.',
 
     planTitle: 'Workout plan', template: 'Template', customPlan: 'Custom plan',
     customPlanDesc: 'Adjusted by you',

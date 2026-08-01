@@ -438,6 +438,165 @@ describe('Suche in der Bibliothek', () => {
   });
 });
 
+/* Das equip-Feld gab es seit jeher, ausgewertet wurde es nie. Diese Tests
+   pruefen, dass die Auswahl in jeder Ansicht ankommt – nicht nur dort, wo
+   man zufaellig hinsieht. */
+describe('Ausruestung', () => {
+  async function mitAusruestung(liste){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 8, equipment: liste }));
+    const app = await starten();
+    return app;
+  }
+  const bibliothekOeffnen = async app => {
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+  };
+  const eintrag = id => document.querySelector('#libList .lib-item[data-such*="' + id + '"]');
+
+  it('haelt die Haken in den Einstellungen mit dem Stand zusammen', async () => {
+    const app = await mitAusruestung(['bar', 'band']);
+    app.actions['settings:open']();
+    await ruhe();
+    expect(document.getElementById('eq-bar').checked).toBe(true);
+    expect(document.getElementById('eq-band').checked).toBe(true);
+    expect(document.getElementById('eq-rings').checked).toBe(false);
+  });
+
+  it('nimmt ein Geraet dazu und wieder weg', async () => {
+    const app = await mitAusruestung([]);
+    app.actions['equipment:toggle']({ eq: 'rings' });
+    await ruhe();
+    expect(gespeichert().equipment).toEqual(['rings']);
+
+    app.actions['equipment:toggle']({ eq: 'rings' });
+    await ruhe();
+    expect(gespeichert().equipment).toEqual([]);
+  });
+
+  it('legt die Auswahl in der Reihenfolge des Vokabulars ab', async () => {
+    const app = await mitAusruestung([]);
+    ['rings', 'chair', 'bar'].forEach(eq => app.actions['equipment:toggle']({ eq }));
+    await ruhe();
+    /* Nicht in Klickreihenfolge – sonst sieht ein Backup je nach Bedienweg
+       anders aus. */
+    expect(gespeichert().equipment).toEqual(['chair', 'bar', 'rings']);
+  });
+
+  it('markiert in der Bibliothek, was nicht geht', async () => {
+    const app = await mitAusruestung(['chair']);
+    await bibliothekOeffnen(app);
+    /* Klimmzuege brauchen Stange oder Ringe, Kniebeugen nichts. */
+    expect(eintrag('klimmzug-progression').dataset.eqok).toBe('0');
+    expect(eintrag('kniebeugen').dataset.eqok).toBe('1');
+    expect(eintrag('klimmzug-progression').textContent).toContain('Gerät fehlt');
+  });
+
+  /* Der Kern der Sache: Dips sind mit einer Bank machbar und werden erst
+     spaeter unmoeglich. Auf Uebungsebene waere das nicht abbildbar. */
+  it('nennt je Stufe das fehlende Geraet, nicht je Uebung', async () => {
+    const app = await mitAusruestung(['chair']);
+    await bibliothekOeffnen(app);
+    const dips = eintrag('dips');
+    expect(dips.dataset.eqok).toBe('1');
+    const stufen = dips.querySelectorAll('.lvl-list li');
+    expect(stufen[0].classList.contains('gesperrt')).toBe(false);
+    expect(stufen[3].classList.contains('gesperrt')).toBe(true);
+    expect(stufen[3].textContent).toContain('Parallettes');
+  });
+
+  it('blendet Nichtmachbares nur auf Wunsch aus', async () => {
+    const app = await mitAusruestung(['chair']);
+    await bibliothekOeffnen(app);
+    const sichtbare = () =>
+      [...document.querySelectorAll('#libList .lib-item')].filter(el => !el.hidden);
+    const alle = sichtbare().length;
+
+    app.actions['library:onlyAvailable']({}, null, { checked: true });
+    const gefiltert = sichtbare().length;
+    expect(gefiltert).toBeGreaterThan(0);
+    expect(gefiltert).toBeLessThan(alle);
+
+    app.actions['library:onlyAvailable']({}, null, { checked: false });
+    expect(sichtbare()).toHaveLength(alle);
+  });
+
+  it('sperrt nicht machbare Uebungen im Plan-Editor, statt sie zu verstecken', async () => {
+    const app = await mitAusruestung(['chair']);
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    const auswahl = document.getElementById('add-0');
+    const opt = id => [...auswahl.options].find(o => o.value === id);
+    expect(opt('pullup')).toBeTruthy();
+    expect(opt('pullup').disabled).toBe(true);
+    expect(opt('squat').disabled).toBe(false);
+  });
+
+  it('bietet beim Ersetzen nur machbare Alternativen an', async () => {
+    const app = await mitAusruestung(['chair']);
+    app.actions['day:select']({ key: 'B' });
+    await ruhe();
+    app.actions['exercise:substitute']({ ex: 'pullup' });
+    await ruhe();
+    const namen = [...document.querySelectorAll('.dlg-choice')].map(b => b.textContent);
+    expect(namen.length).toBeGreaterThan(0);
+    expect(namen.join(' ')).not.toContain('Chin-ups');
+    expect(namen.join(' ')).toContain('Rudern');
+  });
+
+  /* Ohne diese Sperre schiebt die App den Nutzer in eine Stufe, die er nicht
+     ausfuehren kann – Dips wechseln von der Bank auf die Parallettes. */
+  it('steigt nicht in eine Stufe auf, fuer die das Geraet fehlt', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, equipment: ['chair'],
+      levels: { dips: 1 }, streaks: { dips: 1 },
+      settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="dips"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    const s = gespeichert();
+    expect(s.levels.dips).toBe(1);
+    /* Gedeckelt statt genullt: sobald die Parallettes da sind, steigt die
+       Stufe beim naechsten Abschluss sofort. */
+    expect(s.streaks.dips).toBe(2);
+  });
+
+  it('steigt auf, sobald das Geraet dazukommt', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, equipment: ['chair', 'parallettes'],
+      levels: { dips: 1 }, streaks: { dips: 1 },
+      settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="dips"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+
+    expect(gespeichert().levels.dips).toBe(2);
+  });
+
+  it('zeigt im Training einen Hinweis, wenn die aktuelle Stufe Geraet braucht', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 8, equipment: ['chair'], levels: { dips: 3 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const karte = document.querySelector('.ex[data-exid="dips"]');
+    expect(karte.querySelector('.equip-warn').textContent).toContain('Parallettes');
+  });
+});
+
 /* Der Verlauf je Uebung war eine reine Zahlentabelle – ob es aufwaerts geht,
    ist aber der Grund, ueberhaupt hineinzuschauen. */
 describe('Verlauf je Uebung', () => {

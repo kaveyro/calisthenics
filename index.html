@@ -143,6 +143,12 @@
     <div class="inline-row" style="margin-bottom:12px">
       <input type="search" id="libSearch" placeholder="Übung suchen …" data-action-input="library:search" aria-label="Übung suchen" data-i18n-placeholder="search" data-i18n-aria-label="searchAria">
     </div>
+    <!-- Vorgabe aus: nicht machbare Übungen bleiben zunächst sichtbar und
+         tragen nur einen Hinweis. Wer sie loswerden will, hakt hier an. -->
+    <label class="inline-row" style="margin-bottom:12px;gap:8px;cursor:pointer">
+      <input type="checkbox" id="libOnlyAvailable" data-action-change="library:onlyAvailable">
+      <span data-i18n="onlyAvailable">Nur mit meiner Ausrüstung</span>
+    </label>
     <div class="card" id="libList"></div>
     <!-- Steht im Markup statt in der Liste: die Suche blendet Eintraege nur
          aus, statt sie neu aufzubauen (siehe filterLibrary()). -->
@@ -210,6 +216,31 @@
 <div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">
   <div class="modal" role="dialog" aria-modal="true" data-i18n-aria-label="settings" aria-label="Einstellungen">
     <div class="modal-head"><span data-i18n="settings">Einstellungen</span><button data-action="settings:close" data-i18n-aria-label="close" aria-label="Schließen">✕</button></div>
+
+    <!-- Ausruestung: eigene Aktion statt setting:update, weil der Pfad dort
+         nur Skalare kennt. Die Werte stehen in js/domain/equipment.js. -->
+    <div class="section-title" data-i18n="myEquipment">Meine Ausrüstung</div>
+    <p class="muted" style="margin:-4px 0 8px" data-i18n="myEquipmentHint">Filtert Bibliothek, Plan und Alternativen</p>
+    <div class="set-row">
+      <span><label class="lbl2" for="eq-chair" data-i18n="equipChair">Stuhl/Tisch</label></span>
+      <input type="checkbox" id="eq-chair" data-action-change="equipment:toggle" data-eq="chair">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="eq-bar" data-i18n="equipBar">Klimmzugstange</label></span>
+      <input type="checkbox" id="eq-bar" data-action-change="equipment:toggle" data-eq="bar">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="eq-parallettes" data-i18n="equipParallettes">Parallettes</label></span>
+      <input type="checkbox" id="eq-parallettes" data-action-change="equipment:toggle" data-eq="parallettes">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="eq-rings" data-i18n="equipRings">Turnringe</label></span>
+      <input type="checkbox" id="eq-rings" data-action-change="equipment:toggle" data-eq="rings">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="eq-band" data-i18n="equipBand">Widerstandsband</label></span>
+      <input type="checkbox" id="eq-band" data-action-change="equipment:toggle" data-eq="band">
+    </div>
 
     <div class="section-title" data-i18n="training">Training</div>
     <div class="set-row">
