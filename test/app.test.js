@@ -1122,3 +1122,111 @@ describe('Trainingsdauer', () => {
     expect(document.getElementById('logSummary').textContent).toContain('32 Min');
   });
 });
+
+describe('Aufwaermen abhaken', () => {
+  const punkte = () => [...document.querySelectorAll('#warmupList input[type=checkbox]')];
+  const offen = () => document.querySelector('.overlay.open');
+
+  async function tagUndAufwaermen(){
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    return app;
+  }
+
+  it('haengt einen Haken an jeden Eintrag', async () => {
+    await starten();
+    expect(punkte().length).toBeGreaterThan(0);
+    expect(punkte().every(p => !p.checked)).toBe(true);
+  });
+
+  it('merkt sich die Haken ueber ein Neuladen', async () => {
+    await tagUndAufwaermen();
+    punkte()[0].click();
+    await ruhe();
+    expect(gespeichert().activeSession.warm).toEqual({ 0: true });
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    await starten();
+    expect(punkte()[0].checked).toBe(true);
+  });
+
+  /* Neue Einheit, neues Aufwaermen – sonst begaenne die naechste mit einer
+     fertig abgehakten Liste. */
+  it('leert die Haken beim Wechsel des Trainingstags', async () => {
+    await tagUndAufwaermen();
+    punkte()[0].click();
+    await ruhe();
+    document.querySelectorAll('.day-btn')[1].click();
+    await ruhe();
+    expect(punkte().every(p => !p.checked)).toBe(true);
+  });
+
+  it('leert die Haken nach dem Abschluss', async () => {
+    const app = await tagUndAufwaermen();
+    punkte().forEach(p => p.click());
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(punkte().every(p => !p.checked)).toBe(true);
+  });
+
+  /* Wer die Liste gar nicht benutzt, hat sich nicht gegen das Aufwaermen
+     entschieden – die App weiss darueber nichts und fragt deshalb nicht. */
+  it('fragt nicht, wenn ueberhaupt nichts abgehakt wurde', async () => {
+    const app = await tagUndAufwaermen();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(offen()).toBeNull();
+    expect(gespeichert().log).toHaveLength(1);
+  });
+
+  it('fragt nach, wenn der Pflichtpunkt offen blieb', async () => {
+    const app = await tagUndAufwaermen();
+    /* Alles ausser dem Pflichtpunkt (Index 3). */
+    punkte().forEach((p, i) => { if(i !== 3) p.click(); });
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+
+    const fertig = app.actions['workout:finish']();
+    await ruhe();
+    expect(offen()).not.toBeNull();
+
+    /* Abbrechen laesst die Einheit unangetastet weiterlaufen. */
+    document.querySelector('.overlay.open [data-dlg=abbrechen]').click();
+    await fertig;
+    await ruhe();
+    expect((gespeichert().log || [])).toHaveLength(0);
+    expect(gespeichert().activeSession).not.toBeNull();
+  });
+
+  it('schliesst nach dem Bestaetigen trotzdem ab', async () => {
+    const app = await tagUndAufwaermen();
+    punkte().forEach((p, i) => { if(i !== 3) p.click(); });
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+
+    const fertig = app.actions['workout:finish']();
+    await ruhe();
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await fertig;
+    await ruhe();
+    expect(gespeichert().log).toHaveLength(1);
+  });
+
+  /* Ohne Nachruecken sitzt jeder Haken hinter der geloeschten Zeile
+     anschliessend an einem Punkt, den niemand abgehakt hat. */
+  it('schiebt die Haken nach, wenn ein Eintrag geloescht wird', async () => {
+    const app = await tagUndAufwaermen();
+    punkte()[2].click();
+    await ruhe();
+    await app.actions['warmup:remove']({ i: '0' });
+    await ruhe();
+    expect(punkte()[1].checked).toBe(true);
+    expect(punkte()[2].checked).toBe(false);
+  });
+});

@@ -91,7 +91,6 @@ export async function start(){
     applyLanguage();
     applyTheme();
     applyRegression();     /* vor dem ersten Rendern, damit die Stufen stimmen */
-    renderWarmup();
     renderAll();
     /* Einen Tab aus der Adresse uebernehmen – so funktionieren die
        Verknuepfungen im Manifest und ein geteilter Link. replaceState gibt
@@ -289,6 +288,7 @@ function restoreActiveSession(){
        Plausibilitaet prueft dauerJetzt() beim Abschliessen. */
     start: Number.isFinite(Number(a.start)) ? Number(a.start) : null
   };
+  renderWarmup();
   renderDaySelect(); renderWorkout(); restoreSession(session.reps);
 
   /* Eine Pause, die beim Neuladen noch lief, laeuft weiter. Die Obergrenze
@@ -388,6 +388,11 @@ function swPruefen(){
 }
 
 function renderAll(){
+  /* Auch die Aufwaermliste: ihre Haken gehoeren zur Einheit, und die endet
+     hier (Abschluss, Rueckgaengig, Import, Zuruecksetzen). Ohne das blieben
+     sie nach dem Abschluss stehen und die naechste Einheit begaenne mit
+     einem fertig abgehakten Aufwaermen. */
+  renderWarmup();
   renderStats(); renderPhase(); renderBanners(); renderDaySelect();
   /* Ein laufendes Training nicht ueberschreiben. Alle Aufrufer, die eine
      Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
@@ -663,13 +668,36 @@ function renderWarmup(){
        Bei einer selbst zusammengestellten Liste laesst sich die Zuordnung
        nicht halten, dort entfaellt die Hervorhebung. */
     '<li' + (!state.warmupCustom && WARMUP_PFLICHT.has(i) ? ' class="pflicht"' : '') + '>' +
-    esc(w) + ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
+    /* Abhakbar wie alles andere auch. Die App zaehlt jeden Satz der
+       Haupteinheit und misst Haltezeiten auf die Sekunde – das Aufwaermen
+       war als einziges eine Liste zum Lesen. */
+    '<label class="warm-item"><input type="checkbox"' + (session.warm[i] ? ' checked' : '') +
+      ' data-action-change="warmup:toggle" data-i="' + i + '">' +
+      '<span>' + esc(w) + '</span></label>' +
+    ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
     ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">✕</button></li>'
   ).join('');
+}
+function toggleWarmupItem(i, on){
+  if(on) session.warm[i] = true; else delete session.warm[i];
+  /* Ohne gewaehlten Tag gibt es keine activeSession, in die das mitgehen
+     koennte – die Haken leben dann nur bis zum Neuladen. Mit Tag gehen sie
+     denselben Weg wie jeder Satz. */
+  if(session.dayKey) persistSession();
 }
 function removeWarmupItem(i){
   if(!state.warmupCustom) state.warmupCustom = [...WARMUP];
   state.warmupCustom.splice(i, 1);
+  /* Die Haken haengen an der Position. Ohne dieses Nachruecken wandert
+     jeder Haken hinter der geloeschten Zeile eine Zeile nach oben und sitzt
+     danach an einem Punkt, den niemand abgehakt hat. */
+  const verschoben = {};
+  Object.keys(session.warm).forEach(k => {
+    const n = Number(k);
+    if(n < i) verschoben[n] = true;
+    else if(n > i) verschoben[n - 1] = true;
+  });
+  session.warm = verschoben;
   save(); renderWarmup();
 }
 async function addWarmupItem(){
@@ -848,6 +876,9 @@ function selectDay(key){
   cancelHold(); stopRest();
   session = { ...leereSession(), dayKey: key };
   persistSession();
+  /* Neue Einheit, neues Aufwaermen: die Haken der vorigen duerfen nicht
+     stehen bleiben. */
+  renderWarmup();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
 
@@ -1416,11 +1447,40 @@ function releaseWakeLock(){
   }
 }
 
+/* Der Pflichtpunkt der Aufwaermliste – die Handgelenksvorbereitung – war
+   bisher nur rot eingefaerbt und hatte keinerlei Wirkung.
+
+   Gefragt wird NUR, wenn ueberhaupt etwas abgehakt wurde. Wer die Liste gar
+   nicht benutzt, hat sich damit nicht gegen das Aufwaermen entschieden – die
+   App weiss darueber nichts und haette kein Recht, ihn bei jedem Abschluss
+   zu ermahnen. Wer sie benutzt und ausgerechnet den Pflichtpunkt auslaesst,
+   hat ihn vermutlich uebersehen.
+
+   Bei einer selbst zusammengestellten Liste entfaellt die Pruefung, wie
+   schon die Hervorhebung in renderWarmup(): die Zuordnung ueber den Index
+   traegt dort nicht mehr. */
+async function warmupGeprueft(){
+  if(state.warmupCustom) return true;
+  if(!Object.keys(session.warm).length) return true;
+  const offen = [...WARMUP_PFLICHT].filter(i => i < WARMUP.length && !session.warm[i]);
+  if(!offen.length) return true;
+  return askConfirm(
+    __('warmupMissingTitle'),
+    __('warmupMissingBody', { list: offen.map(i => warmupText(i, WARMUP[i])).join(', ') }),
+    __('finishAnyway'));
+}
+
 /* ================= Training abschließen mit Undo ================= */
 async function finishWorkout(){
-  cancelHold(); stopRest(); releaseWakeLock();
+  /* Erst pruefen, dann abraeumen: cancelHold(), stopRest() und die Freigabe
+     des Wake Locks standen frueher hier oben. Wer die Rueckfrage unten
+     abbricht, stuende sonst mit abgebrochener Haltezeit und beendeter Pause
+     wieder in einer Einheit, die weitergehen soll. */
   const exIds = sessionExerciseIds();
   if(!exIds.length){ toast(__('nothingToSave')); return; }
+  if(!await warmupGeprueft()) return;
+
+  cancelHold(); stopRest(); releaseWakeLock();
   const need = cfg('streak');
   const ups = [];
   /* Aufstiege, die an fehlendem Geraet haengen – sie werden am Ende gemeldet,
@@ -2973,6 +3033,7 @@ export const actions = {
   /* Warm-up */
   'warmup:add':         () => addWarmupItem(),
   'warmup:remove':      d => removeWarmupItem(zahl(d.i)),   /* Eintrag ist danach weg – kein Fokusziel */
+  'warmup:toggle':      (d, ev, el) => toggleWarmupItem(zahl(d.i), el.checked),
 
   /* Verlauf */
   'weight:add':         () => addWeight(),

@@ -176,6 +176,11 @@ details.acc[open] summary::after{content:'–'}
 details.acc ul{padding:0 14px 14px 30px;font-size:13.5px;color:var(--ink-soft)}
 details.acc li{margin-bottom:5px}
 .pflicht{color:var(--warn);font-weight:600}
+/* Der Haken gehört zum Text, der Löschknopf steht daneben – deshalb nur das
+   Label als Flex-Zeile und nicht das ganze <li>. */
+.warm-item{display:inline-flex;align-items:flex-start;gap:8px;cursor:pointer}
+.warm-item input{margin-top:2px;flex:none}
+.warm-item input:checked+span{text-decoration:line-through;opacity:.6}
 
 /* ---------- Übungskarte ---------- */
 .ex{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 14px 14px;margin-bottom:14px}
