@@ -367,6 +367,10 @@ details.acc li{margin-bottom:5px}
 .plan-day{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .plan-day-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 .plan-day-title{font-weight:700;font-size:15px}
+/* Wie oft der Tag dran war. Leise: eine Beobachtung, kein Vorwurf – nur der
+   deutliche Rückstand bekommt Farbe. */
+.plan-day-count{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--ink-soft);margin-left:4px}
+.plan-day-count.warn{color:var(--warn)}
 .plan-ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .plan-ex:last-of-type{border-bottom:none}
 .plan-ex .nm{flex:1;min-width:0}

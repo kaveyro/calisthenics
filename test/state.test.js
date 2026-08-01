@@ -28,11 +28,11 @@ describe('migrateState – Defaults gegen null verteidigen', () => {
   /* Der Absturz, fuer den die Funktion ueberhaupt geschrieben wurde: ein
      flacher Merge liess "notes": null den Default {} ueberschreiben. */
   it('laesst null die Objekt-Defaults nicht ueberschreiben', () => {
-    const out = migrateState({ notes: null, levels: null, prs: null, byDay: null });
+    const out = migrateState({ notes: null, levels: null, prs: null, milestones: null });
     expect(out.notes).toEqual({});
     expect(out.levels).toEqual({});
     expect(out.prs).toEqual({});
-    expect(out.byDay).toEqual({});
+    expect(out.milestones).toEqual({});
   });
 
   it('verwirft Werte mit falschem Grundtyp', () => {

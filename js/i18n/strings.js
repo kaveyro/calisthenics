@@ -329,6 +329,7 @@ export const LANG = {
     /* Zwei Schlüssel statt einer Pluralregel je Sprache – dasselbe Muster
        wie lastWeekSingular/lastWeeksPlural. */
     setsCountOne: '1 Satz', setsCountMany: '{n} Sätze',
+    dayCount: '{n}×',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
     keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste'
@@ -630,6 +631,7 @@ export const LANG = {
 
     level: 'Stage', sets: 'sets', reps: 'reps', sec: 'sec', cm: 'cm', kg: 'kg',
     setsCountOne: '1 set', setsCountMany: '{n} sets',
+    dayCount: '{n}×',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
     keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar'

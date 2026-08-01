@@ -28,7 +28,12 @@ const nachDatum = (a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
 
    Zur Ausruestung im Besonderen: welche Geraete hier stehen, weiss nur dieses
    Geraet. Das Backup vom Rechner mit Klimmzugstange darf die Auswahl auf dem
-   Handy nicht umschreiben. */
+   Handy nicht umschreiben. Fuer den Wochenrhythmus gilt dasselbe.
+
+   Nicht mehr dabei seit v11: byDay. Der Zaehler wurde hier mit dem Maximum
+   beider Geraete zusammengefuehrt – ein Wert, der weder der einen noch der
+   anderen Wahrheit entsprach. Gezaehlt wird jetzt im Log, das ohnehin
+   vereinigt wird (zaehleJeTag in domain/log.js). */
 export function mergeStates(eigen, fremd){
   const a = objekt(eigen), b = objekt(fremd);
   const out = { ...a };
@@ -36,7 +41,6 @@ export function mergeStates(eigen, fremd){
   out.log = mischeLog(liste(a.log), liste(b.log));
   out.levels = hoechsterWert(objekt(a.levels), objekt(b.levels));
   out.streaks = hoechsterWert(objekt(a.streaks), objekt(b.streaks));
-  out.byDay = hoechsterWert(objekt(a.byDay), objekt(b.byDay));
   out.prs = mischePrs(objekt(a.prs), objekt(b.prs));
   out.notes = juengeresGewinnt(objekt(a.notes), objekt(b.notes));
   out.milestones = mischeMeilensteine(objekt(a.milestones), objekt(b.milestones));

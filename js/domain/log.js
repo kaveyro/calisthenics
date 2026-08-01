@@ -121,6 +121,25 @@ export function letztesDatumJeUebung(log, dayOf = () => null){
   return out;
 }
 
+/* Wie oft jeder Plan-Tag dran war: { A: 30, B: 12 }.
+
+   Ersetzt state.byDay. Der Zaehler wurde bei jedem Abschluss hochgezaehlt,
+   beim Loeschen zurueckgerechnet, im Undo gesichert und beim Zusammenfuehren
+   gemischt – gelesen hat ihn nie jemand. Und er konnte gar nicht stimmen:
+   mergeStates() nahm das Maximum beider Geraete, ein CSV-Import zaehlte
+   nicht mit, und ein geloeschter Eintrag rechnete nur teilweise zurueck.
+
+   Aus dem Log gezaehlt stimmt es per Konstruktion – dort stehen Importe,
+   Nachtraege und Loeschungen ohnehin alle drin. */
+export function zaehleJeTag(log){
+  const out = {};
+  (Array.isArray(log) ? log : []).forEach(l => {
+    if(!l || typeof l !== 'object' || typeof l.day !== 'string' || !l.day) return;
+    out[l.day] = (out[l.day] || 0) + 1;
+  });
+  return out;
+}
+
 /* Einzelabfrage. Liefert { d, reps: [12, 10, 8] } oder null. */
 export function lastRepsFor(log, exId, dayOf, ausser){
   return lastRepsByExercise(log, [exId], dayOf, ausser)[exId] || null;

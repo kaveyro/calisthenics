@@ -9,7 +9,7 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { parseTarget as parseTargetPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung } from './domain/log.js';
+import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
@@ -1554,7 +1554,6 @@ async function finishWorkout(){
     streaks: JSON.parse(JSON.stringify(state.streaks)),
     prs: JSON.parse(JSON.stringify(state.prs)),
     notes: JSON.parse(JSON.stringify(state.notes)),
-    byDay: JSON.parse(JSON.stringify(state.byDay || {})),
     session: JSON.parse(JSON.stringify(session)),
     workouts: state.workouts || 0,
     lastDate: state.lastDate,
@@ -1642,7 +1641,6 @@ async function finishWorkout(){
   lastWorkoutSnapshot.entry = entry;
 
   state.workouts = (state.workouts || 0) + 1;
-  state.byDay[session.dayKey] = (state.byDay[session.dayKey] || 0) + 1;
   state.lastDate = now;
 
   state.log.push(entry);
@@ -1708,7 +1706,6 @@ function undoWorkout(){
   state.streaks = snap.streaks;
   state.prs = snap.prs;
   state.notes = snap.notes;
-  state.byDay = snap.byDay;
   state.workouts = snap.workouts;
   state.lastDate = snap.lastDate;
   state.deloadDismissed = snap.deloadDismissed;
@@ -2007,7 +2004,6 @@ async function addLogEntry(){
   if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
 
   state.workouts = (state.workouts || 0) + 1;
-  state.byDay[eingabe.day] = (state.byDay[eingabe.day] || 0) + 1;
   /* Das groesste Datum, nicht das neueste Element – nachgetragen wird meist
      rueckwaerts. */
   state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
@@ -2035,7 +2031,6 @@ async function removeLogEntry(i){
 
   state.log.splice(i, 1);
   state.workouts = Math.max(0, (state.workouts || 0) - 1);
-  if(state.byDay && state.byDay[l.day]) state.byDay[l.day] = Math.max(0, state.byDay[l.day] - 1);
   /* Das groesste verbliebene Datum, nicht das letzte Element: ein CSV-Import
      kann aeltere Eintraege hinten angehaengt haben. */
   state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
@@ -2407,9 +2402,24 @@ function renderPlanTab(){
     : planDesc(state.planId, (PLAN_TEMPLATES[state.planId] || {}).desc || '');
 
   const days = getDays();
+  /* Wie oft jeder Tag wirklich dran war. Eine schiefe Rotation – "A 30×,
+     B 12×" – heisst, dass die Zugtage regelmaessig ausfallen, und das sieht
+     man sonst nirgends. Gezaehlt wird im Log und nicht in einem Zaehler
+     daneben: Importe, Nachtraege und Loeschungen stehen dort ohnehin alle. */
+  const proTag = zaehleJeTag(state.log || []);
+  const meiste = Math.max(0, ...days.map(d => proTag[d.key] || 0));
+  const gesamt = days.reduce((a, d) => a + (proTag[d.key] || 0), 0);
+
   document.getElementById('planEditor').innerHTML = days.map((d, di) =>
     '<div class="plan-day">' +
-      '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</span>' +
+      '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) +
+        /* Erst ab zwei Einheiten: sonst haengt der zweite Tag schon hinterher,
+           bevor er ueberhaupt an der Reihe war. */
+        (gesamt >= 2
+          ? ' <span class="plan-day-count' + ((proTag[d.key] || 0) * 2 < meiste ? ' warn' : '') + '">' +
+            esc(__('dayCount', { n: proTag[d.key] || 0 })) + '</span>'
+          : '') +
+      '</span>' +
         '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '">✎</button> ' +
         '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '">✕</button></span></div>' +
       d.ex.map((id, ei) => {

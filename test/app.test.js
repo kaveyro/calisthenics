@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(10);
+    expect(s.v).toBe(11);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -209,7 +209,6 @@ describe('Einen Log-Eintrag loeschen', () => {
   it('entfernt ihn samt Zaehler, nach Rueckfrage', async () => {
     localStorage.setItem(SPEICHER, JSON.stringify({
       v: 6, workouts: 2, lastDate: '2026-07-30',
-      byDay: { A: 2 },
       log: [
         { d: '2026-07-29', day: 'A', sets: 10, tops: 2, ups: [], ex: ['pushup'], reps: {} },
         { d: '2026-07-30', day: 'A', sets: 12, tops: 3, ups: [], ex: ['pushup'], reps: {} }
@@ -231,8 +230,10 @@ describe('Einen Log-Eintrag loeschen', () => {
     const s = gespeichert();
     expect(s.log).toHaveLength(1);
     expect(s.workouts).toBe(1);
-    expect(s.byDay.A).toBe(1);
     expect(s.lastDate).toBe('2026-07-29');
+    /* Der Zaehler je Trainingstag steht seit v11 nicht mehr im Stand – er
+       wird aus dem Log gezaehlt und geht damit automatisch mit. */
+    expect(s.byDay).toBeUndefined();
   });
 });
 
@@ -1830,5 +1831,86 @@ describe('Pluralform in der Verlaufszeile', () => {
   it('sagt bei mehreren "Sätze"', async () => {
     await mitLog(12);
     expect(document.querySelector('#logList .log-item').textContent).toContain('12 Sätze');
+  });
+});
+
+describe('Verteilung je Trainingstag', () => {
+  const koepfe = () => [...document.querySelectorAll('#planEditor .plan-day-title')]
+    .map(e => e.textContent.trim());
+  const zaehler = () => [...document.querySelectorAll('#planEditor .plan-day-count')]
+    .map(e => ({ text: e.textContent, warn: e.classList.contains('warn') }));
+
+  function log(proTag){
+    const out = [];
+    let tag = 0;
+    Object.entries(proTag).forEach(([day, n]) => {
+      for(let i = 0; i < n; i++){
+        out.push({ d: '2026-01-' + String(++tag).padStart(2, '0'),
+          day, ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 });
+      }
+    });
+    return out.sort((a, b) => a.d.localeCompare(b.d));
+  }
+
+  async function mitLog(proTag){
+    const l = log(proTag);
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 11, onboarded: true, workouts: l.length, log: l
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    return app;
+  }
+
+  it('nennt je Trainingstag, wie oft er dran war', async () => {
+    await mitLog({ A: 12, B: 3 });
+    expect(koepfe()[0]).toMatch(/12×/);
+    expect(koepfe()[1]).toMatch(/3×/);
+  });
+
+  /* Eine schiefe Rotation heisst, dass ein Tag regelmaessig ausfaellt – das
+     sieht man sonst nirgends. */
+  it('hebt einen deutlichen Rueckstand hervor', async () => {
+    await mitLog({ A: 12, B: 3 });
+    const z = zaehler();
+    expect(z[0].warn).toBe(false);
+    expect(z[1].warn).toBe(true);
+  });
+
+  it('schweigt bei ausgeglichener Verteilung', async () => {
+    await mitLog({ A: 6, B: 5 });
+    expect(zaehler().every(z => !z.warn)).toBe(true);
+  });
+
+  /* Sonst haengt der zweite Tag hinterher, bevor er ueberhaupt dran war. */
+  it('zeigt vor der zweiten Einheit gar keine Zahlen', async () => {
+    await mitLog({ A: 1 });
+    expect(zaehler()).toHaveLength(0);
+  });
+
+  /* Der Kern der Umstellung: die Zahl haengt am Log und nicht an einem
+     Zaehler daneben, der davon abweichen kann.
+
+     Geloescht wird ueber die Aktion und nicht ueber einen echten Klick auf
+     den Knopf: an diesem Dokument haengt je vorherigem Test ein weiterer
+     Delegations-Zuhoerer, und der Klick liefe dann durch mehrere
+     Modulinstanzen mit je eigenem Zustand. In der laufenden App gibt es
+     genau eine. */
+  it('geht beim Loeschen eines Eintrags sofort mit', async () => {
+    const app = await mitLog({ A: 12, B: 3 });
+    const letzter = gespeichert().log.length - 1;
+    expect(gespeichert().log[letzter].day).toBe('B');
+
+    const fertig = app.actions['log:remove']({ i: String(letzter) });
+    await ruhe();
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await fertig; await ruhe();
+
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    expect(koepfe()[0]).toMatch(/12×/);
+    expect(koepfe()[1]).toMatch(/2×/);
+    expect(gespeichert().byDay).toBeUndefined();
   });
 });

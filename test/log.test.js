@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise,
-  letztesDatumJeUebung
+  letztesDatumJeUebung, zaehleJeTag
 } from '../js/domain/log.js';
 
 /* Die Zuordnung Eintrag -> Übung war der Grund für diese Datei: sie lief über
@@ -222,6 +222,45 @@ describe('letztesDatumJeUebung', () => {
     const log = [{ d: '2026-07-01', day: 'A', ex: ['pushup'] }];
     const kopie = JSON.parse(JSON.stringify(log));
     letztesDatumJeUebung(log);
+    expect(log).toEqual(kopie);
+  });
+});
+
+describe('zaehleJeTag', () => {
+  it('zählt die Einheiten je Plan-Tag', () => {
+    expect(zaehleJeTag([
+      { d: '2026-07-01', day: 'A' }, { d: '2026-07-03', day: 'B' },
+      { d: '2026-07-05', day: 'A' }, { d: '2026-07-08', day: 'A' }
+    ])).toEqual({ A: 3, B: 1 });
+  });
+
+  /* Genau der Vorteil gegenüber dem früheren Zähler: gelöschte Einträge,
+     CSV-Importe und zusammengeführte Stände stimmen automatisch, weil
+     gezählt wird, was tatsächlich dasteht. */
+  it('zählt, was im Log steht – nicht mehr und nicht weniger', () => {
+    const log = [{ d: '2026-07-01', day: 'A' }, { d: '2026-07-03', day: 'A' }];
+    expect(zaehleJeTag(log).A).toBe(2);
+    log.splice(0, 1);
+    expect(zaehleJeTag(log).A).toBe(1);
+  });
+
+  it('lässt Einträge ohne brauchbaren Tag aus', () => {
+    expect(zaehleJeTag([
+      { d: '2026-07-01', day: 'A' }, { d: '2026-07-02' },
+      { d: '2026-07-03', day: '' }, { d: '2026-07-04', day: 5 }, null, 'nein'
+    ])).toEqual({ A: 1 });
+  });
+
+  it('verträgt kaputte Eingaben', () => {
+    expect(zaehleJeTag(null)).toEqual({});
+    expect(zaehleJeTag('nein')).toEqual({});
+    expect(zaehleJeTag([])).toEqual({});
+  });
+
+  it('verändert das Log nicht', () => {
+    const log = [{ d: '2026-07-01', day: 'A' }];
+    const kopie = JSON.parse(JSON.stringify(log));
+    zaehleJeTag(log);
     expect(log).toEqual(kopie);
   });
 });

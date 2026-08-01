@@ -53,17 +53,16 @@ describe('mergeStates – Trainingslog', () => {
   });
 });
 
-describe('mergeStates – Stufen, Serien und Tageszaehler', () => {
+describe('mergeStates – Stufen und Serien', () => {
   it('nimmt je Uebung den weiteren Stand', () => {
     /* Eine Stufe zu verlieren, weil das Backup aelter war, waere der
        sichtbarste Verlust ueberhaupt. */
     const out = mergeStates(
-      { levels: { pushup: 5, squat: 1 }, streaks: { pushup: 0 }, byDay: { A: 10 } },
-      { levels: { pushup: 3, dips: 2 }, streaks: { pushup: 2 }, byDay: { A: 4, B: 7 } }
+      { levels: { pushup: 5, squat: 1 }, streaks: { pushup: 0 } },
+      { levels: { pushup: 3, dips: 2 }, streaks: { pushup: 2 } }
     );
     expect(out.levels).toEqual({ pushup: 5, squat: 1, dips: 2 });
     expect(out.streaks).toEqual({ pushup: 2 });
-    expect(out.byDay).toEqual({ A: 10, B: 7 });
   });
 
   it('ignoriert Werte, die keine Zahl sind', () => {
@@ -242,7 +241,7 @@ describe('mergeStates – Zaehler und Einrichtung', () => {
 describe('mergeStates – Vertraege', () => {
   const beispiel = () => ({
     log: [eintrag('2026-01-01'), eintrag('2026-02-01', { sets: 9 })],
-    levels: { pushup: 3 }, streaks: { pushup: 1 }, byDay: { A: 2 },
+    levels: { pushup: 3 }, streaks: { pushup: 1 },
     prs: { pushup: { v: '20', n: 20, d: '2026-01-01' } },
     notes: { pushup: { t: 'x', d: '2026-01-01' } },
     milestones: { pullup: '2026-01-01' },
@@ -276,7 +275,7 @@ describe('mergeStates – Vertraege', () => {
 
   it('kommt mit unbrauchbaren Eingaben zurecht, statt zu werfen', () => {
     expect(mergeStates(null, null)).toEqual({
-      log: [], levels: {}, streaks: {}, byDay: {}, prs: {}, notes: {},
+      log: [], levels: {}, streaks: {}, prs: {}, notes: {},
       milestones: {}, weights: [], measurements: {}, workouts: 0, lastDate: null
     });
     expect(mergeStates('text', 42).log).toEqual([]);

@@ -20,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -42,7 +42,7 @@ export const MAX_WORKOUT_SECS = 4 * 3600;
 export const DEFAULT_STATE = () => ({
   v: STATE_VERSION, planId: 'ab4', customPlan: null, activeSession: null,
   levels: {}, streaks: {}, prs: {}, notes: {}, milestones: {},
-  weights: [], log: [], workouts: 0, byDay: {},
+  weights: [], log: [], workouts: 0,
   lastDate: null, theme: null, settings: {}, deloadDismissed: 0,
   measurements: {}, warmupCustom: null, regressedFor: null,
   /* Wann zuletzt gesichert wurde und bei welchem Zaehlerstand – siehe
@@ -62,6 +62,11 @@ export const DEFAULT_STATE = () => ({
   /* Laufende Entlastungswoche: { bis: 'YYYY-MM-DD' } oder null. Halbiert die
      Saetze und setzt die Progression aus, solange sie laeuft. */
   deload: null,
+  /* Feste Trainingstage: Wochentag (0 = Sonntag … 6 = Samstag) -> Plan-Tag.
+     Leer heisst "kein fester Rhythmus" und damit genau das bisherige
+     Verhalten: der naechste Tag ergibt sich aus der Rotation. Gehoert wie
+     die Ausruestung zur Einrichtung dieses Geraets und wird nicht gemischt. */
+  wochenplan: {},
   /* Ob der Einstieg durchlaufen wurde. Ein bestehender Stand gilt als
      eingerichtet – wer schon trainiert, soll nicht nach seinen Startstufen
      gefragt werden. Das entscheidet migrateState() unten anhand des Verlaufs,
@@ -70,7 +75,15 @@ export const DEFAULT_STATE = () => ({
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
-   alter Staende einfach weg. */
+   alter Staende einfach weg.
+
+   Entfernt in v11 aus demselben Grund: byDay, die Zahl der Einheiten je
+   Plan-Tag. Sie wurde bei jedem Abschluss gepflegt, beim Loeschen
+   zurueckgerechnet, im Undo gesichert und beim Zusammenfuehren gemischt –
+   und nirgends angezeigt. Die Frage dahinter ist gut, der Zaehler taugte
+   nur nicht dafuer: mergeStates() nahm das Maximum beider Geraete, ein
+   CSV-Import zaehlte nicht mit. Gezaehlt wird jetzt im Log selbst, siehe
+   zaehleJeTag() in js/domain/log.js. */
 
 /* ================= Migration =================
    Reine Funktion: nimmt einen beliebigen geladenen Rohwert und liefert einen
@@ -95,7 +108,9 @@ export const DEFAULT_STATE = () => ({
    (Trainingsdauer in Sekunden; 0 heisst "nicht aufgezeichnet" und gilt fuer
    jeden Eintrag von vor v9). v10 ergaenzt prs[].art und prs[].lvl – siehe
    besserePR(); fuer Altbestaende wird die Masseinheit aus dem Text
-   erschlossen und die Stufe bleibt offen. */
+   erschlossen und die Stufe bleibt offen. v11 entfernt byDay (siehe oben)
+   und ergaenzt wochenplan (feste Trainingstage je Wochentag, Vorgabe leer –
+   ein alter Stand rotiert damit weiter wie bisher). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -134,6 +149,17 @@ export function migrateState(raw){
   /* Wie lastBackup: Default null laesst oben jeden Typ durch, hier laeuft
      spaeter aber ein Datumsvergleich. */
   if(out.deload && (typeof out.deload !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(out.deload.bis)))) out.deload = null;
+  /* Nur die sieben Wochentage, und nur Tagesschluessel in der Form, die der
+     Plan verwendet. Ein Schluessel, den der Plan NICHT (mehr) kennt, bleibt
+     stehen: der Plan darf wechseln, ohne die Zuordnung zu loeschen –
+     gelesen wird sie ohnehin nur, wenn getDay() etwas liefert. */
+  const wp = {};
+  Object.keys(out.wochenplan).forEach(k => {
+    if(!/^[0-6]$/.test(k)) return;
+    const key = sanitizeDayKey(out.wochenplan[k]);
+    if(key) wp[k] = key;
+  });
+  out.wochenplan = wp;
   /* Oben faellt ein Boolean in den letzten Zweig und wuerde jeden Typ
      durchlassen; hier haengt eine Verzweigung beim Start daran. */
   out.onboarded = out.onboarded === true;
