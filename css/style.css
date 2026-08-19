@@ -536,6 +536,12 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 5px)}
   .rep-input{width:44px;height:32px;font-size:11px}
+  /* Fünf Beschriftungen brauchten bei 375px 364 Pixel und hatten 341 – „Ziele"
+     ragte über den Rand. Die Leiste ist zwar wischbar, aber der Scrollbalken
+     ist ausgeblendet, es gibt also keinen Hinweis darauf. Weniger Innenabstand
+     statt kürzerer Wörter oder abgeschnittener Namen. */
+  .tab{padding:9px 6px;font-size:13px}
+  .tabs{gap:2px}
 }
 @media print{
   .tabs,.finish-bar,.rest-chip,.head-btns,.tip-btn,.sub-btn,.undo-btn{display:none!important}
