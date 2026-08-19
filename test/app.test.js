@@ -2241,3 +2241,72 @@ describe('Trainingserinnerung', () => {
     expect(gesendet).toHaveLength(0);
   });
 });
+
+/* Die App-eigene Erinnerung greift nur, solange die Seite lebt. Der
+   Kalender des Geraets braucht sie nicht – deshalb dieser Export. */
+describe('Wochenrhythmus in den Kalender', () => {
+  const heuteWd = () => new Date().getDay();
+  const meldung = () => document.getElementById('toast')?.textContent || '';
+
+  async function mitRhythmus(wochenplan){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 13, onboarded: true, wochenplan }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    return app;
+  }
+
+  function zeitAntworten(wert){
+    const eingabe = document.querySelector('.overlay.open #dlg-input');
+    if(!eingabe) return false;
+    eingabe.value = wert;
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    return true;
+  }
+
+  afterEach(() => { delete navigator.canShare; delete navigator.share; });
+
+  it('sagt Bescheid, wenn es nichts zu exportieren gibt', async () => {
+    const app = await mitRhythmus({});
+    await app.actions['plan:ics']();
+    await ruhe();
+    expect(meldung()).toMatch(/Kein Wochenrhythmus/);
+    /* Ohne Rhythmus wird gar nicht erst nach einer Uhrzeit gefragt. */
+    expect(document.querySelector('.overlay.open #dlg-input')).toBeNull();
+  });
+
+  it('teilt die Kalenderdatei, wo das Geraet es kann', async () => {
+    let geteilt = null;
+    navigator.canShare = () => true;
+    navigator.share = vi.fn(d => { geteilt = d; return Promise.resolve(); });
+
+    const app = await mitRhythmus({ [heuteWd()]: 'A' });
+    const lauf = app.actions['plan:ics']();
+    await ruhe();
+    expect(zeitAntworten('07:15')).toBe(true);
+    await lauf;
+    await ruhe();
+
+    expect(navigator.share).toHaveBeenCalled();
+    expect(geteilt.files[0].name).toBe('progression-trainingstage.ics');
+    const text = await geteilt.files[0].text();
+    expect(text).toContain('BEGIN:VCALENDAR');
+    expect(text).toContain('T071500');
+    expect(text).toContain('RRULE:FREQ=WEEKLY;BYDAY=');
+  });
+
+  it('meldet eine unbrauchbare Uhrzeit, statt eine leere Datei zu bauen', async () => {
+    navigator.canShare = () => true;
+    navigator.share = vi.fn(() => Promise.resolve());
+
+    const app = await mitRhythmus({ [heuteWd()]: 'A' });
+    const lauf = app.actions['plan:ics']();
+    await ruhe();
+    expect(zeitAntworten('abends')).toBe(true);
+    await lauf;
+    await ruhe();
+
+    expect(navigator.share).not.toHaveBeenCalled();
+    expect(meldung()).toMatch(/keine Uhrzeit/);
+  });
+});

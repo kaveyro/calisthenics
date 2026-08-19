@@ -20,6 +20,7 @@ import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equi
 import { buildPlan } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
+import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
 import { installDelegation, zahl } from './ui/delegate.js';
@@ -3393,6 +3394,59 @@ async function shareJSON(){
   toast(__('backupShared'));
 }
 
+/* Der Wochenrhythmus als Kalenderdatei.
+
+   Die Trainingserinnerung der App kann nur greifen, solange die Seite lebt
+   (siehe erinnerungPlanen()). Der Kalender des Geraets braucht sie nicht:
+   ein woechentlicher Termin mit Vorwarnung erinnert auch dann, wenn die App
+   seit Wochen zu ist. Deshalb steht der Export im Plan-Tab direkt unter dem
+   Rhythmus – dort, wo die Tage festgelegt werden.
+
+   Geteilt statt heruntergeladen, wo das Geraet es kann: eine .ics im
+   Download-Ordner muss man erst suchen, das Systemblatt bietet den Kalender
+   direkt an. Dieselbe Abwaegung wie beim Backup. */
+async function exportICS(){
+  const plan = state.wochenplan || {};
+  if(!Object.keys(plan).length){ toast(__('icsNoPlan')); return; }
+
+  const uhrzeit = await askText(__('icsTimeTitle'), __('icsTimeLabel'), '18:00', 5);
+  if(uhrzeit === null) return;
+
+  const inhalt = wochenplanAlsIcs(plan, key => {
+    const d = getDay(key);
+    return d ? d.key + ' · ' + dayTitleOf(d) : key;
+  }, { von: today(), stempel: stempelJetzt(), uhrzeit: String(uhrzeit).trim() });
+
+  if(!inhalt){ toast(__('icsBadTime')); return; }
+
+  const name = 'progression-trainingstage.ics';
+  if(kannTeilen()){
+    try{
+      await navigator.share({
+        files: [new File([inhalt], name, { type: 'text/calendar' })],
+        title: name
+      });
+      toast(__('icsShared'));
+    }catch(err){
+      if(!(err && err.name === 'AbortError')){
+        console.error('[exportICS]', err);
+        toast(__('shareFailed'));
+      }
+    }
+    return;
+  }
+  try{
+    download(name, inhalt, 'text/calendar');
+    toast(__('icsDownloaded'));
+  }catch(err){ console.error('[exportICS]', err); toast(__('icsFailed')); }
+}
+
+/* DTSTAMP in UTC. Steht hier und nicht in domain/ics.js: die Schicht ruft
+   kein new Date(). */
+function stempelJetzt(){
+  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+}
+
 function exportCSV(){
   download('progression-verlauf-' + today() + '.csv', '\uFEFF' + serializeLog(state.log), 'text/csv');
   toast(__('csvDownloaded'));
@@ -3854,6 +3908,7 @@ export const actions = {
     toast(__('settingUndone'));
   },
   'reminder:enable':    () => erinnerungErlauben(),
+  'plan:ics':           () => exportICS(),
   /* Eigene Aktion statt setting:update: dort liegen Skalare in
      state.settings, hier ein Array auf oberster Ebene. */
   'equipment:toggle':   d => toggleEquipment(d.eq),

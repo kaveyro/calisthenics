@@ -212,6 +212,12 @@
     <div class="section-title" data-i18n="weekRhythm">Wochenrhythmus</div>
     <p class="muted" style="margin:-4px 0 8px" data-i18n="weekRhythmHint">Optional. Leer heißt: der nächste Tag ergibt sich aus der Reihenfolge.</p>
     <div class="card" id="weekPlan"></div>
+    <!-- Der ehrliche Weg zur Erinnerung: eine PWA kann nur benachrichtigen,
+         solange sie laeuft – der Handy-Kalender braucht sie nicht. -->
+    <div class="data-btns">
+      <button class="btn secondary btn--standalone" id="icsBtn" data-action="plan:ics" data-i18n="icsExport">In den Kalender</button>
+    </div>
+    <p class="muted" id="icsHint" data-i18n="icsHint">Legt deine Trainingstage als wöchentlichen Termin an – von da an erinnert dich dein Kalender, auch wenn die App zu ist.</p>
   </section>
 
   <!-- ============ ZIELE ============ -->
