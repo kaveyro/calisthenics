@@ -577,6 +577,14 @@ function detectPlateaus(){
    Ohne den zweiten wuerde jeder App-Start waehrend derselben Pause erneut
    eine Stufe abziehen. */
 const REGRESSION_DAYS = 14;
+/* Beweglichkeit baut nicht ab wie Kraft. Zurueckgestuft wurde bisher jede
+   Uebung in state.levels – nach einem Urlaub fielen also auch die
+   Handgelenks-Routine, die Pike-Vorbeuge und die Bruecke je eine Stufe.
+   Ausgerechnet die Aufwaermroutine zurueckzunehmen ist das Gegenteil dessen,
+   wozu die App sonst raet, und eine Grundspanne bleibt nach zwei Wochen
+   ohnehin. Skills fallen weiter mit: beim Handstand ist ein Schritt zurueck
+   nach der Pause keine Strafe, sondern Vorsicht. */
+const REGRESSION_AUSGENOMMEN = new Set(['mobility']);
 
 function applyRegression(){
   if(!cfg('regress') || !state.lastDate) return;
@@ -589,7 +597,7 @@ function applyRegression(){
   const namen = [];
   Object.keys(state.levels).forEach(id => {
     const ex = EX_BY_ID[id];
-    if(!ex || !(state.levels[id] > 0)) return;
+    if(!ex || REGRESSION_AUSGENOMMEN.has(ex.cat) || !(state.levels[id] > 0)) return;
     state.levels[id] = state.levels[id] - 1;
     state.streaks[id] = 0;
     namen.push(exName(ex));

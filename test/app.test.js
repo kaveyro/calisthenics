@@ -2359,3 +2359,41 @@ describe('Jahresrueckblick', () => {
     expect(document.querySelectorAll('#yearReview .section-title')).toHaveLength(0);
   });
 });
+
+/* Nach zwei Wochen Pause faellt jede Stufe um eins. Das galt auch fuer
+   Mobility – nach einem Urlaub war die Handgelenks-Routine zurueckgestuft,
+   ausgerechnet die Aufwaermroutine. */
+describe('Rueckstufung nach einer Pause', () => {
+  const vorTagen = n => {
+    const d = new Date(); d.setDate(d.getDate() - n);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+      '-' + String(d.getDate()).padStart(2, '0');
+  };
+
+  async function nachPause(tage){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 13, onboarded: true, workouts: 5, lastDate: vorTagen(tage),
+      settings: { regress: true },
+      levels: { pushup: 3, pullup: 2, wrist_prep: 2, pike_stretch: 3, wall_hs: 2 }
+    }));
+    await starten();
+    await ruhe();
+    return gespeichert().levels;
+  }
+
+  it('nimmt Kraft und Skills zurueck, Mobility nicht', async () => {
+    const lv = await nachPause(20);
+    expect(lv.pushup).toBe(2);
+    expect(lv.pullup).toBe(1);
+    /* Ein Skill faellt mit – ein Schritt zurueck ist dort Vorsicht. */
+    expect(lv.wall_hs).toBe(1);
+    /* Mobility bleibt stehen. */
+    expect(lv.wrist_prep).toBe(2);
+    expect(lv.pike_stretch).toBe(3);
+  });
+
+  it('ruehrt innerhalb der Frist gar nichts an', async () => {
+    const lv = await nachPause(5);
+    expect(lv).toEqual({ pushup: 3, pullup: 2, wrist_prep: 2, pike_stretch: 3, wall_hs: 2 });
+  });
+});
