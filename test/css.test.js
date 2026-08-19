@@ -67,6 +67,16 @@ describe('CSS-Konsistenz', () => {
     expect(css).toMatch(/\.empty-hint--full\s*\{/m);
   });
 
+  it('laesst das <select> in .inline-row schrumpfen', () => {
+    // Ohne min-width:0 ist ein <select> als Flex-Kind so breit wie seine
+    // laengste Option. Im Plan-Editor hat das die Zeile ueber die Karte
+    // hinausgeschoben – der Hinzufuegen-Knopf lag auf dem Handy neben dem
+    // Bildschirm. Der Knopf selbst bleibt flex:none, damit er nicht
+    // stattdessen schrumpft.
+    expect(css).toMatch(/^\.inline-row select\{[^}]*min-width:0/m);
+    expect(css).toMatch(/^\.inline-row button\{[^}]*flex:none/m);
+  });
+
   it('hat --ink-soft mit verbessertem Kontrast (dunkler als #5A6068)', () => {
     // #4A5058 ist dunkler als #5A6068 → besserer Kontrast auf --bg
     expect(css).toMatch(/--ink-soft:#4A5058/);
