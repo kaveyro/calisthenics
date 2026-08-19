@@ -24,7 +24,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 14;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -205,6 +205,9 @@ export function migrateState(raw){
       day: typeof l.day === 'string' ? l.day : 'A',
       sets: Number(l.sets) || 0,
       tops: Number(l.tops) || 0,
+      /* Seit v14 stehen hier Uebungs-Kennungen statt Anzeigetexten. Beides
+         sind Zeichenketten, die Pruefung bleibt also dieselbe; ein alter
+         Eintrag zaehlt weiter mit, laesst sich aber keiner Uebung zuordnen. */
       ups: Array.isArray(l.ups) ? l.ups.filter(u => typeof u === 'string') : [],
       /* Seit v6: die tatsaechlich trainierten Uebungen. Leer bei Altbestaenden
          und bei CSV-Importen – dort greifen die Rueckfaelle in domain/log.js. */

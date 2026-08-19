@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(13);
+    expect(s.v).toBe(14);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -2395,5 +2395,41 @@ describe('Rueckstufung nach einer Pause', () => {
   it('ruehrt innerhalb der Frist gar nichts an', async () => {
     const lv = await nachPause(5);
     expect(lv).toEqual({ pushup: 3, pullup: 2, wrist_prep: 2, pike_stretch: 3, wall_hs: 2 });
+  });
+});
+
+/* Der Log-Eintrag hielt seine Aufstiege als uebersetzten Anzeigetext fest
+   ("Liegestuetze → Diamant-Liegestuetze"). Angezeigt wurde der nie – gezaehlt
+   wurde immer nur seine Laenge –, aber er machte den Eintrag unauswertbar
+   und fror die Sprache ein. */
+describe('Aufstiege im Log', () => {
+  async function mitAufstieg(){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 14, onboarded: true, equipment: ['chair', 'parallettes'],
+      levels: { dips: 1 }, streaks: { dips: 1 }, settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="dips"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    return gespeichert();
+  }
+
+  it('haelt die Kennung fest, nicht den Anzeigetext', async () => {
+    const s = await mitAufstieg();
+    expect(s.levels.dips).toBe(2);
+    expect(s.log[0].ups).toEqual(['dips']);
+    /* Kein Pfeil, kein uebersetzter Name – sonst waere der Eintrag wieder
+       an die Sprache gebunden, in der er entstanden ist. */
+    expect(s.log[0].ups.join('')).not.toContain('→');
+  });
+
+  it('meldet den Aufstieg trotzdem im Klartext', async () => {
+    await mitAufstieg();
+    expect(document.getElementById('toast').textContent).toContain('→');
   });
 });

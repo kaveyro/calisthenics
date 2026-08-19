@@ -1610,7 +1610,15 @@ async function finishWorkout(){
 
   cancelHold(); stopRest(); releaseWakeLock();
   const need = cfg('streak');
+  /* Im Log stehen seit v14 die Kennungen, nicht die Anzeigetexte. Der Text
+     war dreifach im Weg: die Stagnationserkennung konnte aus
+     "Liegestuetze -> Diamant-Liegestuetze" keine Uebung herauslesen und
+     musste sich deshalb damit begnuegen, ob UEBERHAUPT jemand aufgestiegen
+     ist; ein Sprachwechsel liess deutsche Aufstiege in einem englischen
+     Verlauf stehen; und angezeigt wurde der Text nie, gezaehlt wurde immer
+     nur seine Laenge. Fuer die Meldung unten entsteht der Satz frisch. */
   const ups = [];
+  const upsText = [];
   /* Aufstiege, die an fehlendem Geraet haengen – sie werden am Ende gemeldet,
      sonst bliebe die Stufe ohne jede Erklaerung stehen. */
   const gesperrt = [];
@@ -1664,7 +1672,8 @@ async function finishWorkout(){
           gesperrt.push({ name: exName(ex), fehlt: fehlt(ex, lvl + 1) });
         } else {
           state.levels[id] = lvl + 1; state.streaks[id] = 0;
-          ups.push(exName(ex) + ' → ' + exStage(ex, lvl + 1));
+          ups.push(id);
+          upsText.push(exName(ex) + ' → ' + exStage(ex, lvl + 1));
         }
       }
     } else state.streaks[id] = 0;
@@ -1729,7 +1738,7 @@ async function finishWorkout(){
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
-  if(ups.length){ signal(true); toast(__('levelUpToast', { list: ups.join(' · ') }), true); }
+  if(upsText.length){ signal(true); toast(__('levelUpToast', { list: upsText.join(' · ') }), true); }
   /* "1 Einheiten insgesamt" – im Browser aufgefallen, dieselbe Stelle wie
      die Verlaufszeile. Die erste Einheit ist ohnehin eine eigene Meldung
      wert. */
