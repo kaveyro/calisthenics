@@ -14,9 +14,12 @@
 
 <!-- Content-Security-Policy
      GitHub Pages kann keine Antwort-Header setzen, deshalb als meta-Tag.
-     Hinweis: frame-ancestors und report-uri sind in dieser Form
-     spezifikationsgemäß wirkungslos – frame-ancestors bleibt trotzdem
-     stehen, falls die App je selbst gehostet wird.
+     frame-ancestors stand hier und war wirkungslos: die Direktive gilt
+     spezifikationsgemäß nur im Antwort-Header. Der Browser hat sie bei
+     jedem Laden mit einer Fehlermeldung verworfen – eine Zeile, die nichts
+     schützt, aber die Konsole füllt und den Eindruck erweckt, das Einbetten
+     sei geregelt. Wer die App je selbst hostet, setzt sie dort als Header,
+     wo sie auch greift; hier gehört sie nicht hin.
 
      script-src 'self' ohne 'unsafe-inline' ist der eigentliche Gewinn:
      eingeschleustes Skript wird nicht mehr ausgeführt. Möglich wurde das
@@ -43,8 +46,7 @@
   manifest-src 'self';
   worker-src 'self';
   base-uri 'none';
-  form-action 'none';
-  frame-ancestors 'none'">
+  form-action 'none'">
 <!-- Theme vor dem ersten Rendern setzen – verhindert Dark-Mode-Aufblitzen.
      Muss vor dem Stylesheet laden, sonst flackert kurz das helle Theme. -->
 <script src="js/theme-init.js"></script>
