@@ -20,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -31,6 +31,9 @@ export const MAX_SERIES_ENTRIES = 1000;
 /* Ein Trainingstag fasst hoechstens 30 Uebungen (siehe clampBackup); die
    Liste im Log-Eintrag kann nicht laenger sein als das, was trainierbar war. */
 export const MAX_EX_PER_ENTRY = 30;
+/* Eigene Meilensteine. 100 sind mehr Ziele, als ein Mensch verfolgt; die
+   Grenze schuetzt vor einer Datei, die sich damit vollschreibt. */
+export const MAX_CUSTOM_MILESTONES = 100;
 /* Obergrenze der aufgezeichneten Trainingsdauer. Gemessen wird die Spanne
    zwischen dem ersten Haken und "Fertig" – wer die Einheit offen liegen
    laesst und Stunden spaeter abschliesst, haette sonst eine Vierstunden-
@@ -71,7 +74,14 @@ export const DEFAULT_STATE = () => ({
      eingerichtet – wer schon trainiert, soll nicht nach seinen Startstufen
      gefragt werden. Das entscheidet migrateState() unten anhand des Verlaufs,
      nicht dieser Vorgabewert. */
-  onboarded: false
+  onboarded: false,
+  /* Eigene Meilensteine: [{ id, name }]. Sie standen bisher nicht in dieser
+     Liste – und migrateState() kopiert nur, was hier steht. Ein selbst
+     gesetztes Ziel war deshalb nach dem naechsten Laden verschwunden. */
+  customMilestones: [],
+  /* "Nicht jetzt" auf dem Plateau-Hinweis. Dasselbe Versehen: das Banner kam
+     nach jedem Neuladen zurueck. */
+  deloadPlateauDismissed: false
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -169,6 +179,15 @@ export function migrateState(raw){
      Nur beim ersten Start einer leeren App ist sie sinnvoll. */
   if(raw.onboarded === undefined &&
      (out.workouts > 0 || out.log.length > 0 || Object.keys(out.levels).length > 0)) out.onboarded = true;
+
+  out.deloadPlateauDismissed = out.deloadPlateauDismissed === true;
+  /* Eigene Meilensteine brauchen beides: eine Kennung, unter der das
+     Abhaken in `milestones` steht, und einen Namen zum Anzeigen. Ein
+     Eintrag ohne eines von beiden waere eine leere Zeile in der Liste. */
+  out.customMilestones = out.customMilestones
+    .filter(m => m && typeof m === 'object' &&
+      typeof m.id === 'string' && m.id && typeof m.name === 'string' && m.name)
+    .slice(0, MAX_CUSTOM_MILESTONES);
 
   /* Eintraege innerhalb der Sammlungen auf die erwartete Form bringen. */
   out.log = out.log
@@ -351,6 +370,12 @@ export function clampBackup(data, exById = {}){
       prs[id] = { ...p, v: String(p.v == null ? '' : p.v).slice(0, 40) };
     });
     out.prs = prs;
+  }
+  if(Array.isArray(out.customMilestones)){
+    out.customMilestones = out.customMilestones
+      .filter(m => m && typeof m === 'object')
+      .slice(0, MAX_CUSTOM_MILESTONES)
+      .map(m => ({ ...m, name: String(m.name == null ? '' : m.name).slice(0, 60) }));
   }
   if(Array.isArray(out.log)) out.log = out.log.filter(l => l && typeof l === 'object').slice(-MAX_LOG_ENTRIES);
   if(Array.isArray(out.weights)) out.weights = out.weights.filter(w => w && typeof w === 'object').slice(-MAX_SERIES_ENTRIES);

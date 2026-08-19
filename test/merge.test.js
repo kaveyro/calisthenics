@@ -281,3 +281,27 @@ describe('mergeStates – Vertraege', () => {
     expect(mergeStates('text', 42).log).toEqual([]);
   });
 });
+
+describe('mergeStates – eigene Ziele', () => {
+  it('vereinigt sie ueber die Kennung', () => {
+    const a = { customMilestones: [{ id: 'c1', name: 'Muscle-up' }] };
+    const b = { customMilestones: [{ id: 'c2', name: 'Handstand 60 s' }] };
+    const ids = mergeStates(a, b).customMilestones.map(m => m.id).sort();
+    expect(ids).toEqual(['c1', 'c2']);
+  });
+
+  it('behaelt bei gleicher Kennung den hiesigen Namen', () => {
+    const a = { customMilestones: [{ id: 'c1', name: 'Hier' }] };
+    const b = { customMilestones: [{ id: 'c1', name: 'Dort' }] };
+    expect(mergeStates(a, b).customMilestones).toEqual([{ id: 'c1', name: 'Hier' }]);
+  });
+
+  it('holt das Ziel zum abgehakten Datum mit', () => {
+    /* Ohne die Definition bliebe ein Datum ohne Namen uebrig. */
+    const a = { customMilestones: [], milestones: {} };
+    const b = { customMilestones: [{ id: 'c9', name: 'Front Lever' }], milestones: { c9: '2026-05-01' } };
+    const out = mergeStates(a, b);
+    expect(out.milestones.c9).toBe('2026-05-01');
+    expect(out.customMilestones).toEqual([{ id: 'c9', name: 'Front Lever' }]);
+  });
+});

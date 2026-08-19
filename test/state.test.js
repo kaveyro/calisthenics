@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_STATE, STATE_VERSION, SETTINGS_DEFAULTS,
   MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_EX_PER_ENTRY, MAX_WORKOUT_SECS,
+  MAX_CUSTOM_MILESTONES,
   migrateState, clampBackup, prNumber, besserePR
 } from '../js/domain/state.js';
 import { EQUIP_ALL } from '../js/domain/equipment.js';
@@ -526,5 +527,49 @@ describe('migrateState – byDay ist fort', () => {
 
   it('laesst ihn auch aus einem Backup nicht herein', () => {
     expect(clampBackup({ byDay: { A: 12 }, workouts: 3 }, EX)).toEqual({ workouts: 3 });
+  });
+});
+
+/* Beide Felder wurden geschrieben, standen aber nicht in DEFAULT_STATE – und
+   migrateState() kopiert ausschliesslich, was dort steht. Ein selbst
+   gesetztes Ziel und ein weggeklickter Plateau-Hinweis waren nach dem
+   naechsten Laden fort. */
+describe('migrateState – eigene Ziele und weggeklickte Hinweise', () => {
+  it('behaelt eigene Meilensteine', () => {
+    const s = migrateState({ customMilestones: [{ id: 'custom-1', name: 'Muscle-up' }] });
+    expect(s.customMilestones).toEqual([{ id: 'custom-1', name: 'Muscle-up' }]);
+  });
+
+  it('wirft Eintraege ohne Kennung oder Namen weg', () => {
+    const s = migrateState({ customMilestones: [
+      { id: 'custom-1', name: 'Bleibt' },
+      { id: 'custom-2' },
+      { name: 'Ohne Kennung' },
+      { id: '', name: 'Leere Kennung' },
+      { id: 'custom-3', name: '' },
+      'kein Objekt', null
+    ] });
+    expect(s.customMilestones).toEqual([{ id: 'custom-1', name: 'Bleibt' }]);
+  });
+
+  it('kappt die Liste bei MAX_CUSTOM_MILESTONES', () => {
+    const viele = Array.from({ length: MAX_CUSTOM_MILESTONES + 20 },
+      (_, i) => ({ id: 'custom-' + i, name: 'Ziel ' + i }));
+    expect(migrateState({ customMilestones: viele }).customMilestones)
+      .toHaveLength(MAX_CUSTOM_MILESTONES);
+  });
+
+  it('behaelt das weggeklickte Plateau-Banner, aber nur als echtes true', () => {
+    expect(migrateState({ deloadPlateauDismissed: true }).deloadPlateauDismissed).toBe(true);
+    ['ja', 1, {}].forEach(wert => {
+      expect(migrateState({ deloadPlateauDismissed: wert }).deloadPlateauDismissed).toBe(false);
+    });
+    expect(migrateState({}).deloadPlateauDismissed).toBe(false);
+  });
+
+  it('kuerzt einen ueberlangen Namen beim Import', () => {
+    const lang = 'x'.repeat(200);
+    const out = clampBackup({ customMilestones: [{ id: 'custom-1', name: lang }] }, EX);
+    expect(out.customMilestones[0].name).toHaveLength(60);
   });
 });

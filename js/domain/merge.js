@@ -12,7 +12,7 @@
    Aufgerufen wird das vor migrateState() und nach clampBackup(): hier wird
    entschieden, welcher Wert gewinnt, nicht ob er eine gueltige Form hat. */
 
-import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, prNumber, besserePR } from './state.js';
+import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_CUSTOM_MILESTONES, prNumber, besserePR } from './state.js';
 
 const objekt = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
 const liste = v => Array.isArray(v) ? v : [];
@@ -44,6 +44,10 @@ export function mergeStates(eigen, fremd){
   out.prs = mischePrs(objekt(a.prs), objekt(b.prs));
   out.notes = juengeresGewinnt(objekt(a.notes), objekt(b.notes));
   out.milestones = mischeMeilensteine(objekt(a.milestones), objekt(b.milestones));
+  const eigeneZiele = mischeEigeneZiele(liste(a.customMilestones), liste(b.customMilestones));
+  /* Nicht blind eine leere Liste anlegen – ein Stand ohne eigene Ziele soll
+     nach dem Zusammenfuehren derselbe Stand sein, wie bei measurements. */
+  if(eigeneZiele.length) out.customMilestones = eigeneZiele;
   out.weights = mischeReihe(liste(a.weights), liste(b.weights));
   out.workouts = Math.max(zahl(a.workouts), zahl(b.workouts));
 
@@ -154,4 +158,17 @@ function mischeMeilensteine(a, b){
     if(typeof alt !== 'string' || neu < alt) out[id] = neu;
   });
   return out;
+}
+
+/* Eigene Ziele: vereinigt ueber die Kennung. Das Abhaken steht in
+   `milestones` und wird darueber ohnehin zusammengefuehrt – ohne die
+   Definition bliebe davon ein Datum ohne Namen uebrig. Bei gleicher Kennung
+   bleibt der hiesige Name stehen; umbenannt wird nichts. */
+function mischeEigeneZiele(a, b){
+  const proId = new Map();
+  /* fremd zuerst, eigen ueberschreibt danach. */
+  [...b, ...a].forEach(m => {
+    if(m && typeof m === 'object' && typeof m.id === 'string' && m.id) proId.set(m.id, m);
+  });
+  return [...proId.values()].slice(0, MAX_CUSTOM_MILESTONES);
 }

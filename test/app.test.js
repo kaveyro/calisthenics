@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(11);
+    expect(s.v).toBe(12);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -2101,5 +2101,51 @@ describe('Backup teilen', () => {
     await ruhe();
     const s = gespeichert();
     expect(s === null || s.lastBackup === null).toBe(true);
+  });
+});
+
+/* Beide Felder wurden geschrieben, standen aber nicht im Schema – und
+   migrateState() kopiert nur, was in DEFAULT_STATE steht. Was hier auffaellt,
+   faellt in der App auf: nach dem naechsten Start war es weg. */
+describe('Eigene Ziele und weggeklickte Hinweise ueberdauern einen Neustart', () => {
+  it('haelt einen selbst gesetzten Meilenstein', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'milestones' });
+    await ruhe();
+
+    app.actions['milestone:add']();
+    await ruhe();
+    const eingabe = document.querySelector('.overlay.open #dlg-input');
+    expect(eingabe).not.toBeNull();
+    eingabe.value = 'Muscle-up';
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await ruhe();
+
+    expect(gespeichert().customMilestones.map(m => m.name)).toEqual(['Muscle-up']);
+
+    /* Neu laden – genau hier verschwand das Ziel. */
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    const zweit = await starten();
+    zweit.actions['tab:show']({ tab: 'milestones' });
+    await ruhe();
+    expect(document.getElementById('msList').textContent).toContain('Muscle-up');
+  });
+
+  it('haelt ein weggeklicktes Plateau-Banner', async () => {
+    const app = await starten();
+    app.actions['deload:plateauDismiss']();
+    await ruhe();
+    expect(gespeichert().deloadPlateauDismissed).toBe(true);
+
+    /* Neu laden – und danach etwas schreiben. Ein blosser Neustart
+       ueberschreibt den Speicher nicht; der Verlust faellt erst beim
+       naechsten Speichern auf, und dann ist er endgueltig. */
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    const zweit = await starten();
+    zweit.actions['theme:toggle']();
+    await ruhe();
+    expect(gespeichert().deloadPlateauDismissed).toBe(true);
   });
 });
