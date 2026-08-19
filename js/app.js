@@ -106,7 +106,6 @@ export async function start(){
     restoreActiveSession();
     registerSW();
     speicherSichern();
-    erinnerungPruefen();
     installDelegation(actions);
     installPlanDragAndDrop();
     addKeyboardShortcuts();
@@ -3237,23 +3236,57 @@ function erinnerungErlauben(){
     else toast(__('reminderDenied'));
   });
 }
-function erinnerungPruefen(){
-  if(!erinnerungAktiv() || !('Notification' in window)) return;
-  if(Notification.permission !== 'granted') return;
-  /* Nur an Tagen mit geplantem Training erinnern – und nur, wenn heute noch
-     nicht trainiert wurde. */
-  const key = heutigerPlanTag();
-  if(!key) return;
+/* Die Erinnerung lief bisher aus start(): wer die App an einem
+   Trainingstag oeffnete, bekam eine Systemmeldung, dass er heute trainieren
+   solle – waehrend er auf die App schaute, und bei jedem Neuladen erneut.
+   Das ist keine Erinnerung, das ist Laerm.
+
+   Jetzt gilt: hoechstens einmal am Tag, und nur wenn die Seite gerade nicht
+   sichtbar ist. Angesetzt wird sie, wenn die App in den Hintergrund geht –
+   wer sie offen hatte und ohne Training wieder verlaesst, ist genau der
+   Fall, fuer den sie gedacht ist. Kommt er vorher zurueck, faellt sie aus.
+
+   Mehr ist ohne Server nicht drin: eine geschlossene oder eingefrorene Seite
+   kann nicht benachrichtigen. Wer eine verlaessliche Erinnerung will, nimmt
+   den Kalender-Export – der Handy-Kalender braucht die App nicht. */
+const ERINNERUNG_VERZOEGERUNG = 2 * 60 * 1000;
+let erinnerungTimer = null;
+
+function erinnerungFaellig(){
+  if(!erinnerungAktiv() || !('Notification' in window)) return false;
+  if(Notification.permission !== 'granted') return false;
   const heute = today();
-  const schon = (state.log || []).some(l => l.d === heute);
-  if(schon) return;
-  const d = getDay(key);
+  /* Einmal am Tag reicht. Gemerkt wird das Datum, nicht ein Zaehler – so
+     ueberlebt die Sperre auch einen Neustart. */
+  if(state.erinnertAm === heute) return false;
+  if(!heutigerPlanTag()) return false;
+  return !(state.log || []).some(l => l.d === heute);
+}
+
+function erinnerungPlanen(){
+  clearTimeout(erinnerungTimer);
+  erinnerungTimer = erinnerungFaellig() ? setTimeout(erinnerungSenden, ERINNERUNG_VERZOEGERUNG) : null;
+}
+
+function erinnerungAbsagen(){
+  clearTimeout(erinnerungTimer);
+  erinnerungTimer = null;
+}
+
+function erinnerungSenden(){
+  erinnerungTimer = null;
+  /* Zwischen Ansetzen und Ausloesen kann sich alles geaendert haben: die
+     Seite ist wieder da, die Einheit ist abgeschlossen, der Tag ist um. */
+  if(document.visibilityState === 'visible') return;
+  if(!erinnerungFaellig()) return;
+  const d = getDay(heutigerPlanTag());
   if(!d) return;
   try{
     new Notification(__('reminderTitle'), {
       body: __('reminderBody', { day: d.key + ' · ' + dayTitleOf(d) }),
       icon: 'icons/icon-192.png'
     });
+    state.erinnertAm = today(); save();
   }catch{ /* Benachrichtigung nicht moeglich – dann eben nicht */ }
 }
 
@@ -3614,7 +3647,9 @@ function installGlobalListeners(){
      registriert, weil visibilitychange beim reinen Schliessen am Desktop
      nicht garantiert ist. */
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'hidden'){ flushSession(); return; }
+    if(document.visibilityState === 'hidden'){ flushSession(); erinnerungPlanen(); return; }
+
+    erinnerungAbsagen();
 
     /* Zurueck im Vordergrund: beide Zeitgeber sofort abgleichen, statt die
        Anzeige um die Zeit der Drosselung nachlaufen zu lassen. */

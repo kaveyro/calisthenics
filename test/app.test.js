@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(12);
+    expect(s.v).toBe(13);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -2147,5 +2147,97 @@ describe('Eigene Ziele und weggeklickte Hinweise ueberdauern einen Neustart', ()
     zweit.actions['theme:toggle']();
     await ruhe();
     expect(gespeichert().deloadPlateauDismissed).toBe(true);
+  });
+});
+
+/* Sie feuerte aus start(): App an einem Trainingstag oeffnen, und das
+   System meldete, man solle heute trainieren – waehrend man auf die App
+   schaute, und bei jedem Neuladen erneut. */
+describe('Trainingserinnerung', () => {
+  const heuteWd = () => new Date().getDay();
+  let gesendet;
+
+  function sichtbarkeit(wert){
+    Object.defineProperty(document, 'visibilityState', { value: wert, configurable: true });
+    document.dispatchEvent(new window.Event('visibilitychange'));
+  }
+
+  beforeEach(() => {
+    gesendet = [];
+    class FakeNotification {
+      constructor(titel, opt){ gesendet.push({ titel, body: opt && opt.body }); }
+      static permission = 'granted';
+      static requestPermission(){ return Promise.resolve('granted'); }
+    }
+    window.Notification = FakeNotification;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete window.Notification;
+    sichtbarkeit('visible');
+  });
+
+  async function anTrainingstag(over = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 13, onboarded: true, wochenplan: { [heuteWd()]: 'A' },
+      settings: { reminder: true }, ...over
+    }));
+    const app = await starten();
+    await ruhe();
+    return app;
+  }
+
+  it('meldet sich nicht, waehrend man auf die App schaut', async () => {
+    await anTrainingstag();
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    expect(gesendet).toHaveLength(0);
+  });
+
+  /* Gezaehlt wird nicht auf eine feste Zahl: jedes starten() in dieser Datei
+     laesst einen weiteren visibilitychange-Listener am document zurueck, und
+     alle feuern mit. Die laufende App hat genau eine Instanz. */
+  it('meldet sich, nachdem die App in den Hintergrund gegangen ist', async () => {
+    await anTrainingstag();
+    sichtbarkeit('hidden');
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    await ruhe();
+    expect(gesendet.length).toBeGreaterThan(0);
+    expect(gesendet[0].body).toContain('A');
+  });
+
+  it('faellt aus, wenn man vorher zurueckkommt', async () => {
+    await anTrainingstag();
+    sichtbarkeit('hidden');
+    vi.advanceTimersByTime(30 * 1000);
+    sichtbarkeit('visible');
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    expect(gesendet).toHaveLength(0);
+  });
+
+  it('kommt hoechstens einmal am Tag', async () => {
+    await anTrainingstag();
+    sichtbarkeit('hidden');
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    await ruhe();
+    const nachDemErsten = gesendet.length;
+    expect(nachDemErsten).toBeGreaterThan(0);
+    expect(gespeichert().erinnertAm).toBe(new Date().toISOString().slice(0, 10));
+
+    /* Zweite Runde: App wieder oeffnen, wieder verlassen. */
+    sichtbarkeit('visible');
+    sichtbarkeit('hidden');
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    await ruhe();
+    expect(gesendet).toHaveLength(nachDemErsten);
+  });
+
+  it('schweigt an einem Ruhetag', async () => {
+    await anTrainingstag({ wochenplan: { [(heuteWd() + 1) % 7]: 'A' } });
+    sichtbarkeit('hidden');
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    await ruhe();
+    expect(gesendet).toHaveLength(0);
   });
 });

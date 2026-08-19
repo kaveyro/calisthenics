@@ -15,12 +15,16 @@ import { EQUIP, EQUIP_ALL } from './equipment.js';
 export const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
   setsMode: 'standard', streak: 2, weekGoal: 4, deload: 24, lang: 'de',
-  regress: true
+  regress: true,
+  /* Trainingserinnerung. Der Schalter gab es in den Einstellungen, den
+     Schluessel hier nicht – und was hier nicht steht, wirft migrateState()
+     weg. Die Erinnerung war nach jedem Neuladen wieder aus. */
+  reminder: false
 };
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 12;
+export const STATE_VERSION = 13;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -81,7 +85,10 @@ export const DEFAULT_STATE = () => ({
   customMilestones: [],
   /* "Nicht jetzt" auf dem Plateau-Hinweis. Dasselbe Versehen: das Banner kam
      nach jedem Neuladen zurueck. */
-  deloadPlateauDismissed: false
+  deloadPlateauDismissed: false,
+  /* Datum der letzten Trainingserinnerung. Verhindert, dass dieselbe
+     Erinnerung mehrmals am Tag kommt – auch ueber einen Neustart hinweg. */
+  erinnertAm: null
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -147,6 +154,7 @@ export function migrateState(raw){
   /* Default null heisst oben "jeden Typ durchlassen" – hier steht aber ein
      ISO-Datum, das spaeter in eine Datumsrechnung laeuft. */
   if(out.lastBackup !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.lastBackup))) out.lastBackup = null;
+  if(out.erinnertAm !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.erinnertAm))) out.erinnertAm = null;
   /* Der Revisionszaehler wird nur groesser und nur ganzzahlig – eine 2.5 oder
      eine -1 aus einem handgeschriebenen Stand wuerde den Vergleich zwischen
      zwei Fenstern still verdrehen. */

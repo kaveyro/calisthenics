@@ -573,3 +573,19 @@ describe('migrateState – eigene Ziele und weggeklickte Hinweise', () => {
     expect(out.customMilestones[0].name).toHaveLength(60);
   });
 });
+
+describe('migrateState – Trainingserinnerung', () => {
+  it('behaelt den Schalter', () => {
+    /* Der Schluessel fehlte in SETTINGS_DEFAULTS – und was dort nicht steht,
+       wird verworfen. Die Erinnerung war nach jedem Neuladen wieder aus. */
+    expect(SETTINGS_DEFAULTS.reminder).toBe(false);
+    expect(migrateState({ settings: { reminder: true } }).settings.reminder).toBe(true);
+  });
+
+  it('nimmt nur ein ISO-Datum als letzte Erinnerung', () => {
+    expect(migrateState({ erinnertAm: '2026-08-19' }).erinnertAm).toBe('2026-08-19');
+    ['heute', '19.08.2026', 42, true].forEach(wert => {
+      expect(migrateState({ erinnertAm: wert }).erinnertAm).toBeNull();
+    });
+  });
+});
