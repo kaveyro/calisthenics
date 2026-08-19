@@ -369,12 +369,11 @@ export const LANG = {
 
     /* Jahresrueckblick */
     yearReview: 'Jahresrückblick',
-    yearReviewTitle: 'Dein Jahr in Zahlen',
     yearReviewEmpty: 'Noch keine Daten für dieses Jahr.',
-    yearReviewWorkouts: '{n} Trainings',
-    yearReviewLevelUps: '{n} Level-Ups',
-    yearReviewMilestones: '{n} Meilensteine',
-    yearReviewReps: '{n} Wiederholungen',
+    yearReviewWorkouts: 'Trainings: {n}',
+    yearReviewLevelUps: 'Level-Ups: {n}',
+    yearReviewMilestones: 'Meilensteine: {n}',
+    yearReviewReps: 'Wiederholungen: {n}',
     yearReviewTop: 'Meistgeübte Übung: {name}',
 
     /* Eigene Meilensteine */
@@ -731,12 +730,11 @@ export const LANG = {
 
     /* Year in review */
     yearReview: 'Year in review',
-    yearReviewTitle: 'Your year in numbers',
     yearReviewEmpty: 'No data for this year yet.',
-    yearReviewWorkouts: '{n} workouts',
-    yearReviewLevelUps: '{n} level-ups',
-    yearReviewMilestones: '{n} milestones',
-    yearReviewReps: '{n} reps',
+    yearReviewWorkouts: 'Workouts: {n}',
+    yearReviewLevelUps: 'Level-ups: {n}',
+    yearReviewMilestones: 'Milestones: {n}',
+    yearReviewReps: 'Reps: {n}',
     yearReviewTop: 'Most trained exercise: {name}',
 
     /* Custom milestones */

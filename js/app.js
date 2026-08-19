@@ -1994,7 +1994,13 @@ function renderYearReview(){
 
   const workouts = log.length;
   const ups = log.reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
-  const ms = Object.keys(state.milestones || {}).length;
+  /* Nur die Meilensteine DIESES Jahres. Gezaehlt wurden alle, die es je gab –
+     am 1. Januar stand im Rueckblick auf ein Jahr mit null Erfolgen die
+     Gesamtzahl, neben Werten, die sehr wohl auf das Jahr gefiltert waren.
+     Der Wert je Meilenstein ist das Datum des ersten Mals. */
+  const alleMs = state.milestones || {};
+  const ms = Object.keys(alleMs)
+    .filter(id => typeof alleMs[id] === 'string' && alleMs[id].slice(0, 4) === jahr).length;
   /* Wiederholungen: nur die, die wirklich trainiert wurden. */
   let reps = 0;
   log.forEach(l => {
@@ -2013,8 +2019,10 @@ function renderYearReview(){
     __('yearReviewReps', { n: reps })
   ];
   if(top) teile.push(__('yearReviewTop', { name: top }));
-  el.innerHTML = '<div class="section-title" style="margin-top:0">' + esc(__('yearReviewTitle')) + '</div>' +
-    '<div class="muted">' + esc(teile.join(' · ')) + '</div>';
+  /* Die Ueberschrift steht schon im Markup – zwei gestapelte Titel waren
+     einer zu viel, und der Inline-Stil, der den Abstand dazwischen
+     wegrechnete, damit auch. */
+  el.innerHTML = '<div class="muted">' + esc(teile.join(' · ')) + '</div>';
 }
 
 /* ================= Eine Einheit nachtragen =================

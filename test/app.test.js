@@ -2310,3 +2310,52 @@ describe('Wochenrhythmus in den Kalender', () => {
     expect(meldung()).toMatch(/keine Uhrzeit/);
   });
 });
+
+/* Trainings, Level-Ups und Wiederholungen waren auf das Jahr gefiltert, die
+   Meilensteine nicht – am 1. Januar stand im Rueckblick auf ein Jahr mit
+   null Erfolgen die Gesamtzahl. */
+describe('Jahresrueckblick', () => {
+  const heute = new Date();
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+    '-' + String(d.getDate()).padStart(2, '0');
+  const HEUTE = iso(heute);
+  const VORJAHR = (heute.getFullYear() - 1) + '-06-15';
+  const rueckblick = () => document.getElementById('yearReview').textContent;
+
+  async function mitStand(over){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 13, onboarded: true, workouts: 1,
+      log: [{ d: HEUTE, day: 'A', ex: ['pushup'], sets: 4, tops: 1, ups: ['pushup'], reps: { 'pushup-0': 10 }, dauer: 0 }],
+      ...over
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    return app;
+  }
+
+  it('zaehlt nur die Meilensteine dieses Jahres', async () => {
+    await mitStand({ milestones: { pullup1: HEUTE, dip1: VORJAHR, hs1: VORJAHR } });
+    expect(rueckblick()).toContain('Meilensteine: 1');
+  });
+
+  it('zaehlt gar keine, wenn alle aus dem Vorjahr sind', async () => {
+    await mitStand({ milestones: { dip1: VORJAHR } });
+    expect(rueckblick()).toContain('Meilensteine: 0');
+  });
+
+  /* "1 Trainings" stand da, weil die Texte feste Pluralformen trugen. */
+  it('kommt bei genau einer Einheit ohne falschen Plural aus', async () => {
+    await mitStand({});
+    const t = rueckblick();
+    expect(t).toContain('Trainings: 1');
+    expect(t).toContain('Wiederholungen: 10');
+    expect(t).not.toMatch(/1 Trainings|1 Meilensteine|1 Level-Ups/);
+  });
+
+  /* Die Ueberschrift steht im Markup; eine zweite kam aus dem Renderer. */
+  it('setzt keine zweite Ueberschrift in die Karte', async () => {
+    await mitStand({});
+    expect(document.querySelectorAll('#yearReview .section-title')).toHaveLength(0);
+  });
+});
