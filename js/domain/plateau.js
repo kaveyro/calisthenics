@@ -2,11 +2,28 @@
    voran? Reine Logik – kein DOM, kein Zustand, keine Übersetzung. Zurück
    kommen Übungs-IDs; den Anzeigenamen bestimmt der Aufrufer.
 
-   Regel (unverändert gegenüber der vorherigen Fassung): eine Übung gilt als
-   stagnierend, wenn unter ihren letzten fünf Einheiten mindestens vier
-   liegen und in keiner davon ein Level-Up stattfand. Übungen auf der
-   höchsten Stufe sind ausgenommen – dort gibt es nichts mehr zu erreichen.
+   Regel: eine Übung gilt als stagnierend, wenn unter ihren letzten fünf
+   Einheiten mindestens vier liegen und in keiner davon SIE aufgestiegen ist.
+   Übungen auf der höchsten Stufe sind ausgenommen – dort gibt es nichts mehr
+   zu erreichen.
+
+   Das „sie" war der Fehler. Geprüft wurde `l.ups.length`, also ob in der
+   Einheit überhaupt irgendjemand aufgestiegen ist – und weil ein Log-Eintrag
+   seine Aufstiege bis v14 als übersetzten Anzeigetext festhielt, ging es
+   auch gar nicht anders. Auf einem Tag mit sieben Übungen genügte damit eine
+   einzige, die sich bewegt, und für die übrigen sechs schwieg die Erkennung.
+   Genau die Lage, für die es sie gibt. Umgekehrt wurde an einem Tag ohne
+   jeden Aufstieg pauschal alles gemeldet.
+
+   Zweite Korrektur an derselben Stelle: welche Übungen zu einer Einheit
+   gehörten, stand hier im HEUTIGEN Plan – eine gestern hinzugefügte Übung
+   bekam damit fünf alte Einheiten angerechnet, in denen sie nie vorkam, und
+   war sofort „stagnierend". entryExercises() nimmt stattdessen, was der
+   Eintrag selbst mitschreibt, und fällt nur für Altbestände auf den Plan
+   zurück.
 */
+
+import { entryExercises } from './log.js';
 
 /* Wie viele der letzten Einheiten betrachtet werden und wie viele davon
    mindestens vorliegen müssen, damit die Aussage etwas wert ist. */
@@ -16,11 +33,12 @@ const MINDESTENS = 4;
 export function detectPlateaus(days, log, levels, exById){
   if(!Array.isArray(days) || !Array.isArray(log) || !log.length) return [];
 
-  /* Tag-Key -> enthaltene Übungen. Ersetzt das lineare getDay() im
-     Filter, das früher pro Log-Eintrag erneut über alle Tage suchte. */
-  const uebungenProTag = new Map();
+  /* Tag-Key -> Plan-Tag. Ein Nachschlagen statt der linearen Suche, die
+     früher pro Log-Eintrag erneut über alle Tage lief. Gebraucht wird er nur
+     noch als Rückfall für Einträge ohne eigene Übungsliste. */
+  const tagNachKey = new Map();
   for(const d of days){
-    if(d && typeof d.key === 'string' && Array.isArray(d.ex)) uebungenProTag.set(d.key, d.ex);
+    if(d && typeof d.key === 'string') tagNachKey.set(d.key, d);
   }
 
   /* Kandidaten in der Reihenfolge ihres ersten Auftretens, ohne Dopplung.
@@ -52,10 +70,8 @@ export function detectPlateaus(days, log, levels, exById){
   for(let i = log.length - 1; i >= 0 && offen > 0; i--){
     const eintrag = log[i];
     if(!eintrag) continue;
-    const tagUebungen = uebungenProTag.get(eintrag.day);
-    if(!tagUebungen) continue;                    /* Tag existiert nicht mehr */
 
-    for(const id of tagUebungen){
+    for(const id of entryExercises(eintrag, tagNachKey.get(eintrag.day))){
       const liste = treffer.get(id);
       if(!liste || liste.length >= FENSTER) continue;
       liste.push(eintrag);
@@ -65,6 +81,7 @@ export function detectPlateaus(days, log, levels, exById){
 
   return kandidaten.filter(id => {
     const liste = treffer.get(id);
-    return liste.length >= MINDESTENS && !liste.some(l => l.ups && l.ups.length);
+    return liste.length >= MINDESTENS &&
+      !liste.some(l => Array.isArray(l.ups) && l.ups.includes(id));
   });
 }
