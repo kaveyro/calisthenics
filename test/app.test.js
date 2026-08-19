@@ -344,12 +344,23 @@ describe('Abgleich zwischen zwei Fenstern', () => {
 /* Der Import ersetzte immer alles – wer auf dem Handy trainierte und danach
    das Backup vom Rechner einspielte, verlor jede Einheit dazwischen. */
 describe('Backup importieren', () => {
-  const HIER = { d: '2026-07-30', day: 'A', sets: 12, tops: 1, ups: [], ex: ['pushup'], reps: {} };
-  const DORT = { d: '2026-07-20', day: 'A', sets: 8, tops: 0, ups: [], ex: ['pushup'], reps: {} };
+  /* Feste Daten waren hier eine Zeitbombe: applyRegression() senkt nach
+     REGRESSION_DAYS Pause jede Stufe um eins, und irgendwann liegt jedes
+     hart notierte Datum weit genug zurueck. Der Test prueft das
+     Zusammenfuehren, nicht den Deload – also liegen die Einheiten relativ
+     zu heute und damit innerhalb der Pausenfrist. */
+  const zwei = n => String(n).padStart(2, '0');
+  const tagVor = n => {
+    const d = new Date(); d.setDate(d.getDate() - n);
+    return d.getFullYear() + '-' + zwei(d.getMonth() + 1) + '-' + zwei(d.getDate());
+  };
+  const HEUTE = tagVor(0), FRUEHER = tagVor(10);
+  const HIER = { d: HEUTE, day: 'A', sets: 12, tops: 1, ups: [], ex: ['pushup'], reps: {} };
+  const DORT = { d: FRUEHER, day: 'A', sets: 8, tops: 0, ups: [], ex: ['pushup'], reps: {} };
 
   async function importieren(wahl){
     localStorage.setItem(SPEICHER, JSON.stringify({
-      v: 7, workouts: 1, lastDate: '2026-07-30', log: [HIER], levels: { pushup: 5 }
+      v: 7, workouts: 1, lastDate: HEUTE, log: [HIER], levels: { pushup: 5 }
     }));
     const app = await starten();
 
@@ -369,14 +380,14 @@ describe('Backup importieren', () => {
 
   it('fuehrt auf Wunsch zusammen, statt zu ersetzen', async () => {
     const s = await importieren('Zusammenführen');
-    expect(s.log.map(l => l.d)).toEqual(['2026-07-20', '2026-07-30']);
+    expect(s.log.map(l => l.d)).toEqual([FRUEHER, HEUTE]);
     /* Die weitere Stufe gewinnt – sonst kostet ein altes Backup Fortschritt. */
     expect(s.levels.pushup).toBe(5);
   });
 
   it('ersetzt weiterhin, wenn man es verlangt', async () => {
     const s = await importieren('Ersetzen');
-    expect(s.log.map(l => l.d)).toEqual(['2026-07-20']);
+    expect(s.log.map(l => l.d)).toEqual([FRUEHER]);
     expect(s.levels.pushup).toBe(2);
   });
 });
