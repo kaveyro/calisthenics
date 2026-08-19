@@ -263,7 +263,9 @@ details.acc li{margin-bottom:5px}
 .note-input{width:100%;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:13.5px;resize:vertical;min-height:38px}
 .note-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
 .note-input::placeholder{color:var(--ink-soft)}
-.inline-row{display:flex;gap:8px;margin-top:10px}
+/* Umbrechen statt überlaufen. Greift nur, wenn eine Zeile rechnerisch
+   nicht passt – bei den Messwerten ist das der Fall, sonst nirgends. */
+.inline-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .inline-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13.5px}
 .inline-row input:focus{outline:3px solid var(--accent);outline-offset:2px}
 .inline-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 15px;font-weight:600;cursor:pointer;flex:none}
@@ -441,7 +443,13 @@ details.acc li{margin-bottom:5px}
 .modal .section-title{margin:16px 0 4px;font-size:13px}
 .data-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 /* Messwerte: Eingabefeld und Speichern-Knopf ohne Inline-Styles. */
-.meas-col{flex:1}
+/* Vier Zahlenfelder und ein Speichern-Knopf in einer Zeile: auf 375px blieben
+   den Feldern 31, 31, 24 und 82 Pixel, und der Knopf stand über den Rand der
+   Karte hinaus. In 24px liest niemand "12.5". Die Wunschbreite von 70px
+   sprengt die Zeile rechnerisch, also bricht sie um: die Felder bleiben
+   oben, der Knopf rutscht darunter. Auf breiten Schirmen passt weiter
+   alles in eine Zeile, und die Felder wachsen wie bisher mit. */
+.meas-col{flex:1 1 70px}
 .meas-input{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .meas-save{align-self:flex-end}
 .meas-meta{margin-top:10px;font-size:12px;color:var(--ink-soft)}

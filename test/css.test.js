@@ -77,6 +77,14 @@ describe('CSS-Konsistenz', () => {
     expect(css).toMatch(/^\.inline-row button\{[^}]*flex:none/m);
   });
 
+  it('laesst .inline-row umbrechen statt ueberlaufen', () => {
+    // Die Messwert-Zeile traegt vier Zahlenfelder und einen Knopf. Auf 375px
+    // blieben den Feldern 31, 31, 24 und 82 Pixel, und der Knopf stand ueber
+    // dem Rand der Karte. Mit Umbruch bleiben die Felder brauchbar breit.
+    expect(css).toMatch(/^\.inline-row\{[^}]*flex-wrap:wrap/m);
+    expect(css).toMatch(/^\.meas-col\{flex:1 1 70px\}/m);
+  });
+
   it('hat --ink-soft mit verbessertem Kontrast (dunkler als #5A6068)', () => {
     // #4A5058 ist dunkler als #5A6068 → besserer Kontrast auf --bg
     expect(css).toMatch(/--ink-soft:#4A5058/);
