@@ -2512,3 +2512,44 @@ describe('Tableiste als senkrechte Schiene', () => {
     expect(document.activeElement.closest('.ex')).toBeNull();
   });
 });
+
+/* Beim Sprachwechsel baute updateSetting() ausdruecklich "alle Ansichten neu,
+   nicht nur die sichtbare" – und liess dabei genau die laufende Einheit aus.
+   Wer mitten im Training umstellte, behielt Namen, Zielangaben und Knoepfe
+   der Uebungskarten in der alten Sprache, bis die Einheit vorbei war. */
+describe('Sprachwechsel waehrend einer Einheit', () => {
+  async function laufendeEinheit(){
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    return app;
+  }
+  const aufEnglisch = app =>
+    app.actions['setting:update']({ key: 'lang' }, null, { type: 'select-one', value: 'en' });
+
+  it('uebersetzt auch die Karten der laufenden Einheit', async () => {
+    const app = await laufendeEinheit();
+    const vorher = document.querySelector('[data-exid="pushup"] .ex-name').textContent;
+    aufEnglisch(app);
+    await ruhe();
+    const nachher = document.querySelector('[data-exid="pushup"] .ex-name').textContent;
+    expect(nachher).not.toBe(vorher);
+    /* Die Einheit der Halteuebung kommt seit der Umstellung auf Daten aus
+       der Uebersetzung und nicht mehr aus einer Textersetzung. */
+    expect(document.querySelector('[data-exid="support"] .ex-target').textContent).toMatch(/sec$/);
+  });
+
+  /* Die Karten werden dafuer neu aufgebaut. Das darf nichts kosten, was
+     schon eingetragen ist – sonst waere die Korrektur schlimmer als der
+     Fehler. */
+  it('behaelt dabei, was schon eingetragen ist', async () => {
+    const app = await laufendeEinheit();
+    const feld = document.getElementById('rep-pushup-0');
+    feld.value = '9';
+    app.actions['set:reps']({ key: 'pushup-0' }, null, feld);
+    await ruhe();
+    aufEnglisch(app);
+    await ruhe();
+    expect(document.getElementById('rep-pushup-0').value).toBe('9');
+  });
+});

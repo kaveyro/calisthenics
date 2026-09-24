@@ -3370,11 +3370,14 @@ function updateSetting(k, v){
     applyLanguage();
     /* Alle Ansichten neu aufbauen, nicht nur die sichtbare: die verborgenen
        Tabs behielten sonst die alte Sprache, bis man sie zufaellig neu
-       rendert. */
+       rendert. Die laufende Einheit fehlte hier lange – ihre Karten blieben
+       in der alten Sprache, bis die Einheit vorbei war. Sie steht deshalb
+       unten mit in der Liste, die das Neuzeichnen samt Wiederherstellen der
+       Eintraege uebernimmt. */
     renderWarmup(); renderCatFilter(); renderLibrary();
     renderPlanTab(); renderMilestones(); renderBests(); renderRoadmap(); renderHistory();
   }
-  if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest'].includes(k)){
+  if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest', 'lang'].includes(k)){
     if(k === 'setsMode') verwerfeUeberzaehligeSaetze();
     cancelHold(); renderWorkout(); restoreSession(session.reps);
   }
