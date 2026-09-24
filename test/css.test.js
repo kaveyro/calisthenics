@@ -223,6 +223,27 @@ describe('Layout auf breiten Schirmen', () => {
    Regelwerk, viele einen halben Pixel auseinander. Die Skala hat sechs
    Stufen; eine neue Regel mit roher Pixelgroesse waere der erste Schritt
    zurueck. Die zwei Ausnahmen sind benannt und begruendet. */
+/* Bei 320px ragte die Kopfzeile 16px ueber den Rand: Wortmarke (212px bei
+   26px Schrift), Abstand (12px) und zwei Knoepfe (96px) in 288px. Gemessen
+   im Browser; hier steht, was die Messung traegt. */
+describe('Kopfzeile auf schmalen Schirmen', () => {
+  const block = css.match(/@media\(max-width:351px\)\{([\s\S]*?)\n\}/);
+
+  it('verkleinert unter 352px die Wortmarke', () => {
+    expect(block).not.toBeNull();
+    const fs = block[1].match(/h1\s*\{[^}]*font-size:([0-9.]+)vw/);
+    expect(fs).not.toBeNull();
+    /* 320px Viewport: die Wortmarke braucht je Pixel Schrift rund 8.15px
+       Breite und hat 180px. */
+    const px = 320 * Number(fs[1]) / 100;
+    expect(px * 8.15).toBeLessThanOrEqual(180);
+  });
+
+  it('laesst die Knoepfe in Ruhe – sie sind Touch-Ziele', () => {
+    expect(block[1]).not.toMatch(/icon-btn/);
+  });
+});
+
 describe('Gestaltungsstufen', () => {
   const stufen = ['xs', 'sm', 'md', 'base', 'lg', 'xl'];
 

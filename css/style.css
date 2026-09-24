@@ -721,6 +721,14 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .tab{padding:9px 6px;font-size:13px}
   .tabs{gap:2px}
 }
+/* Unter 352px passte die Kopfzeile nicht: die Wortmarke ist bei ihren
+   26px Mindestgröße 212px breit, neben den beiden Knöpfen (96px) und dem
+   Abstand (12px) bleiben bei 320px aber nur 180px. Kleiner wird die
+   Wortmarke, nicht die Knöpfe – die brauchen ihre 44px als Touch-Ziel.
+   6.5vw ergibt bei 320px 20.8px (170px breit) und wächst bis 351px mit. */
+@media(max-width:351px){
+  h1{font-size:6.5vw}
+}
 @media print{
   .tabs,.finish-bar,.rest-chip,.head-btns,.tip-btn,.sub-btn,.undo-btn{display:none!important}
   body{padding-bottom:0}
