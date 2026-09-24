@@ -117,3 +117,47 @@ describe('HTML-Konsistenz', () => {
     expect(html).toContain('data-key="reminder"');
   });
 });
+
+/* Der Befund, der diese Runde ausgeloest hat: bei 1600px Fensterbreite nutzte
+   die App 660 Pixel – 41 % – und liess links und rechts je 470 leer. Es gab
+   keinen einzigen min-width-Breakpoint; es war kein zu schmales
+   Desktop-Layout, sondern gar keines. Diese Tests halten fest, dass die
+   Breiten an EINER Stelle stehen und der Breakpoint existiert. */
+describe('Layout auf breiten Schirmen', () => {
+  it('haelt die Inhaltsbreite als Variable, nicht als Zahl an zwei Stellen', () => {
+    expect(css).toMatch(/--inhalt-max:\s*660px/);
+    expect(css).toMatch(/\.wrap\{[^}]*max-width:var\(--inhalt-max\)/);
+    /* Die Abschlussleiste musste frueher von Hand auf demselben Wert
+       gehalten werden – dort standen die 660 ein zweites Mal. */
+    expect(css).toMatch(/\.finish-bar \.inner\{[^}]*max-width:var\(--inhalt-max\)/);
+    /* Und nirgends sonst mehr als rohe Zahl. */
+    expect(css).not.toMatch(/max-width:660px/);
+  });
+
+  it('hat einen Breakpoint nach oben, nicht nur nach unten', () => {
+    expect(css).toMatch(/@media\(min-width:1040px\)/);
+  });
+
+  it('macht .wrap ab 1040px zum Raster mit Schiene und Inhalt', () => {
+    const block = css.split('@media(min-width:1040px){')[1];
+    expect(block).toBeTruthy();
+    expect(block).toContain('grid-template-columns:var(--schiene) minmax(0,1fr)');
+    /* minmax(0,1fr) statt 1fr: sonst setzt der min-content-Wert der
+       Inhaltsspalte die Untergrenze und drueckt die Schiene zusammen. */
+    expect(block).not.toMatch(/grid-template-columns:var\(--schiene\) 1fr/);
+    expect(block).toContain('--schiene:232px');
+  });
+
+  it('laesst die Schiene auf schmalen Schirmen breitenlos', () => {
+    /* 0px heisst: alle Rechnungen damit ergeben unveraendert den alten
+       Zustand, ohne dass irgendwo eine Fallunterscheidung noetig waere. */
+    expect(css).toMatch(/--schiene:0px/);
+  });
+
+  it('klammert Kennzahlen und Navigation im Markup zusammen', () => {
+    expect(html).toContain('<div class="schiene">');
+    const schiene = html.split('<div class="schiene">')[1].split('</nav>')[0];
+    expect(schiene).toContain('id="stats"');
+    expect(schiene).toContain('class="tabs"');
+  });
+});

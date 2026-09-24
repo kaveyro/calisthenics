@@ -2433,3 +2433,82 @@ describe('Aufstiege im Log', () => {
     expect(document.getElementById('toast').textContent).toContain('→');
   });
 });
+
+/* Ab 1040px steht die Tableiste als Schiene links. Das ARIA-Tabs-Muster
+   verlangt dann ↑/↓ statt ←/→ – eine senkrechte Leiste, die auf waagerechte
+   Pfeile hoert, ist mit der Tastatur schlicht nicht bedienbar.
+
+   matchMedia wird hier gezielt beantwortet: die Breite steht in jsdom nicht
+   zur Verfuegung, die Abfrage ist also die einzige Stelle, an der sich die
+   Ausrichtung ueberhaupt festmachen laesst. */
+describe('Tableiste als senkrechte Schiene', () => {
+  function breiteVortaeuschen(breit){
+    window.matchMedia = q => ({
+      matches: q.includes('1040px') ? breit : false,
+      addEventListener(){}, removeEventListener(){}
+    });
+  }
+
+  /* Die Taste kommt vom AKTIVEN Tab, nicht von einem festen: so bewegt sich
+     auch der Fokus des Nutzers – er wandert mit dem Tab weiter. Ein fester
+     Ausgangspunkt liesse ↑ nach einem ↓ vom ersten Tab ans Ende springen. */
+  const pfeil = key => document.querySelector('.tab.active')
+    .dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+  /* location.hash ueberlebt zwischen den Tests, und die App stellt beim Start
+     den Tab daraus wieder her. Ohne das begaenne ein Test dort, wo der
+     vorige aufgehoert hat. */
+  beforeEach(() => { history.replaceState(null, '', location.pathname); });
+
+  it('meldet die Ausrichtung an Hilfsmittel', async () => {
+    breiteVortaeuschen(true);
+    await starten();
+    expect(document.querySelector('.tabs').getAttribute('aria-orientation')).toBe('vertical');
+  });
+
+  it('setzt waagerecht kein Attribut – das ist die Vorgabe des Musters', async () => {
+    breiteVortaeuschen(false);
+    await starten();
+    expect(document.querySelector('.tabs').hasAttribute('aria-orientation')).toBe(false);
+  });
+
+  it('navigiert in der Schiene mit hoch und runter', async () => {
+    breiteVortaeuschen(true);
+    await starten();
+    pfeil('ArrowDown');
+    expect(document.getElementById('view-history').hidden).toBe(false);
+    pfeil('ArrowUp');
+    expect(document.getElementById('view-train').hidden).toBe(false);
+  });
+
+  it('laesst die waagerechten Pfeile in der Schiene unbeachtet', async () => {
+    breiteVortaeuschen(true);
+    await starten();
+    pfeil('ArrowRight');
+    expect(document.getElementById('view-train').hidden).toBe(false);
+  });
+
+  it('navigiert in der waagerechten Leiste weiterhin mit links und rechts', async () => {
+    breiteVortaeuschen(false);
+    await starten();
+    pfeil('ArrowRight');
+    expect(document.getElementById('view-history').hidden).toBe(false);
+  });
+
+  /* Der Sprung zwischen Uebungskarten hoert ebenfalls auf ↑/↓. Solange der
+     Fokus in der Leiste steht, darf er nicht zusaetzlich feuern – dafuer
+     sorgt preventDefault in der Leiste und die defaultPrevented-Abfrage im
+     globalen Zuhoerer. */
+  it('loest in der Schiene nicht zusaetzlich den Uebungssprung aus', async () => {
+    breiteVortaeuschen(true);
+    const app = await starten();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    app.actions['tab:show']({ tab: 'train' });
+    document.getElementById('tab-train').focus();
+    pfeil('ArrowDown');
+    /* Die Leiste hat gewechselt; der Fokus sitzt danach auf dem neuen Tab
+       und nicht in einer Uebungskarte. */
+    expect(document.activeElement.closest('.ex')).toBeNull();
+  });
+});

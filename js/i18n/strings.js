@@ -349,7 +349,7 @@ export const LANG = {
     icsFailed: 'Kalenderdatei konnte nicht erzeugt werden.',
     days: 'Tage', week: 'Woche',
     footer: 'Progression · Offline nutzbar · Backup & Einstellungen über ⚙ oben rechts',
-    keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste',
+    keyboardHints: 'Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, Pfeiltasten in der Tableiste',
 
     /* Tastatur-Ansagen fuer Screenreader */
     shortcutRest: 'Pause gestartet, {sec} Sekunden',
@@ -710,7 +710,7 @@ export const LANG = {
     icsFailed: 'Could not create the calendar file.',
     days: 'days', week: 'Week',
     footer: 'Progression · Works offline · Backup & settings via ⚙ top right',
-    keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, ←/→ in the tab bar',
+    keyboardHints: 'Keyboard: Space = set, ↑/↓ = exercise, R = rest, 1-5 = tab, arrow keys inside the tab bar',
 
     /* Keyboard announcements for screen readers */
     shortcutRest: 'Rest started, {sec} seconds',

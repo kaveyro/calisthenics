@@ -74,6 +74,27 @@
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --display:'Archivo Black',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+
+  /* Abstandsstufen. Vorher standen die Werte ad hoc im Regelwerk – margin:22px
+     0 10px hier, 16px 0 dort, 6px 0 18px daneben. Jede neue Fläche erfand ihre
+     Zahlen neu, und dass zwei Abschnitte unterschiedlich weit auseinander
+     standen, fiel niemandem auf, weil es keinen Sollwert gab. */
+  --abstand-1:4px;
+  --abstand-2:8px;
+  --abstand-3:12px;
+  --abstand-4:16px;
+  --abstand-5:24px;
+  --abstand-6:32px;
+
+  /* Breite des Inhalts und der Navigationsschiene. Die 660px standen bisher an
+     zwei Stellen (.wrap und .finish-bar .inner) und mussten von Hand
+     gleichgehalten werden. Die Schiene ist auf schmalen Schirmen 0 breit – dort
+     gibt es sie nicht, und alle Rechnungen damit ergeben sauber den alten
+     Zustand. */
+  --inhalt-max:660px;
+  --schiene:0px;
+  /* Mindestbreite einer Spalte im mehrspaltigen Inhalt. */
+  --spalte:320px;
 }
 html[data-theme="dark"]{
   --bg:#14161A;
@@ -105,7 +126,7 @@ body{
   padding-bottom:96px;transition:background .2s,color .2s;
   -webkit-tap-highlight-color:transparent;
 }
-.wrap{max-width:660px;margin:0 auto;padding:0 16px}
+.wrap{max-width:var(--inhalt-max);margin:0 auto;padding:0 var(--abstand-4)}
 button{font-family:inherit;color:inherit}
 
 /* ---------- Header ---------- */
@@ -409,7 +430,7 @@ details.acc li{margin-bottom:5px}
 
 /* ---------- Fußzeile Training ---------- */
 .finish-bar{position:fixed;bottom:0;left:0;right:0;background:var(--bar-bg);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:none;z-index:20}
-.finish-bar .inner{max-width:660px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.finish-bar .inner{max-width:var(--inhalt-max);margin:0 auto;display:flex;gap:10px;align-items:center;padding-left:var(--schiene)}
 .finish-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:15px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
 .finish-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:default}
 .finish-btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
@@ -494,6 +515,60 @@ footer small{display:block;margin-top:4px;opacity:.6}
    sonst liest sie kein Screenreader vor. */
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
   clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* ---------- Breite Schirme ----------
+   Bis hierher ist die App ein Handy-Layout, und auf einem Monitor stand sie
+   als 660px breite Säule in der Mitte: bei 1600px Fensterbreite waren das
+   41 % der Fläche und je 470 leere Pixel links und rechts. Es gab keinen
+   einzigen min-width-Breakpoint – es war also nicht ein zu schmal geratenes
+   Desktop-Layout, sondern gar keines.
+
+   Ab 1040px wird .wrap zum Raster: die Tableiste kippt als Schiene nach links,
+   der Inhalt bekommt den Rest. Unterhalb davon greift nichts hiervon, und das
+   ist Absicht – auf dem Handy soll sich kein Pixel bewegen. */
+@media(min-width:1040px){
+  :root{
+    --inhalt-max:1180px;
+    --schiene:232px;
+  }
+  .wrap{
+    display:grid;
+    grid-template-columns:var(--schiene) minmax(0,1fr);
+    /* minmax(0,1fr) statt 1fr: sonst bekommt die Inhaltsspalte als
+       Mindestbreite ihren min-content-Wert, und ein breites Diagramm oder eine
+       lange Zeile drückt die Schiene zusammen. */
+    grid-template-areas:
+      "kopf kopf"
+      "warn warn"
+      "nav  inhalt"
+      "fuss fuss";
+    column-gap:var(--abstand-5);
+    align-items:start;
+  }
+  header{grid-area:kopf}
+  .storage-warn{grid-area:warn}
+  .schiene{grid-area:nav}
+  main{grid-area:inhalt;min-width:0}
+  footer{grid-area:fuss}
+
+  /* Die Schiene bleibt beim Scrollen stehen. Der Verlauf ist lang genug, dass
+     man sonst zum Tabwechsel wieder hochscrollen müsste. */
+  .schiene{position:sticky;top:var(--abstand-4);display:flex;flex-direction:column;gap:var(--abstand-3)}
+  /* Navigation über die Kennzahlen: die Tabs sind das Bedienelement, die
+     Zahlen sind Beiwerk. Auf dem Handy bleibt die heutige Reihenfolge –
+     dort steht die Leiste ohnehin direkt über dem Inhalt. Verschieben ist
+     hier unbedenklich, weil .stat nichts Fokussierbares enthält und sich die
+     Fokusreihenfolge deshalb nicht von der Lesereihenfolge löst. */
+  .tabs{order:-1;flex-direction:column;overflow:visible;gap:var(--abstand-1);margin:0}
+  .tab{flex:0 0 auto;text-align:left;padding:10px var(--abstand-3)}
+  .stats{flex-direction:column;margin:0}
+  .stat{min-width:0}
+
+  /* Die Abschlussleiste liegt fest am unteren Rand und wusste bisher nichts
+     von der Schiene – ihr Knopf stünde sonst unter der Navigation statt unter
+     der Einheit, die er abschließt. */
+  .finish-bar .inner{padding-left:calc(var(--schiene) + var(--abstand-5))}
+}
 
 /* Deckt keine per JavaScript ausgeloesten Bewegungen ab – window.scrollTo
    fragt die Einstellung in showTab() selbst ab. */

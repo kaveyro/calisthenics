@@ -78,6 +78,11 @@
     <span data-i18n="storageWarnBody">Der Browser-Speicher ist voll oder blockiert (z.&nbsp;B. privater Modus). Diese Sitzung geht beim Schließen verloren – lade ein Backup herunter.</span>
   </div>
 
+  <!-- Kennzahlen und Navigation stehen zusammen: auf breiten Schirmen bilden
+       sie die Schiene links neben dem Inhalt, darunter bleiben sie genau dort,
+       wo sie heute stehen. Die Klammer traegt unterhalb von 1040px keinerlei
+       Gestaltung – sie ist nur der Griff, an dem das Raster sie fasst. -->
+  <div class="schiene">
   <div class="stats" id="stats"></div>
 
   <nav class="tabs" role="tablist" data-i18n-aria-label="sections" aria-label="Bereiche">
@@ -87,6 +92,7 @@
     <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1" data-i18n="plan">Plan</button>
     <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1" data-i18n="milestones">Ziele</button>
   </nav>
+  </div>
 
   <!-- ============ TRAINING ============ -->
   <main><section id="view-train" role="tabpanel" aria-labelledby="tab-train" tabindex="0">
@@ -245,7 +251,7 @@
 
   <footer>
     <span data-i18n="footer">Progression · Offline nutzbar · Backup &amp; Einstellungen über ⚙ oben rechts</span>
-    <br><small data-i18n="keyboardHints">Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, ←/→ in der Tableiste</small>
+    <br><small data-i18n="keyboardHints">Tastatur: Leertaste = Satz, ↑/↓ = Übung, R = Pause, 1-5 = Tab, Pfeiltasten in der Tableiste</small>
   </footer>
 </div>
 

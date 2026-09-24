@@ -809,10 +809,39 @@ function showTab(t, ausHistory = false){
   window.scrollTo({ top: 0, behavior: wenigerBewegung() ? 'auto' : 'smooth' });
 }
 
+/* Ab dieser Breite steht die Tableiste als Schiene links neben dem Inhalt
+   (siehe den min-width-Block in css/style.css). Zwei Dinge haengen daran, die
+   ein Stylesheet nicht setzen kann: aria-orientation und die Frage, welche
+   Pfeiltasten navigieren. Das ARIA-Tabs-Muster verlangt fuer eine senkrechte
+   Leiste ↑/↓ – waagerechte Pfeile tun dort nichts.
+
+   matchMedia kann fehlen (jsdom kennt es nicht); ohne die Abfrage bleibt es
+   bei der waagerechten Leiste, also beim bisherigen Verhalten. */
+const SCHIENE_AB = '(min-width:1040px)';
+const schienenAbfrage = globalThis.matchMedia ? matchMedia(SCHIENE_AB) : null;
+const senkrechteLeiste = () => !!(schienenAbfrage && schienenAbfrage.matches);
+
+function tablistAusrichten(){
+  const leiste = document.querySelector('.tabs');
+  if(!leiste) return;
+  /* Waagerecht ist die Vorgabe des Musters und braucht kein Attribut – es zu
+     setzen waere Rauschen, es stehenzulassen waere falsch. */
+  if(senkrechteLeiste()) leiste.setAttribute('aria-orientation', 'vertical');
+  else leiste.removeAttribute('aria-orientation');
+}
+
 /* Pfeiltasten-Navigation innerhalb der Tableiste (ARIA-Tabs-Muster). */
 function addTablistNavigation(){
+  tablistAusrichten();
+  /* Wer das Fenster verkleinert, soll nicht mit einer Leiste dastehen, die
+     sich noch fuer senkrecht haelt. */
+  if(schienenAbfrage && schienenAbfrage.addEventListener){
+    schienenAbfrage.addEventListener('change', tablistAusrichten);
+  }
   document.querySelector('.tabs').addEventListener('keydown', e => {
-    const keys = { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
+    const keys = senkrechteLeiste()
+      ? { ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last' }
+      : { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
     if(!(e.key in keys)) return;
     const cur = TABS.indexOf(e.target.id.replace('tab-', ''));
     if(cur < 0) return;
@@ -887,8 +916,12 @@ function addKeyboardShortcuts(){
        Die Leertaste trifft immer den ersten offenen Satz der ganzen Seite –
        das ist der richtige Weg durch eine Einheit, die man der Reihe nach
        abarbeitet. Wer eine Uebung ueberspringen oder zu einer frueheren
-       zurueck will, hatte bisher nur die Maus. Hoch und runter statt links
-       und rechts: die Tableiste hoert schon auf die waagerechten Pfeile. */
+       zurueck will, hatte bisher nur die Maus.
+
+       Die Tableiste hoert je nach Ausrichtung auf die waagerechten ODER die
+       senkrechten Pfeile und verbraucht die Taste dann per preventDefault.
+       Der Sprung hier oben ist auf defaultPrevented abgesichert, es kommt
+       also auch in der Schiene zu keiner doppelten Wirkung. */
     if((e.key === 'ArrowDown' || e.key === 'ArrowUp') && session.dayKey){
       const karten = [...document.querySelectorAll('#content .ex:not(.ex--skipped)')];
       if(!karten.length) return;
