@@ -111,25 +111,25 @@ describe('lastRepsFor', () => {
   ];
 
   it('findet die jüngste Einheit mit dieser Übung', () => {
-    expect(lastRepsFor(log, 'pushup')).toEqual({ d: '2026-07-05', reps: [12, 11] });
+    expect(lastRepsFor(log, 'pushup')).toEqual({ d: '2026-07-05', reps: [12, 11], lvl: null });
   });
 
   it('überspringt Einträge ohne Wiederholungen', () => {
     /* Eine Einheit, in der die Übung nur abgehakt wurde, hilft nicht weiter –
        gesucht sind Zahlen zum Vergleichen. */
     const mitLuecke = [...log, { d: '2026-07-07', day: 'A', ex: ['pushup'], reps: {} }];
-    expect(lastRepsFor(mitLuecke, 'pushup')).toEqual({ d: '2026-07-05', reps: [12, 11] });
+    expect(lastRepsFor(mitLuecke, 'pushup')).toEqual({ d: '2026-07-05', reps: [12, 11], lvl: null });
   });
 
   it('lässt einen bestimmten Eintrag aus', () => {
     expect(lastRepsFor(log, 'pushup', () => null, log[2]))
-      .toEqual({ d: '2026-07-01', reps: [10] });
+      .toEqual({ d: '2026-07-01', reps: [10], lvl: null });
   });
 
   it('nutzt den Plan-Rückfall für Altbestände', () => {
     const alt = [{ d: '2026-06-01', day: 'A', reps: { 'squat-0': 20 } }];
     expect(lastRepsFor(alt, 'squat', k => (k === 'A' ? TAG_A : null)))
-      .toEqual({ d: '2026-06-01', reps: [20] });
+      .toEqual({ d: '2026-06-01', reps: [20], lvl: null });
   });
 
   it('liefert null, wenn nichts passt', () => {
@@ -149,8 +149,8 @@ describe('lastRepsByExercise', () => {
     /* dips kommt in der jüngeren Einheit vor, aber ohne Zahlen – der Wert
        muss aus der älteren stammen, nicht wegfallen. */
     expect(lastRepsByExercise(log, ['pushup', 'dips'])).toEqual({
-      pushup: { d: '2026-07-05', reps: [12] },
-      dips: { d: '2026-07-01', reps: [5] }
+      pushup: { d: '2026-07-05', reps: [12], lvl: null },
+      dips: { d: '2026-07-01', reps: [5], lvl: null }
     });
   });
 
@@ -262,5 +262,25 @@ describe('zaehleJeTag', () => {
     const kopie = JSON.parse(JSON.stringify(log));
     zaehleJeTag(log);
     expect(log).toEqual(kopie);
+  });
+});
+
+/* Seit v15 traegt ein Eintrag die Stufe je Uebung. Ohne sie hielt das
+   Tagesziel nach einem Aufstieg die Zahlen der leichteren Variante fuer die
+   der neuen. */
+describe('lastRepsByExercise – Stufe', () => {
+  it('liefert die Stufe mit, auf der die Zahlen entstanden sind', () => {
+    const log = [{ d: '2026-07-05', day: 'A', ex: ['pushup'], reps: { 'pushup-0': 10 }, lv: { pushup: 3 } }];
+    expect(lastRepsByExercise(log, ['pushup']).pushup).toEqual({ d: '2026-07-05', reps: [10], lvl: 3 });
+  });
+
+  it('nimmt die Stufe 0 ernst', () => {
+    const log = [{ d: '2026-07-05', day: 'A', ex: ['pushup'], reps: { 'pushup-0': 10 }, lv: { pushup: 0 } }];
+    expect(lastRepsByExercise(log, ['pushup']).pushup.lvl).toBe(0);
+  });
+
+  it('laesst die Stufe offen, wo der Eintrag sie nicht kennt', () => {
+    const log = [{ d: '2026-07-05', day: 'A', ex: ['pushup'], reps: { 'pushup-0': 10 }, lv: { dips: 2 } }];
+    expect(lastRepsByExercise(log, ['pushup']).pushup.lvl).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig, limitErreicht } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -194,5 +194,55 @@ describe('limitErreicht', () => {
     const versuche = zielAuswerten({ saetze: 4, wdh: [5, 8], art: 'versuche' });
     expect(limitErreicht(versuche, [8, 8, 8, 8])).toBe(true);
     expect(limitErreicht(versuche, [8, 8, 8, 7])).toBe(false);
+  });
+});
+
+describe('tagesziel', () => {
+  const ziel = zielAuswerten({ saetze: 3, wdh: [6, 10] });
+
+  it('legt je Satz eine Wiederholung drauf', () => {
+    expect(tagesziel(ziel, [8, 8, 7])).toEqual({ reps: [9, 9, 8], allesOben: false });
+  });
+
+  it('deckelt auf die Obergrenze', () => {
+    expect(tagesziel(ziel, [10, 9, 10])).toEqual({ reps: [10, 10, 10], allesOben: false });
+  });
+
+  /* Alle oben heisst nicht "Stufe steht an": aufgestiegen wird erst nach so
+     vielen Einheiten in Folge, wie die Einstellung verlangt. */
+  it('meldet, wenn schon alle Saetze oben waren', () => {
+    expect(tagesziel(ziel, [10, 10, 10])).toEqual({ reps: [10, 10, 10], allesOben: true });
+    expect(tagesziel(ziel, [12, 11, 10]).allesOben).toBe(true);
+  });
+
+  /* Unter der Spanne wird nicht auf ihr Minimum gehoben: "letztes Mal 3,
+     heute 4" ist ehrlicher als eine Vorgabe, die niemand schafft. Die Spanne
+     steht ohnehin daneben. */
+  it('hebt unter der Spanne nicht auf ihr Minimum', () => {
+    expect(tagesziel(ziel, [3, 3, 2]).reps).toEqual([4, 4, 3]);
+  });
+
+  it('fuellt zusaetzliche Saetze mit dem letzten bekannten', () => {
+    expect(tagesziel(ziel, [8, 8]).reps).toEqual([9, 9, 9]);
+    /* Weniger Saetze als heute: dann kann es nicht "alle oben" gewesen sein. */
+    expect(tagesziel(ziel, [10, 10]).allesOben).toBe(false);
+  });
+
+  it('wertet nur so viele Saetze, wie heute anstehen', () => {
+    const halb = { ...ziel, sets: 2 };
+    expect(tagesziel(halb, [8, 8, 7, 6])).toEqual({ reps: [9, 9], allesOben: false });
+    expect(tagesziel(halb, [10, 10, 3]).allesOben).toBe(true);
+  });
+
+  it('laesst Halteuebungen aus', () => {
+    expect(tagesziel(zielAuswerten({ saetze: 3, sek: [10, 20] }), [20, 20, 20])).toBeNull();
+  });
+
+  it('braucht Zahlen', () => {
+    expect(tagesziel(ziel, [])).toBeNull();
+    expect(tagesziel(ziel, null)).toBeNull();
+    expect(tagesziel(ziel, ['8', 7.5, -1])).toBeNull();
+    expect(tagesziel(zielAuswerten({}), [8, 8])).toBeNull();
+    expect(tagesziel(null, [8])).toBeNull();
   });
 });

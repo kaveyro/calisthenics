@@ -6,7 +6,7 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure, limitErreicht } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
@@ -1052,6 +1052,36 @@ function toplimitHtml(ex){
       (grund ? '<small class="toplimit-grund">' + esc(grund) + '</small>' : '') + '</span></label>';
 }
 
+/* Was letztes Mal ging, und was heute ansteht.
+
+   Das Tagesziel erscheint nur, wenn die letzte Einheit auf DERSELBEN Stufe
+   lag. Nach einem Aufstieg stammen die Zahlen von der leichteren Variante –
+   "10 · 10 · 10 · 10" von den Knie-Liegestuetzen waere als Vorgabe fuer
+   volle Liegestuetze falscher Rat, und zwar genau dann, wenn er am meisten
+   zaehlt. Dasselbe nach einer Rueckstufung oder einer Aenderung von Hand.
+   Dann nennt die Zeile die andere Stufe beim Namen, statt ihre Zahlen als
+   Vorgabe auszugeben.
+
+   Eintraege, die ihre Stufe nicht kennen (vor v15, CSV, nachgetragen),
+   bekommen die Zeile wie bisher, aber kein Tagesziel: ob die Zahlen passen,
+   laesst sich dann nicht sagen. */
+function letzteZeilen(ex, lvl, t, letzte){
+  if(!letzte) return '';
+  const reps = letzte.reps.join(' · '), date = fmtDate(letzte.d);
+  const bekannt = Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
+  const andere = bekannt && letzte.lvl !== lvl;
+  let html = '<div class="last-reps">' + esc(andere
+    ? __('lastRepsOtherStage', { stage: exStage(ex, letzte.lvl), reps, date })
+    : __('lastReps', { reps, date })) + '</div>';
+  const heute = bekannt && !andere ? tagesziel(t, letzte.reps) : null;
+  if(heute){
+    html += '<div class="last-reps heute">' + esc(heute.allesOben
+      ? __('todayAllTop')
+      : __('todayTarget', { reps: heute.reps.join(' · ') })) + '</div>';
+  }
+  return html;
+}
+
 function topLimitAktualisieren(id){
   const alt = document.getElementById('top-' + id);
   const ex = EX_BY_ID[id];
@@ -1180,11 +1210,7 @@ function renderWorkout(){
         ? '<div class="equip-warn">' + esc(__('needsEquip', { list: equipListe(fehlt(ex, lvl)) })) + '</div>'
         : '') +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
-      (letzte[ex.id]
-        ? '<div class="last-reps">' + esc(__('lastReps', {
-          reps: letzte[ex.id].reps.join(' · '), date: fmtDate(letzte[ex.id].d)
-        })) + '</div>'
-        : '') +
+      letzteZeilen(ex, lvl, t, letzte[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
       '<span class="hold-hint">' +
@@ -1721,6 +1747,12 @@ async function finishWorkout(){
     entry: null            /* wird nach dem Anlegen des Log-Eintrags gesetzt */
   };
 
+  /* Die Stufe, auf der die Zahlen dieser Einheit entstanden sind. VOR der
+     Schleife, die bei einem Aufstieg state.levels veraendert – sonst stuende
+     im Log die neue Stufe neben den Zahlen der alten. */
+  const lv = {};
+  exIds.forEach(id => { const ex = EX_BY_ID[id]; if(ex) lv[id] = lvlOf(ex); });
+
   exIds.forEach(id => {
     const ex = EX_BY_ID[id]; if(!ex) return;
     /* lvlOf() statt roher Zugriff: der gespeicherte Wert kann ueber der
@@ -1800,7 +1832,7 @@ async function finishWorkout(){
      gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
   const entry = {
     d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups,
-    reps: { ...session.reps }, dauer: dauerJetzt()
+    reps: { ...session.reps }, lv, dauer: dauerJetzt()
   };
 
   lastWorkoutSnapshot.entry = entry;

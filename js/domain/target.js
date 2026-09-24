@@ -102,3 +102,34 @@ export function limitErreicht(ziel, repsJeSatz){
   if(reps.length < ziel.sets || reps.some(n => !Number.isInteger(n) || n < 0)) return null;
   return reps.every(n => n >= ziel.maxReps);
 }
+
+/* Was heute in jedem Satz ansteht, aus der letzten Einheit derselben Stufe.
+
+   Je Satz eine Wiederholung mehr als beim letzten Mal, gedeckelt auf die
+   Obergrenze. Das ist die Doppelprogression, die im Modell längst steckt –
+   erst die Spanne hinauf, dann die nächste Stufe –, nur stand bisher in jeder
+   Einheit dieselbe Spanne da, obwohl die App wusste, was letztes Mal ging.
+
+   Standen alle Sätze schon oben, heißt das NICHT, dass die Stufe ansteht:
+   aufgestiegen wird erst nach so vielen Einheiten in Folge, wie die
+   Einstellung verlangt (Vorgabe zwei). Dann lautet das Ziel, es noch einmal
+   zu schaffen – allesOben sagt das dem Aufrufer.
+
+   Nicht für Halteübungen: ihr Countdown steht fest, „eine Sekunde mehr" gibt
+   es dort nicht. Und nicht ohne Zahlen. Ob die Zahlen zur heutigen Stufe
+   gehören, prüft der Aufrufer – hier kommen nur Zahlen an.
+
+   Hatte die letzte Einheit weniger Sätze als heute, gilt für die
+   zusätzlichen dasselbe wie für den letzten bekannten. */
+export function tagesziel(ziel, letzte){
+  if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
+  const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n >= 0);
+  if(!werte.length) return null;
+  const vorher = s => werte[Math.min(s, werte.length - 1)];
+  const allesOben = werte.length >= ziel.sets &&
+    werte.slice(0, ziel.sets).every(n => n >= ziel.maxReps);
+  return {
+    reps: Array.from({ length: ziel.sets }, (_, s) => Math.min(ziel.maxReps, vorher(s) + 1)),
+    allesOben
+  };
+}

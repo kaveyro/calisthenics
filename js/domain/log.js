@@ -91,7 +91,11 @@ export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null
       /* Eine Einheit, in der die Uebung nur abgehakt wurde, hilft nicht
          weiter – gesucht sind Zahlen zum Vergleichen. Also offen lassen. */
       if(!reps.length) continue;
-      out[id] = { d: l.d, reps };
+      /* Die Stufe gehoert dazu: nach einem Aufstieg stammen die Zahlen von
+         der leichteren Variante und taugen nicht als Vorgabe fuer die neue.
+         null, wo der Eintrag sie nicht kennt (vor v15, CSV, nachgetragen). */
+      const lvl = l.lv && Number.isInteger(l.lv[id]) ? l.lv[id] : null;
+      out[id] = { d: l.d, reps, lvl };
       offen.delete(id);
     }
   }

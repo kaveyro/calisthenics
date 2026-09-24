@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(14);
+    expect(s.v).toBe(15);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -2661,5 +2661,76 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     await ruhe();
     expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
     expect(label('pushup').querySelector('input').checked).toBe(false);
+  });
+});
+
+/* Die Karte nannte in jeder Einheit dieselbe Spanne, obwohl die App wusste,
+   was letztes Mal ging. Jetzt steht darunter, was heute ansteht – aber nur,
+   wenn die letzte Einheit auf derselben Stufe lag. */
+describe('Tagesziel auf der Karte', () => {
+  async function mitLetzter(eintrag, levels = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 15, onboarded: true, levels,
+      log: [{ d: '2026-01-10', day: 'A', ex: ['pushup'], sets: 4, ...eintrag }]
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const karte = () => document.querySelector('[data-exid="pushup"]');
+  const heute = () => karte().querySelector('.last-reps.heute');
+  const reps = (...n) => Object.fromEntries(n.map((w, i) => ['pushup-' + i, w]));
+
+  it('nennt je Satz eine Wiederholung mehr', async () => {
+    await mitLetzter({ reps: reps(8, 8, 7, 7), lv: { pushup: 0 } });
+    expect(heute().textContent).toContain('9 · 9 · 8 · 8');
+  });
+
+  it('sagt bei allen Saetzen oben, dass es noch einmal gilt', async () => {
+    await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 0 } });
+    expect(heute().textContent).not.toMatch(/\d · \d/);
+    expect(heute().textContent.length).toBeGreaterThan(0);
+  });
+
+  /* Der Fall, um den es geht: nach einem Aufstieg stammen die Zahlen von der
+     leichteren Variante. Als Vorgabe fuer die neue waeren sie falscher Rat. */
+  it('gibt nach einem Stufenwechsel kein Tagesziel aus', async () => {
+    await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 0 } }, { pushup: 1 });
+    expect(heute()).toBeNull();
+  });
+
+  it('nennt dann die Stufe, von der die Zahlen stammen', async () => {
+    await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 0 } }, { pushup: 1 });
+    const zeile = karte().querySelector('.last-reps').textContent;
+    expect(zeile).toContain('Erhöht (Tisch)');
+    expect(zeile).toContain('10 · 10 · 10 · 10');
+  });
+
+  /* Ohne Stufe laesst sich nicht sagen, ob die Zahlen passen – vor v15, aus
+     einer CSV oder nachgetragen. Die Zeile bleibt, das Ziel nicht. */
+  it('gibt ohne bekannte Stufe kein Tagesziel aus', async () => {
+    await mitLetzter({ reps: reps(8, 8, 7, 7) });
+    expect(karte().querySelector('.last-reps')).not.toBeNull();
+    expect(heute()).toBeNull();
+  });
+
+  it('haelt beim Abschluss die Stufe VOR einem Aufstieg fest', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 15, onboarded: true, equipment: ['chair', 'parallettes'],
+      levels: { dips: 1 }, streaks: { dips: 1 }, settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="dips"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    const s = gespeichert();
+    expect(s.levels.dips).toBe(2);
+    /* Die Zahlen dieser Einheit entstanden auf Stufe 1, nicht auf 2. */
+    expect(s.log[0].lv.dips).toBe(1);
   });
 });

@@ -183,6 +183,9 @@ export const LANG = {
     colDate: 'Datum', colSets: 'Sätze', colTop: 'Top', colLevelUp: 'Level-Up',
     colReps: 'Wdh',
     lastReps: 'Letztes Mal: {reps} ({date})',
+    lastRepsOtherStage: 'Letztes Mal auf „{stage}“: {reps} ({date})',
+    todayTarget: 'Heute: {reps}',
+    todayAllTop: 'Heute: noch einmal alle Sätze oben',
 
     /* Bibliothek */
     library: 'Übungsbibliothek', search: 'Übung suchen …',
@@ -555,6 +558,9 @@ export const LANG = {
     colDate: 'Date', colSets: 'Sets', colTop: 'Top', colLevelUp: 'Level-up',
     colReps: 'Reps',
     lastReps: 'Last time: {reps} ({date})',
+    lastRepsOtherStage: 'Last time on “{stage}”: {reps} ({date})',
+    todayTarget: 'Today: {reps}',
+    todayAllTop: 'Today: every set at the top once more',
 
     library: 'Exercise library', search: 'Search exercises …',
     searchAria: 'Search exercises', all: 'All',

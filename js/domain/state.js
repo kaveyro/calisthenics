@@ -24,7 +24,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -213,6 +213,14 @@ export function migrateState(raw){
          und bei CSV-Importen – dort greifen die Rueckfaelle in domain/log.js. */
       ex: Array.isArray(l.ex) ? l.ex.filter(x => typeof x === 'string' && x).slice(0, MAX_EX_PER_ENTRY) : [],
       reps: (l.reps && typeof l.reps === 'object') ? l.reps : {},
+      /* Seit v15: die Stufe je Uebung, auf der die Zahlen dieser Einheit
+         entstanden sind – vor einem Aufstieg in derselben Einheit. Ohne sie
+         hielt das Tagesziel nach einem Aufstieg die Zahlen der leichteren
+         Variante fuer die der neuen: "10 · 10 · 10 · 10" von den
+         Knie-Liegestuetzen als Vorgabe fuer volle. Leer bei Altbestaenden,
+         CSV-Importen und nachgetragenen Einheiten; dann gibt es kein
+         Tagesziel, nur die Spanne. */
+      lv: stufenJeUebung(l.lv),
       /* Seit v9: die Dauer in Sekunden. 0 heisst "nicht aufgezeichnet" und
          gilt fuer alle Eintraege davor, fuer CSV-Importe und fuer eine
          nachgetragene Einheit. Die Anzeige laesst die Angabe dann weg,
@@ -283,6 +291,17 @@ function dauerWert(v){
   const n = Math.round(Number(v));
   if(!Number.isFinite(n) || n <= 0 || n > MAX_WORKOUT_SECS) return 0;
   return n;
+}
+
+/* log[].lv: id -> Stufenindex. Nur ganze Zahlen ab 0, und hoechstens so
+   viele Eintraege, wie Uebungen in eine Einheit passen. */
+function stufenJeUebung(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(v).slice(0, MAX_EX_PER_ENTRY).forEach(id => {
+    if(id && Number.isInteger(v[id]) && v[id] >= 0) out[id] = v[id];
+  });
+  return out;
 }
 
 /* Der Zahlenwert einer Bestleistung, oder -Infinity wenn keiner ermittelbar

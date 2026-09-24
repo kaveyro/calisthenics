@@ -273,6 +273,9 @@ details.acc li{margin-bottom:5px}
 /* Was beim letzten Mal stand – bewusst neutral gefärbt, nicht wie die
    Bestleistung: die Zahl daneben ist ein Vergleichswert, kein Erfolg. */
 .last-reps{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);margin-top:4px}
+/* Das Tagesziel ist die eine Zahl auf der Karte, nach der man sich richtet –
+   deshalb im Akzent und nicht so leise wie der Vergleichswert darüber. */
+.last-reps.heute{color:var(--accent);font-weight:600;margin-top:2px}
 /* Fehlendes Gerät: ein Hinweis, keine Sperre – deshalb warn und nicht danger. */
 .equip-warn{font-size:var(--text-sm);color:var(--warn);margin-top:5px}
 /* Heute ausgelassen: die Karte bleibt stehen, damit man sie zurückholen kann –

@@ -71,9 +71,33 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, dauer: 0 },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, dauer: 0 }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dauer: 0 },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dauer: 0 }
     ]);
+  });
+
+  /* Seit v15: die Stufe je Uebung, auf der die Zahlen entstanden sind.
+     Log-Eintraege werden hier Feld fuer Feld neu aufgebaut – ein Feld, das
+     hier fehlt, ist nach dem naechsten Laden still weg. */
+  it('behaelt die Stufe je Uebung und wirft Unbrauchbares weg', () => {
+    const out = migrateState({ log: [
+      { d: '2026-01-01', lv: { pushup: 3, dips: 0 } },
+      { d: '2026-01-02', lv: { pushup: -1, dips: 2.5, squat: '2', row: 1 } },
+      { d: '2026-01-03', lv: [3, 4] },
+      { d: '2026-01-04', lv: 'viel' }
+    ]});
+    expect(out.log.map(l => l.lv)).toEqual([
+      { pushup: 3, dips: 0 },
+      { row: 1 },
+      {},
+      {}
+    ]);
+  });
+
+  it('kappt die Stufen eines Eintrags wie seine Uebungen', () => {
+    const viele = Object.fromEntries(Array.from({ length: 50 }, (_, i) => ['u' + i, 1]));
+    const out = migrateState({ log: [{ d: '2026-01-01', lv: viele }] });
+    expect(Object.keys(out.log[0].lv).length).toBeLessThanOrEqual(30);
   });
 
   /* Seit v6 traegt der Eintrag die trainierten Uebungen. Ein leeres Feld ist
@@ -395,7 +419,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, dauer: 0 }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dauer: 0 }]);
     expect(out.unbekannt).toBeUndefined();
   });
 
