@@ -1,87 +1,97 @@
-/* Stagnationserkennung: welche Übungen kommen seit mehreren Einheiten nicht
+/* Stagnationserkennung: welche Übungen kommen auf ihrer Stufe nicht mehr
    voran? Reine Logik – kein DOM, kein Zustand, keine Übersetzung. Zurück
    kommen Übungs-IDs; den Anzeigenamen bestimmt der Aufrufer.
 
-   Regel: eine Übung gilt als stagnierend, wenn unter ihren letzten fünf
-   Einheiten mindestens vier liegen und in keiner davon SIE aufgestiegen ist.
-   Übungen auf der höchsten Stufe sind ausgenommen – dort gibt es nichts mehr
-   zu erreichen.
+   Regel: betrachtet werden die Einheiten auf der AKTUELLEN Stufe, seit die
+   Übung auf ihr steht. Festgefahren ist sie, wenn davon mindestens vier
+   vorliegen und die letzten drei nicht über der besten Satzsumme davor
+   liegen. Eine Einheit, in der jeder Satz die Obergrenze erreichte, zählt
+   als Fortschritt – dort kann die Summe nicht mehr steigen, und die Stufe
+   wartet nur auf die Serie. Übungen auf der höchsten Stufe sind
+   ausgenommen, Einheiten einer Entlastungswoche zählen nicht mit.
 
-   Das „sie" war der Fehler. Geprüft wurde `l.ups.length`, also ob in der
-   Einheit überhaupt irgendjemand aufgestiegen ist – und weil ein Log-Eintrag
-   seine Aufstiege bis v14 als übersetzten Anzeigetext festhielt, ging es
-   auch gar nicht anders. Auf einem Tag mit sieben Übungen genügte damit eine
-   einzige, die sich bewegt, und für die übrigen sechs schwieg die Erkennung.
-   Genau die Lage, für die es sie gibt. Umgekehrt wurde an einem Tag ohne
-   jeden Aufstieg pauschal alles gemeldet.
+   Bis hierher lautete die Regel „in vier der letzten fünf Einheiten nicht
+   aufgestiegen". Das maß den Aufstieg, nicht den Fortschritt, und der
+   Aufstieg braucht länger: eine Spanne 6–10 mit einer Wiederholung mehr je
+   Einheit und einer Serie von 2 dauert mindestens sechs Einheiten
+   (6·7·8·9·10·10). Für 70 von 102 Wiederholungsstufen im Katalog galt damit
+   „festgefahren", während man alles richtig machte – und ab zwei solchen
+   Übungen kam der Vorschlag einer Entlastungswoche dazu. Seit v15 kennt ein
+   Eintrag die Stufe je Übung, und damit lässt sich fragen, was die Regel
+   eigentlich wissen wollte.
 
-   Zweite Korrektur an derselben Stelle: welche Übungen zu einer Einheit
-   gehörten, stand hier im HEUTIGEN Plan – eine gestern hinzugefügte Übung
-   bekam damit fünf alte Einheiten angerechnet, in denen sie nie vorkam, und
-   war sofort „stagnierend". entryExercises() nimmt stattdessen, was der
-   Eintrag selbst mitschreibt, und fällt nur für Altbestände auf den Plan
-   zurück.
-*/
+   Welche Übungen zu einer Einheit gehörten, kommt aus dem Eintrag selbst
+   (entryExercises) und nicht aus dem heutigen Plan – eine gestern
+   hinzugefügte Übung bekam sonst alte Einheiten angerechnet. Einträge ohne
+   Stufe (vor v15, CSV, nachgetragen) sagen nichts über die aktuelle Stufe
+   und bleiben außen vor. */
 
-import { entryExercises } from './log.js';
+import { entryExercises, repsOf } from './log.js';
+import { limitErreicht } from './target.js';
 
-/* Wie viele der letzten Einheiten betrachtet werden und wie viele davon
-   mindestens vorliegen müssen, damit die Aussage etwas wert ist. */
-const FENSTER = 5;
-const MINDESTENS = 4;
+/* Wie viele Einheiten auf der Stufe ohne Verbesserung als Stillstand gelten,
+   und wie viele davor mindestens den Vergleichswert liefern. */
+const OHNE_FORTSCHRITT = 3;
+const VERGLEICH = 1;
 
-export function detectPlateaus(days, log, levels, exById){
+const summe = werte => werte.reduce((a, b) => a + b, 0);
+
+/* ziel(ex, lvl) liefert die ausgewertete Zielangabe (zielAuswerten) – sie
+   wird hereingereicht, weil der Satz-Modus eine Einstellung ist und die
+   Schicht keine Einstellungen kennt. Ohne sie zählt keine Einheit als
+   „alle Sätze oben". */
+export function detectPlateaus(days, log, levels, exById, ziel = () => null){
   if(!Array.isArray(days) || !Array.isArray(log) || !log.length) return [];
 
-  /* Tag-Key -> Plan-Tag. Ein Nachschlagen statt der linearen Suche, die
-     früher pro Log-Eintrag erneut über alle Tage lief. Gebraucht wird er nur
-     noch als Rückfall für Einträge ohne eigene Übungsliste. */
+  /* Tag-Key -> Plan-Tag, nur als Rückfall für Einträge ohne eigene Liste. */
   const tagNachKey = new Map();
   for(const d of days){
     if(d && typeof d.key === 'string') tagNachKey.set(d.key, d);
   }
 
-  /* Kandidaten in der Reihenfolge ihres ersten Auftretens, ohne Dopplung.
-     Eine Übung, die an zwei Tagen steht, wurde früher zweimal gemeldet und
-     erschien doppelt im Banner. */
-  const kandidaten = [];
-  const gesehen = new Set();
+  /* Kandidaten in der Reihenfolge ihres ersten Auftretens, ohne Dopplung –
+     eine Übung an zwei Tagen erschien sonst doppelt im Banner. */
+  const kandidaten = new Map();
   for(const d of days){
     if(!d || !Array.isArray(d.ex)) continue;
     for(const id of d.ex){
-      if(gesehen.has(id)) continue;
-      gesehen.add(id);
+      if(kandidaten.has(id)) continue;
       const ex = exById[id];
       if(!ex) continue;
       const lvl = (levels && levels[id]) || 0;
       if(lvl >= ex.levels.length - 1) continue;   /* höchste Stufe erreicht */
-      kandidaten.push(id);
+      kandidaten.set(id, { ex, lvl, werte: [], fertig: false });
     }
   }
-  if(!kandidaten.length) return [];
+  if(!kandidaten.size) return [];
 
-  /* Das Log EINMAL von hinten durchlaufen und je Kandidat die letzten
-     FENSTER Einträge einsammeln. Früher wurde es je Übung komplett
-     gefiltert – bei 2000 Einträgen und 7 Übungen ein Vielfaches an Arbeit,
-     und das bei jedem Render. */
-  const treffer = new Map(kandidaten.map(id => [id, []]));
-  let offen = kandidaten.length;
-
+  /* Ein Durchlauf von hinten. Je Kandidat endet er am ersten Eintrag auf
+     einer ANDEREN Stufe: davor lag ein Aufstieg, eine Rückstufung oder eine
+     Änderung von Hand, und was dort geschah, misst etwas anderes. */
+  let offen = kandidaten.size;
   for(let i = log.length - 1; i >= 0 && offen > 0; i--){
     const eintrag = log[i];
-    if(!eintrag) continue;
+    if(!eintrag || eintrag.dl === true) continue;
+    const lv = eintrag.lv && typeof eintrag.lv === 'object' ? eintrag.lv : {};
 
     for(const id of entryExercises(eintrag, tagNachKey.get(eintrag.day))){
-      const liste = treffer.get(id);
-      if(!liste || liste.length >= FENSTER) continue;
-      liste.push(eintrag);
-      if(liste.length === FENSTER) offen--;
+      const k = kandidaten.get(id);
+      if(!k || k.fertig) continue;
+      if(!Number.isInteger(lv[id])) continue;
+      if(lv[id] !== k.lvl){ k.fertig = true; offen--; continue; }
+      const werte = repsOf(eintrag, id);
+      if(werte.length) k.werte.unshift(werte);
     }
   }
 
-  return kandidaten.filter(id => {
-    const liste = treffer.get(id);
-    return liste.length >= MINDESTENS &&
-      !liste.some(l => Array.isArray(l.ups) && l.ups.includes(id));
-  });
+  const raus = [];
+  for(const [id, k] of kandidaten){
+    if(k.werte.length < OHNE_FORTSCHRITT + VERGLEICH) continue;
+    const zuletzt = k.werte.slice(-OHNE_FORTSCHRITT);
+    const bestwert = Math.max(...k.werte.slice(0, -OHNE_FORTSCHRITT).map(summe));
+    const z = ziel(k.ex, k.lvl);
+    const voran = zuletzt.some(w => summe(w) > bestwert || limitErreicht(z, w) === true);
+    if(!voran) raus.push(id);
+  }
+  return raus;
 }

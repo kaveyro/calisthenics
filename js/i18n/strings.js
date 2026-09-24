@@ -131,7 +131,7 @@ export const LANG = {
     layoffTitle: 'Letztes Training war vor {n} Tagen.',
     layoffBody: 'Steig ruhig eine Stufe niedriger wieder ein – nach einer Pause ist das kein Rückschritt, sondern Verletzungsprophylaxe.',
     plateauDetected: 'Stagnation erkannt',
-    plateauMsg: 'Diese Übung macht seit mehreren Einheiten keine Fortschritte. Vielleicht eine leichtere Variante versuchen oder die Form überprüfen.',
+    plateauMsg: 'Drei Einheiten auf derselben Stufe ohne mehr Wiederholungen als vorher. Vielleicht Schlaf und Pausen prüfen, die Form überprüfen oder eine leichtere Variante versuchen.',
     regressAfterBreak: 'Nach der Pause eine Stufe zurückgestuft',
     regressedCount: 'Nach der Pause eine Stufe zurückgestuft ({n} Übungen)',
 
@@ -396,7 +396,7 @@ export const LANG = {
 
     /* Deload-Vorschlag aus Plateau-Erkennung */
     deloadPlateauTitle: 'Stagnation – Deload erwägen?',
-    deloadPlateauBody: 'Mehrere Übungen machen seit einigen Einheiten keine Fortschritte. Eine Entlastungswoche kann helfen.'
+    deloadPlateauBody: 'Mehrere Übungen kommen auf ihrer Stufe seit drei Einheiten nicht voran. Eine Entlastungswoche kann helfen.'
   },
 
   en: {
@@ -509,7 +509,7 @@ export const LANG = {
     layoffTitle: 'Your last workout was {n} days ago.',
     layoffBody: 'Feel free to come back one stage lower – after a break that is not a step back, it is injury prevention.',
     plateauDetected: 'Plateau detected',
-    plateauMsg: 'This exercise has not progressed for several sessions. Consider an easier variation or check your form.',
+    plateauMsg: 'Three sessions on the same stage without more reps than before. Check sleep and rest, review your form, or try an easier variation.',
     regressAfterBreak: 'Moved down one stage after the break',
     regressedCount: 'Moved down one stage after the break ({n} exercises)',
 
@@ -762,6 +762,6 @@ export const LANG = {
 
     /* Deload suggestion from plateau detection */
     deloadPlateauTitle: 'Plateau – consider a deload?',
-    deloadPlateauBody: 'Several exercises have not progressed for a few sessions. A deload week can help.'
+    deloadPlateauBody: 'Several exercises have not moved forward on their stage for three sessions. A deload week can help.'
   }
 };

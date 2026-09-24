@@ -1,198 +1,195 @@
 import { describe, it, expect } from 'vitest';
 import { detectPlateaus } from '../js/domain/plateau.js';
+import { zielAuswerten } from '../js/domain/target.js';
 
 /* Je Tag genau eine Übung, damit jede Zusicherung eindeutig ist.
-   `kurz` hat nur zwei Stufen – ab Stufe 1 ist dort das Ende erreicht. */
+   `kurz` hat nur zwei Stufen – ab Stufe 1 ist dort das Ende erreicht.
+   Jede Stufe hat 4 Sätze in der Spanne 6–10. */
+const STUFE = { stage: 'x', saetze: 4, wdh: [6, 10] };
 const EX = {
-  pushup: { id: 'pushup', levels: [{}, {}, {}] },
-  dips:   { id: 'dips',   levels: [{}, {}, {}] },
-  kurz:   { id: 'kurz',   levels: [{}, {}] }
+  pushup: { id: 'pushup', levels: [STUFE, STUFE, STUFE] },
+  dips:   { id: 'dips',   levels: [STUFE, STUFE, STUFE] },
+  kurz:   { id: 'kurz',   levels: [STUFE, STUFE] }
 };
 const TAGE = [
   { key: 'A', ex: ['pushup'] },
   { key: 'B', ex: ['dips'] },
   { key: 'C', ex: ['kurz'] }
 ];
+const ZIEL = (ex, lvl) => zielAuswerten(ex.levels[lvl]);
 
-/* n Einheiten für einen Tag, standardmäßig ohne Level-Up. */
-const log = (tag, n, ups = []) =>
-  Array.from({ length: n }, (_, i) => ({ d: '2026-01-' + String(i + 1).padStart(2, '0'), day: tag, sets: 10, ups }));
+/* Eine Einheit mit denselben Wiederholungen in jedem Satz. */
+const einheit = (id, reps, lvl = 0, extra = {}) => ({
+  d: '2026-01-01', day: { pushup: 'A', dips: 'B', kurz: 'C' }[id], sets: 4,
+  ex: [id], ups: [], lv: { [id]: lvl },
+  reps: Object.fromEntries([0, 1, 2, 3].map(s => [id + '-' + s, reps])),
+  ...extra
+});
+const reihe = (id, folge, lvl = 0) => folge.map(r => einheit(id, r, lvl));
+const pruefe = (log, levels = {}) => detectPlateaus(TAGE, log, levels, EX, ZIEL);
 
 describe('detectPlateaus', () => {
   it('meldet nichts ohne Log', () => {
-    expect(detectPlateaus(TAGE, [], {}, EX)).toEqual([]);
-    expect(detectPlateaus(TAGE, null, {}, EX)).toEqual([]);
+    expect(pruefe([])).toEqual([]);
+    expect(detectPlateaus(TAGE, null, {}, EX, ZIEL)).toEqual([]);
   });
 
-  it('meldet nichts bei weniger als vier Einheiten', () => {
-    expect(detectPlateaus(TAGE, log('A', 3), {}, EX)).toEqual([]);
+  /* Der Fehler, um den es ging. Die alte Regel meldete eine Übung, die in
+     vier Einheiten nicht aufgestiegen war – bei 6–10 und einer
+     Wiederholung mehr je Einheit ist das der Normalfall, kein Stillstand. */
+  it('hält stetigen Fortschritt nicht für Stillstand', () => {
+    expect(pruefe(reihe('pushup', [6, 7, 8, 9]))).toEqual([]);
+    expect(pruefe(reihe('pushup', [6, 6, 7, 7, 8, 8, 9]))).toEqual([]);
   });
 
-  it('meldet eine Übung nach vier Einheiten ohne Level-Up', () => {
-    expect(detectPlateaus(TAGE, log('A', 4), {}, EX)).toEqual(['pushup']);
+  it('meldet drei Einheiten ohne bessere Satzsumme', () => {
+    expect(pruefe(reihe('pushup', [8, 8, 8, 8]))).toEqual(['pushup']);
+    expect(pruefe(reihe('pushup', [6, 9, 8, 7, 9]))).toEqual(['pushup']);
   });
 
-  it('meldet nicht, wenn im Fenster ein Level-Up liegt', () => {
-    const eintraege = log('A', 5);
-    eintraege[2].ups = ['pushup'];
-    expect(detectPlateaus(TAGE, eintraege, {}, EX)).toEqual([]);
+  it('braucht vier Einheiten auf der Stufe', () => {
+    expect(pruefe(reihe('pushup', [8, 8, 8]))).toEqual([]);
   });
 
-  /* Der Fehler, um den es ging: geprüft wurde, ob in der Einheit ÜBERHAUPT
-     jemand aufgestiegen ist. Auf einem Tag mit sieben Übungen genügte eine
-     einzige, die sich bewegt, und für die übrigen sechs schwieg die
-     Erkennung – genau die Lage, für die es sie gibt. */
-  it('lässt sich vom Aufstieg einer anderen Übung nicht täuschen', () => {
+  it('zählt eine Verbesserung in einem einzigen Satz', () => {
+    const log = reihe('pushup', [8, 8, 8, 8]);
+    log[3].reps['pushup-2'] = 9;
+    expect(pruefe(log)).toEqual([]);
+  });
+
+  /* Oben angekommen kann die Summe nicht mehr steigen; die Stufe wartet
+     nur auf die Serie. Bei einer eingestellten Serie von drei oder mehr
+     wäre das sonst selbst „Stillstand". */
+  it('wertet alle Sätze an der Obergrenze als Fortschritt', () => {
+    expect(pruefe(reihe('pushup', [10, 10, 10, 10]))).toEqual([]);
+  });
+
+  it('beginnt nach einem Stufenwechsel von vorn', () => {
+    const log = [...reihe('pushup', [8, 8, 8, 8], 0), ...reihe('pushup', [6, 6], 1)];
+    expect(pruefe(log, { pushup: 1 })).toEqual([]);
+  });
+
+  it('betrachtet nur die Zeit seit dem letzten Wechsel auf diese Stufe', () => {
+    /* Stufe 1, dann zurück auf 0, dann wieder 1: die alte Zeit auf Stufe 1
+       endet am Wechsel und zählt nicht mehr. */
+    const log = [
+      ...reihe('pushup', [8, 8, 8], 1),
+      ...reihe('pushup', [7], 0),
+      ...reihe('pushup', [8], 1)
+    ];
+    expect(pruefe(log, { pushup: 1 })).toEqual([]);
+  });
+
+  it('lässt Einheiten einer Entlastungswoche außen vor', () => {
+    const log = [
+      ...reihe('pushup', [8]),
+      einheit('pushup', 8, 0, { dl: true }),
+      einheit('pushup', 8, 0, { dl: true }),
+      einheit('pushup', 8, 0, { dl: true }),
+      ...reihe('pushup', [9])
+    ];
+    expect(pruefe(log)).toEqual([]);
+  });
+
+  it('überspringt Einträge ohne Stufe oder ohne Zahlen', () => {
+    const ohneStufe = { ...einheit('pushup', 8), lv: {} };
+    const ohneZahlen = { ...einheit('pushup', 8), reps: {} };
+    expect(pruefe([...reihe('pushup', [8, 8, 8]), ohneStufe, ohneZahlen])).toEqual([]);
+    expect(pruefe([ohneStufe, ...reihe('pushup', [8, 8, 8, 8]), ohneZahlen])).toEqual(['pushup']);
+  });
+
+  it('lässt sich von einer anderen Übung derselben Einheit nicht täuschen', () => {
     const tage = [{ key: 'A', ex: ['pushup', 'dips'] }];
-    const eintraege = Array.from({ length: 5 }, (_, i) => ({
-      d: '2026-01-0' + (i + 1), day: 'A', sets: 10,
-      ex: ['pushup', 'dips'], ups: ['pushup']       /* nur pushup steigt */
+    const log = [8, 8, 8, 8].map((r, i) => ({
+      d: '2026-01-01', day: 'A', ex: ['pushup', 'dips'], ups: [],
+      lv: { pushup: 0, dips: 0 },
+      reps: { 'pushup-0': 6 + i, 'dips-0': r }
     }));
-    expect(detectPlateaus(tage, eintraege, {}, EX)).toEqual(['dips']);
+    expect(detectPlateaus(tage, log, {}, EX, ZIEL)).toEqual(['dips']);
   });
 
-  /* Umgekehrt: ein Tag ohne jeden Aufstieg meldete früher pauschal alles. */
-  it('meldet an einem Tag ohne Aufstieg beide, aber jede aus eigenem Grund', () => {
-    const tage = [{ key: 'A', ex: ['pushup', 'dips'] }];
-    const eintraege = Array.from({ length: 5 }, (_, i) => ({
-      d: '2026-01-0' + (i + 1), day: 'A', sets: 10, ex: ['pushup', 'dips'], ups: []
-    }));
-    expect(detectPlateaus(tage, eintraege, {}, EX)).toEqual(['pushup', 'dips']);
-  });
-
-  /* Zweite Korrektur: die Zugehörigkeit stand im HEUTIGEN Plan. Eine gestern
-     hinzugefügte Übung bekam damit fünf alte Einheiten angerechnet, in denen
-     sie nie vorkam, und galt sofort als stagnierend. */
   it('rechnet einer neu hinzugefügten Übung keine alten Einheiten an', () => {
     const tage = [{ key: 'A', ex: ['pushup', 'dips'] }];
-    const eintraege = Array.from({ length: 5 }, (_, i) => ({
-      d: '2026-01-0' + (i + 1), day: 'A', sets: 10, ex: ['pushup'], ups: []
-    }));
-    /* dips steht erst seit heute im Plan und war in keiner der Einheiten. */
-    expect(detectPlateaus(tage, eintraege, {}, EX)).toEqual(['pushup']);
-  });
-
-  /* Ehrlich zur Schemagrenze: ein Eintrag von vor v14 hält seinen Aufstieg
-     als Anzeigetext fest und lässt sich keiner Übung zuordnen. Er zählt
-     deshalb als Einheit ohne Aufstieg – die Erkennung ist auf altem Bestand
-     eher zu laut als zu leise. */
-  it('kann einen Aufstieg von vor v14 keiner Übung zuordnen', () => {
-    const eintraege = log('A', 5).map(l => ({ ...l, ex: ['pushup'] }));
-    eintraege[2].ups = ['Liegestütze → Voll'];
-    expect(detectPlateaus(TAGE, eintraege, {}, EX)).toEqual(['pushup']);
-  });
-
-  it('betrachtet nur die letzten fünf Einheiten', () => {
-    /* Das Level-Up liegt weit zurück und darf die aktuelle Stagnation
-       nicht mehr überdecken. */
-    const eintraege = [...log('A', 1, ['pushup']), ...log('A', 5)];
-    expect(detectPlateaus(TAGE, eintraege, {}, EX)).toEqual(['pushup']);
+    expect(detectPlateaus(tage, reihe('pushup', [8, 8, 8, 8]), {}, EX, ZIEL)).toEqual(['pushup']);
   });
 
   it('nimmt Übungen auf der höchsten Stufe aus', () => {
-    /* kurz hat zwei Stufen – auf Index 1 gibt es nichts mehr zu erreichen. */
-    expect(detectPlateaus(TAGE, log('C', 5), { kurz: 1 }, EX)).toEqual([]);
-    /* Eine Stufe darunter wird dieselbe Übung sehr wohl gemeldet. */
-    expect(detectPlateaus(TAGE, log('C', 5), { kurz: 0 }, EX)).toEqual(['kurz']);
+    expect(pruefe(reihe('kurz', [8, 8, 8, 8], 1), { kurz: 1 })).toEqual([]);
+    expect(pruefe(reihe('kurz', [8, 8, 8, 8], 0), { kurz: 0 })).toEqual(['kurz']);
   });
 
-  it('berücksichtigt den aktuellen Stufenstand', () => {
-    /* pushup hat drei Stufen; auf Index 2 ist die höchste erreicht. */
-    expect(detectPlateaus(TAGE, log('A', 5), { pushup: 2 }, EX)).toEqual([]);
-    expect(detectPlateaus(TAGE, log('A', 5), { pushup: 1 }, EX)).toEqual(['pushup']);
-  });
-
-  it('trennt die Tage sauber', () => {
-    /* Nur Tag B wurde trainiert, also kann nur dips stagnieren. */
-    expect(detectPlateaus(TAGE, log('B', 5), {}, EX)).toEqual(['dips']);
-  });
-
-  it('ignoriert Einträge für einen gelöschten Tag', () => {
-    expect(detectPlateaus(TAGE, log('Weg', 9), {}, EX)).toEqual([]);
-  });
-
-  it('ignoriert unbekannte Übungs-IDs im Plan', () => {
-    const tage = [{ key: 'A', ex: ['pushup', 'gibtsnicht'] }];
-    expect(detectPlateaus(tage, log('A', 5), {}, EX)).toEqual(['pushup']);
-  });
-
-  /* Regression: eine Übung an zwei Tagen wurde zweimal gemeldet und
-     erschien doppelt im Banner ("Liegestütze, Liegestütze"). */
   it('meldet eine Übung an mehreren Tagen nur einmal', () => {
     const tage = [{ key: 'A', ex: ['pushup'] }, { key: 'B', ex: ['pushup'] }];
-    expect(detectPlateaus(tage, log('A', 5), {}, EX)).toEqual(['pushup']);
+    expect(detectPlateaus(tage, reihe('pushup', [8, 8, 8, 8]), {}, EX, ZIEL)).toEqual(['pushup']);
+  });
+
+  it('ignoriert unbekannte Übungen im Plan', () => {
+    const tage = [{ key: 'A', ex: ['pushup', 'gibtsnicht'] }];
+    expect(detectPlateaus(tage, reihe('pushup', [8, 8, 8, 8]), {}, EX, ZIEL)).toEqual(['pushup']);
+  });
+
+  it('kommt ohne Zielauswertung aus', () => {
+    /* Dann zählt keine Einheit als „alle oben" – nur die Summe entscheidet. */
+    expect(detectPlateaus(TAGE, reihe('pushup', [10, 10, 10, 10]), {}, EX)).toEqual(['pushup']);
   });
 
   it('kommt mit fehlerhaften Einträgen zurecht', () => {
-    const eintraege = [null, { day: 'A' }, ...log('A', 4)];
-    expect(() => detectPlateaus(TAGE, eintraege, {}, EX)).not.toThrow();
+    const log = [null, { day: 'A' }, { d: 'x', lv: 'kaputt' }, ...reihe('pushup', [8, 8, 8, 8])];
+    expect(pruefe(log)).toEqual(['pushup']);
   });
 });
 
-/* Naive Referenzimplementierung – dieselbe Regel, geradeheraus geschrieben:
-   je Übung das Log filtern, die letzten fünf nehmen, nachsehen. Sie belegt,
-   dass der eine rückwärtige Durchlauf mit Frühabbruch dasselbe liefert,
-   statt es nur zu behaupten.
-
-   Bewusst eigenständig, auch bei der Zugehörigkeit: nicht entryExercises()
-   aufrufen, sonst prüft der Vergleich nur sich selbst. */
-function uebungenVon(eintrag, days){
-  if(!eintrag || typeof eintrag !== 'object') return [];
-  if(Array.isArray(eintrag.ex) && eintrag.ex.length) return [...eintrag.ex];
-  const tag = days.find(x => x.key === eintrag.day);
-  const ausReps = Object.keys(eintrag.reps || {})
-    .map(k => k.slice(0, k.lastIndexOf('-'))).filter(Boolean);
-  return [...new Set([...(tag ? tag.ex : []), ...ausReps])];
-}
-
-function referenz(days, log, levels, exById){
+/* Naive Referenz: dieselbe Regel, geradeheraus geschrieben – je Übung das
+   Log filtern, am letzten Wechsel abschneiden, nachsehen. Sie belegt, dass
+   der eine rückwärtige Durchlauf mit Frühabbruch dasselbe liefert. Bewusst
+   ohne die Hilfsfunktionen des Moduls, sonst prüft der Vergleich nur sich
+   selbst. */
+function referenz(days, log, levels){
   const raus = [];
-  days.forEach(d => {
-    d.ex.forEach(id => {
-      const ex = exById[id]; if(!ex) return;
-      const recent = log.filter(l => uebungenVon(l, days).includes(id)).slice(-5);
-      if(recent.length >= 4 &&
-         !recent.some(l => Array.isArray(l.ups) && l.ups.includes(id))){
-        const lvl = levels[id] || 0;
-        if(lvl < ex.levels.length - 1) raus.push(id);
-      }
-    });
-  });
-  return [...new Set(raus)];
+  for(const id of [...new Set(days.flatMap(d => d.ex))]){
+    const ex = EX[id]; if(!ex) continue;
+    const lvl = levels[id] || 0;
+    if(lvl >= ex.levels.length - 1) continue;
+    const eigene = log.filter(l => l && !l.dl && (l.ex || []).includes(id) &&
+      l.lv && Number.isInteger(l.lv[id]));
+    let start = 0;
+    eigene.forEach((l, i) => { if(l.lv[id] !== lvl) start = i + 1; });
+    const werte = eigene.slice(start)
+      .map(l => [0, 1, 2, 3].map(s => l.reps[id + '-' + s]).filter(n => typeof n === 'number'))
+      .filter(w => w.length);
+    if(werte.length < 4) continue;
+    const sum = w => w.reduce((a, b) => a + b, 0);
+    const best = Math.max(...werte.slice(0, -3).map(sum));
+    const oben = w => w.length === 4 && w.every(n => n >= 10);
+    if(!werte.slice(-3).some(w => sum(w) > best || oben(w))) raus.push(id);
+  }
+  return raus;
 }
 
 describe('detectPlateaus – Äquivalenz zur naiven Fassung', () => {
-  it('stimmt über 200 zufällige Logs mit der Referenz überein', () => {
-    /* Deterministischer Generator: ein fehlschlagender Lauf muss
-       reproduzierbar sein. */
+  it('stimmt über 300 zufällige Logs mit der Referenz überein', () => {
     let saat = 12345;
-    const zufall = n => (saat = (saat * 1103515245 + 12345) & 0x7fffffff) % n;
+    /* Die oberen Bits: die unteren eines LCG laufen mit kurzer Periode um,
+       zufall(2) wechselte sonst streng ab. */
+    const zufall = n => ((saat = (saat * 1103515245 + 12345) & 0x7fffffff) >>> 16) % n;
+    let gemeldet = 0;
 
-    for(let runde = 0; runde < 200; runde++){
-      const eintraege = Array.from({ length: zufall(40) }, () => {
-        const tag = ['A', 'B', 'C', 'Weg'][zufall(4)];
-        /* Mal mit eigener Übungsliste, mal ohne – letzteres ist der
-           Rückfall auf den Plan. Und Aufstiege mal der eigenen Übung, mal
-           einer fremden, mal als alter Anzeigetext. */
-        const eigen = zufall(2) === 0;
-        const ups = [[], ['pushup'], ['dips'], ['kurz'], ['Liegestütze → Voll']][zufall(5)];
-        const e = { d: '2026-01-01', day: tag, sets: 10, ups };
-        if(eigen) e.ex = [['pushup'], ['dips'], ['pushup', 'dips'], ['kurz']][zufall(4)];
+    for(let runde = 0; runde < 300; runde++){
+      const log = Array.from({ length: zufall(40) }, () => {
+        const id = ['pushup', 'dips', 'kurz'][zufall(3)];
+        const e = einheit(id, 6 + zufall(zufall(4) === 0 ? 5 : 3), zufall(8) === 0 ? 1 : 0);
+        if(zufall(6) === 0) e.dl = true;
+        if(zufall(8) === 0) e.lv = {};
+        if(zufall(8) === 0) delete e.reps[id + '-' + zufall(4)];
         return e;
       });
-      const levels = { pushup: zufall(3), dips: zufall(3), kurz: zufall(2) };
-      expect(detectPlateaus(TAGE, eintraege, levels, EX), `Runde ${runde}`)
-        .toEqual(referenz(TAGE, eintraege, levels, EX));
+      const levels = { pushup: zufall(2), dips: zufall(2), kurz: zufall(2) };
+      const ist = pruefe(log, levels);
+      gemeldet += ist.length;
+      expect(ist, `Runde ${runde}`).toEqual(referenz(TAGE, log, levels));
     }
-  });
-
-  it('liefert bei 2000 Einträgen dasselbe wie die Referenz', () => {
-    const eintraege = Array.from({ length: 2000 }, (_, i) => ({
-      d: '2026-01-01',
-      day: i % 2 ? 'A' : 'B',
-      sets: 10,
-      ups: i < 1990 && i % 7 === 0 ? ['pushup'] : []
-    }));
-    expect(detectPlateaus(TAGE, eintraege, {}, EX)).toEqual(referenz(TAGE, eintraege, {}, EX));
+    /* Sicherung gegen einen Generator, der nie etwas Meldenswertes baut
+       und den Vergleich damit trivial grün macht. */
+    expect(gemeldet).toBeGreaterThan(20);
   });
 });

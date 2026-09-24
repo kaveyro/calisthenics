@@ -24,7 +24,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 15;
+export const STATE_VERSION = 16;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -221,6 +221,11 @@ export function migrateState(raw){
          CSV-Importen und nachgetragenen Einheiten; dann gibt es kein
          Tagesziel, nur die Spanne. */
       lv: stufenJeUebung(l.lv),
+      /* Seit v16: die Einheit lag in einer Entlastungswoche. Dort sind die
+         Saetze halbiert, die Satzsumme sinkt also mit Absicht – ohne diese
+         Angabe hielte die Stagnationserkennung jede Deload-Woche fuer
+         Stillstand und schluege gleich die naechste vor. */
+      dl: l.dl === true,
       /* Seit v9: die Dauer in Sekunden. 0 heisst "nicht aufgezeichnet" und
          gilt fuer alle Eintraege davor, fuer CSV-Importe und fuer eine
          nachgetragene Einheit. Die Anzeige laesst die Angabe dann weg,

@@ -71,9 +71,20 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dauer: 0 },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dauer: 0 }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 }
     ]);
+  });
+
+  /* Seit v16: die Einheit lag in einer Entlastungswoche. Nur ein echtes
+     true zaehlt – "ja" aus einem fremden Backup ist keine Aussage. */
+  it('behaelt die Entlastungswoche eines Eintrags', () => {
+    const out = migrateState({ log: [
+      { d: '2026-01-01', dl: true },
+      { d: '2026-01-02', dl: 'ja' },
+      { d: '2026-01-03' }
+    ]});
+    expect(out.log.map(l => l.dl)).toEqual([true, false, false]);
   });
 
   /* Seit v15: die Stufe je Uebung, auf der die Zahlen entstanden sind.
@@ -419,7 +430,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dauer: 0 }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 }]);
     expect(out.unbekannt).toBeUndefined();
   });
 

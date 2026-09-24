@@ -80,7 +80,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(15);
+    expect(s.v).toBe(16);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -827,6 +827,9 @@ describe('Entlastungswoche', () => {
     /* Weder hoch noch auf null: die Woche beschleunigt die Progression nicht
        und bestraft sie auch nicht. */
     expect(s.streaks.pushup).toBe(1);
+    /* Und der Eintrag weiss davon: die Stagnationserkennung laesst ihn aus,
+       seine halbierten Saetze waeren sonst Stillstand. */
+    expect(s.log[0].dl).toBe(true);
     /* Notizen und Bestleistungen laufen trotzdem durch. */
     expect(s.log).toHaveLength(1);
   });
@@ -2423,6 +2426,7 @@ describe('Aufstiege im Log', () => {
     const s = await mitAufstieg();
     expect(s.levels.dips).toBe(2);
     expect(s.log[0].ups).toEqual(['dips']);
+    expect(s.log[0].dl).toBe(false);
     /* Kein Pfeil, kein uebersetzter Name – sonst waere der Eintrag wieder
        an die Sprache gebunden, in der er entstanden ist. */
     expect(s.log[0].ups.join('')).not.toContain('→');
@@ -2732,5 +2736,35 @@ describe('Tagesziel auf der Karte', () => {
     expect(s.levels.dips).toBe(2);
     /* Die Zahlen dieser Einheit entstanden auf Stufe 1, nicht auf 2. */
     expect(s.log[0].lv.dips).toBe(1);
+  });
+});
+
+/* Die alte Regel meldete eine Uebung nach vier Einheiten ohne Aufstieg -
+   bei 6-10 und einer Wiederholung mehr je Einheit ist das der Normalfall.
+   Hier nur, dass die App die Regel aus js/domain/plateau.js mit echten
+   Zielangaben speist; die Regel selbst prueft test/plateau.test.js. */
+describe('Stagnation im Banner', () => {
+  async function mitFolge(folge){
+    const log = folge.map((r, i) => ({
+      d: '2026-01-' + String(i + 1).padStart(2, '0'), day: 'A', ex: ['pushup'], sets: 4,
+      lv: { pushup: 0 }, reps: Object.fromEntries([0, 1, 2, 3].map(n => ['pushup-' + n, r]))
+    }));
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, log }));
+    await starten();
+    await ruhe();
+    return document.getElementById('banners').textContent;
+  }
+
+  it('schweigt bei stetigem Fortschritt', async () => {
+    expect(await mitFolge([6, 7, 8, 9])).not.toContain('Stagnation');
+  });
+
+  it('meldet drei Einheiten ohne mehr Wiederholungen', async () => {
+    expect(await mitFolge([8, 8, 8, 8])).toContain('Stagnation');
+  });
+
+  it('schweigt, wenn alle Saetze oben sind und nur die Serie fehlt', async () => {
+    /* Liegestuetze Stufe 0: 4 x 6-10. */
+    expect(await mitFolge([10, 10, 10, 10])).not.toContain('Stagnation');
   });
 });

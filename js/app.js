@@ -567,7 +567,10 @@ function renderPhase(){
 function calcGlobalStreak(){ return streakOf(state.log); }
 
 function detectPlateaus(){
-  return plateausOf(getDays(), state.log || [], state.levels, EX_BY_ID)
+  /* Ohne Entlastungswoche ausgewertet: Deload-Einheiten zaehlen dort
+     ohnehin nicht mit, und die uebrigen hatten die vollen Saetze. */
+  const ziel = (ex, lvl) => zielAuswerten(ex.levels[lvl], cfg('setsMode'));
+  return plateausOf(getDays(), state.log || [], state.levels, EX_BY_ID, ziel)
     .map(id => exName(EX_BY_ID[id]));
 }
 
@@ -1832,7 +1835,7 @@ async function finishWorkout(){
      gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
   const entry = {
     d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups,
-    reps: { ...session.reps }, lv, dauer: dauerJetzt()
+    reps: { ...session.reps }, lv, dl: deloadAktiv(), dauer: dauerJetzt()
   };
 
   lastWorkoutSnapshot.entry = entry;
