@@ -6,10 +6,10 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
+import { entryHasExercise, repsOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
@@ -1100,6 +1100,16 @@ function letzteZeilen(ex, lvl, t, letzte){
   return html;
 }
 
+/* Der Vorschlag, eine Stufe zurueckzugehen – mit dem Knopf, den die Karte
+   ohnehin hat (level:adjust), nur ausgesprochen. Auf Stufe 1 gibt es nichts
+   Leichteres, dort schweigt er. */
+function zuSchwerHtml(ex, lvl, t, verlauf){
+  if(!(lvl > 0) || !zuSchwer(t, verlauf, lvl)) return '';
+  return '<div class="zu-schwer">' + esc(__('tooHard', { n: ZU_SCHWER_NACH, min: t.minReps })) +
+    ' <button class="tip-btn" data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">' +
+    esc(__('easierStage')) + '</button></div>';
+}
+
 function topLimitAktualisieren(id){
   const alt = document.getElementById('top-' + id);
   const ex = EX_BY_ID[id];
@@ -1154,7 +1164,8 @@ function renderWorkout(){
   /* Was heute wirklich drankommt: der Plan-Tag, durch die Ersetzungen dieser
      Einheit gereicht. session.subs bleibt dabei unangetastet – der Plan auch. */
   const heute = day.ex.map(origId => ({ origId, id: session.subs[origId] || origId }));
-  const letzte = lastRepsByExercise(state.log, heute.map(h => h.id), getDay);
+  const verlauf = verlaufJeUebung(state.log, heute.map(h => h.id), ZU_SCHWER_NACH, getDay);
+  const letzte = Object.fromEntries(Object.keys(verlauf).map(id => [id, verlauf[id][0]]));
 
   heute.forEach(({ origId, id }) => {
     const ex = EX_BY_ID[id];
@@ -1229,6 +1240,7 @@ function renderWorkout(){
         : '') +
       (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       letzteZeilen(ex, lvl, t, letzte[ex.id]) +
+      zuSchwerHtml(ex, lvl, t, verlauf[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
       '<span class="hold-hint">' +

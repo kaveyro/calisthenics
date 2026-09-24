@@ -79,7 +79,20 @@ export function repsOf(entry, exId){
    ausser nimmt einen einzelnen Eintrag aus – etwa den gerade geschriebenen. */
 export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null){
   const out = {};
-  if(!Array.isArray(log) || !exIds) return out;
+  const verlauf = verlaufJeUebung(log, exIds, 1, dayOf, ausser);
+  Object.keys(verlauf).forEach(id => { out[id] = verlauf[id][0]; });
+  return out;
+}
+
+/* Die letzten `anzahl` Einheiten mit Zahlen je Uebung, neueste zuerst:
+   { pushup: [{ d, reps, lvl }, …] }. Uebungen ohne jede Zahl fehlen.
+
+   Derselbe rueckwaertige Durchlauf wie oben beschrieben, nur dass er je
+   Uebung mehr als einen Eintrag einsammelt – der Hinweis auf eine zu
+   schwere Stufe braucht zwei Einheiten, nicht eine. */
+export function verlaufJeUebung(log, exIds, anzahl = 1, dayOf = () => null, ausser = null){
+  const out = {};
+  if(!Array.isArray(log) || !exIds || !(anzahl > 0)) return out;
   const offen = new Set(exIds);
 
   for(let i = log.length - 1; i >= 0 && offen.size; i--){
@@ -95,8 +108,8 @@ export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null
          der leichteren Variante und taugen nicht als Vorgabe fuer die neue.
          null, wo der Eintrag sie nicht kennt (vor v15, CSV, nachgetragen). */
       const lvl = l.lv && Number.isInteger(l.lv[id]) ? l.lv[id] : null;
-      out[id] = { d: l.d, reps, lvl };
-      offen.delete(id);
+      (out[id] = out[id] || []).push({ d: l.d, reps, lvl });
+      if(out[id].length >= anzahl) offen.delete(id);
     }
   }
   return out;

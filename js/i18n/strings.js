@@ -187,6 +187,8 @@ export const LANG = {
     todayTarget: 'Heute: {reps}',
     todayAllTop: 'Heute: noch einmal alle Sätze oben',
     todayEntry: 'Heute: {reps} – Einstieg in diese Stufe',
+    tooHard: '{n} Einheiten in jedem Satz unter {min} – vielleicht ist eine leichtere Stufe gerade besser.',
+    easierStage: 'Eine Stufe leichter',
 
     /* Bibliothek */
     library: 'Übungsbibliothek', search: 'Übung suchen …',
@@ -563,6 +565,8 @@ export const LANG = {
     todayTarget: 'Today: {reps}',
     todayAllTop: 'Today: every set at the top once more',
     todayEntry: 'Today: {reps} – starting this stage',
+    tooHard: '{n} sessions below {min} in every set – an easier stage may suit you better for now.',
+    easierStage: 'One stage easier',
 
     library: 'Exercise library', search: 'Search exercises …',
     searchAria: 'Search exercises', all: 'All',

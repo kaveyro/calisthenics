@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel, zuSchwer } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -260,5 +260,42 @@ describe('einstiegsziel', () => {
     expect(einstiegsziel(zielAuswerten({ saetze: 3, sek: [10, 20] }))).toBeNull();
     expect(einstiegsziel(null)).toBeNull();
     expect(einstiegsziel({ sets: 0, minReps: 5 })).toBeNull();
+  });
+});
+
+describe('zuSchwer', () => {
+  const Z = zielAuswerten({ saetze: 4, wdh: [6, 10] });
+  const e = (reps, lvl = 2) => ({ d: '2026-01-01', reps, lvl });
+
+  it('schlaegt nach zwei Einheiten unter der Untergrenze vor', () => {
+    expect(zuSchwer(Z, [e([5, 4, 4, 3]), e([5, 5, 4])], 2)).toBe(true);
+  });
+
+  it('schweigt, sobald ein Satz die Untergrenze erreicht', () => {
+    expect(zuSchwer(Z, [e([6, 4, 4, 3]), e([5, 5, 4])], 2)).toBe(false);
+  });
+
+  it('braucht zwei Einheiten', () => {
+    expect(zuSchwer(Z, [e([3, 3, 3, 3])], 2)).toBe(false);
+    expect(zuSchwer(Z, [], 2)).toBe(false);
+    expect(zuSchwer(Z, null, 2)).toBe(false);
+  });
+
+  it('zaehlt nur Einheiten auf der aktuellen Stufe', () => {
+    /* Die zweite stammt von der Stufe davor - dort war 5 vielleicht
+       schon viel. Und eine ohne bekannte Stufe sagt nichts. */
+    expect(zuSchwer(Z, [e([3, 3, 3]), e([3, 3, 3], 1)], 2)).toBe(false);
+    expect(zuSchwer(Z, [e([3, 3, 3]), e([3, 3, 3], null)], 2)).toBe(false);
+  });
+
+  it('schweigt bei Halteuebungen und Versuchen', () => {
+    expect(zuSchwer(zielAuswerten({ saetze: 3, sek: [10, 20] }), [e([3]), e([3])], 2)).toBe(false);
+    expect(zuSchwer(zielAuswerten({ saetze: 4, wdh: [5, 8], art: 'versuche' }), [e([1]), e([1])], 2)).toBe(false);
+    expect(zuSchwer(null, [e([1]), e([1])], 2)).toBe(false);
+  });
+
+  it('haelt einem kaputten Eintrag stand', () => {
+    expect(zuSchwer(Z, [e([]), e([3])], 2)).toBe(false);
+    expect(zuSchwer(Z, [null, e([3])], 2)).toBe(false);
   });
 });

@@ -278,6 +278,11 @@ details.acc li{margin-bottom:5px}
 .last-reps.heute{color:var(--accent);font-weight:600;margin-top:2px}
 /* Fehlendes Gerät: ein Hinweis, keine Sperre – deshalb warn und nicht danger. */
 .equip-warn{font-size:var(--text-sm);color:var(--warn);margin-top:5px}
+/* Wie der Gerätehinweis: ein Vorschlag in Warnfarbe, keine Sperre. Der Knopf
+   steht in der Zeile, damit der Weg zum Befolgen nicht länger ist als der
+   zum Ignorieren. */
+.zu-schwer{font-size:var(--text-sm);color:var(--warn);margin-top:5px}
+.zu-schwer .tip-btn{margin-top:0}
 /* Heute ausgelassen: die Karte bleibt stehen, damit man sie zurückholen kann –
    nur eben schmal und blass, statt die Liste zu füllen. */
 .ex--skipped{opacity:.55;padding:11px 14px}

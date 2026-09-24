@@ -2789,3 +2789,43 @@ describe('Stagnation im Banner', () => {
     expect(await mitFolge([10, 10, 10, 10])).not.toContain('Stagnation');
   });
 });
+
+/* Das Gegenstueck zum abgeleiteten Aufstieg: zweimal in jedem Satz unter
+   der Untergrenze, und die Karte schlaegt eine leichtere Stufe vor. */
+describe('Vorschlag bei einer zu schweren Stufe', () => {
+  async function mitZweien(reps, levels = { pushup: 2 }, lv = 2){
+    const log = [1, 2].map(i => ({
+      d: '2026-01-0' + i, day: 'A', ex: ['pushup'], sets: 4, lv: { pushup: lv },
+      reps: Object.fromEntries(reps.map((r, s) => ['pushup-' + s, r]))
+    }));
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, levels, log }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const hinweis = () => document.querySelector('[data-exid="pushup"] .zu-schwer');
+
+  it('erscheint nach zwei Einheiten unter der Untergrenze', async () => {
+    /* Stufe 2 der Liegestuetze: Knie-Liegestuetze, 4 x 8-12. */
+    await mitZweien([7, 6, 6, 5]);
+    expect(hinweis().textContent).toContain('8');
+  });
+
+  it('stuft ueber den Knopf eine Stufe ab', async () => {
+    await mitZweien([7, 6, 6, 5]);
+    hinweis().querySelector('button').click();
+    await ruhe();
+    expect(gespeichert().levels.pushup).toBe(1);
+  });
+
+  it('schweigt, wenn ein Satz die Untergrenze erreicht', async () => {
+    await mitZweien([8, 6, 6, 5]);
+    expect(hinweis()).toBeNull();
+  });
+
+  it('schweigt auf der leichtesten Stufe', async () => {
+    await mitZweien([3, 3, 3, 3], {}, 0);
+    expect(hinweis()).toBeNull();
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise,
+  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise, verlaufJeUebung,
   letztesDatumJeUebung, zaehleJeTag
 } from '../js/domain/log.js';
 
@@ -282,5 +282,30 @@ describe('lastRepsByExercise – Stufe', () => {
   it('laesst die Stufe offen, wo der Eintrag sie nicht kennt', () => {
     const log = [{ d: '2026-07-05', day: 'A', ex: ['pushup'], reps: { 'pushup-0': 10 }, lv: { dips: 2 } }];
     expect(lastRepsByExercise(log, ['pushup']).pushup.lvl).toBeNull();
+  });
+});
+
+describe('verlaufJeUebung', () => {
+  const eintrag = (d, reps, lvl) => ({ d, day: 'A', ex: ['pushup'], reps: { 'pushup-0': reps }, lv: { pushup: lvl } });
+
+  it('sammelt die letzten Einheiten neueste zuerst', () => {
+    const log = [eintrag('2026-07-01', 5, 1), eintrag('2026-07-03', 6, 1), eintrag('2026-07-05', 7, 2)];
+    expect(verlaufJeUebung(log, ['pushup'], 2).pushup).toEqual([
+      { d: '2026-07-05', reps: [7], lvl: 2 },
+      { d: '2026-07-03', reps: [6], lvl: 1 }
+    ]);
+  });
+
+  it('ueberspringt Einheiten ohne Zahlen und laesst Uebungen ohne Zahlen weg', () => {
+    const ohne = { d: '2026-07-04', day: 'A', ex: ['pushup', 'dips'], reps: {} };
+    const log = [eintrag('2026-07-01', 5, 1), ohne];
+    expect(verlaufJeUebung(log, ['pushup', 'dips'], 2)).toEqual({
+      pushup: [{ d: '2026-07-01', reps: [5], lvl: 1 }]
+    });
+  });
+
+  it('liefert fuer eine unsinnige Anzahl nichts', () => {
+    expect(verlaufJeUebung([eintrag('2026-07-01', 5, 1)], ['pushup'], 0)).toEqual({});
+    expect(verlaufJeUebung(null, ['pushup'], 2)).toEqual({});
   });
 });

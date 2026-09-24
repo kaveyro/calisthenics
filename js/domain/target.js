@@ -132,6 +132,27 @@ export function einstiegsziel(ziel){
   return Array.from({ length: ziel.sets }, () => ziel.minReps);
 }
 
+/* Ist die aktuelle Stufe zu schwer? Ja, wenn die letzten zwei Einheiten
+   mit Zahlen beide auf dieser Stufe lagen und in JEDEM Satz unter der
+   Untergrenze blieben. Das Gegenstück zum abgeleiteten Aufstieg: die App
+   stuft nur nach einer Pause zurück, und wer auf einer Stufe dauerhaft
+   unter der Spanne bleibt, trainiert eine Variante, die er noch nicht
+   sauber schafft. Eine Antwort ist das nicht, nur ein Vorschlag – über die
+   Stufe entscheidet weiter der Nutzer.
+
+   verlauf ist neueste zuerst, wie verlaufJeUebung() in log.js es liefert.
+   Nicht für Halteübungen und nicht für Versuche: ein Handstand, der fünfmal
+   nicht stand, ist Übung, keine Überforderung. */
+export const ZU_SCHWER_NACH = 2;
+
+export function zuSchwer(ziel, verlauf, lvl){
+  if(!ziel || ziel.isHold || ziel.art === 'versuche' || !Number.isInteger(ziel.minReps)) return false;
+  const letzte = Array.isArray(verlauf) ? verlauf.slice(0, ZU_SCHWER_NACH) : [];
+  return letzte.length === ZU_SCHWER_NACH && letzte.every(e =>
+    e && e.lvl === lvl && Array.isArray(e.reps) && e.reps.length > 0 &&
+    e.reps.every(n => Number.isFinite(n) && n < ziel.minReps));
+}
+
 export function tagesziel(ziel, letzte){
   if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
   const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n >= 0);
