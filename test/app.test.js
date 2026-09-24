@@ -184,7 +184,7 @@ describe('Wiederholungen', () => {
 
     document.querySelector('.day-btn').click();
     await ruhe();
-    expect(document.querySelector('.last-reps').textContent).toContain('11');
+    expect(document.querySelector('.last-reps:not(.heute)').textContent).toContain('11');
   });
 });
 
@@ -2827,5 +2827,107 @@ describe('Vorschlag bei einer zu schweren Stufe', () => {
   it('schweigt auf der leichtesten Stufe', async () => {
     await mitZweien([3, 3, 3, 3], {}, 0);
     expect(hinweis()).toBeNull();
+  });
+});
+
+/* Bis v16 lief der Countdown immer auf die Obergrenze, ein vorzeitiger Tipp
+   verwarf den Satz, und die Bestleistung war die Zielzeit. Stuetzhalte
+   Stufe 0: 4 x 10-20 Sek, ein Fuenftel der Spanne sind 2 Sekunden. */
+describe('Gehaltene Sekunden', () => {
+  let jetzt;
+  beforeEach(() => {
+    jetzt = 1_800_000_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => jetzt);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function einheit(stand = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...stand }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const punkt = s => document.getElementById('set-support-' + s);
+  const feld = s => document.getElementById('sek-support-' + s);
+  const halte = (s, sek) => {
+    punkt(s).click();
+    jetzt += sek * 1000;
+    punkt(s).click();
+  };
+
+  it('beginnt eine Stufe an der Untergrenze', async () => {
+    await einheit();
+    expect(feld(0).placeholder).toBe('10');
+    punkt(0).click();
+    expect(punkt(0).textContent).toBe('10');
+  });
+
+  it('beendet den Satz beim zweiten Tipp mit der gehaltenen Zeit', async () => {
+    await einheit();
+    halte(0, 7);
+    await ruhe();
+    expect(punkt(0).classList.contains('done')).toBe(true);
+    expect(feld(0).value).toBe('7');
+    expect(gespeichert().activeSession.sek['support-0']).toBe(7);
+  });
+
+  it('verwirft einen versehentlichen Doppeltipp', async () => {
+    await einheit();
+    halte(0, 0);
+    expect(punkt(0).classList.contains('done')).toBe(false);
+    expect(feld(0).value).toBe('');
+  });
+
+  it('traegt nach Ablauf die Vorgabe ein', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try{
+      await einheit();
+      punkt(0).click();
+      jetzt += 10_500;
+      vi.advanceTimersByTime(1000);
+      expect(feld(0).value).toBe('10');
+      expect(punkt(0).classList.contains('done')).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('nimmt die Zeit mit, wenn der Satz zurueckgenommen wird', async () => {
+    await einheit();
+    halte(0, 7);
+    punkt(0).click();
+    expect(punkt(0).classList.contains('done')).toBe(false);
+    expect(feld(0).value).toBe('');
+  });
+
+  it('rechnet die naechste Vorgabe aus der gehaltenen Zeit', async () => {
+    await einheit({ log: [{
+      d: '2026-01-01', day: 'A', ex: ['support'], sets: 4, lv: { support: 0 },
+      sek: { 'support-0': 12, 'support-1': 12, 'support-2': 11, 'support-3': 9 }
+    }]});
+    expect([0, 1, 2, 3].map(s => feld(s).placeholder)).toEqual(['14', '14', '13', '11']);
+    const zeile = document.querySelector('[data-exid="support"] .last-reps.heute').textContent;
+    expect(zeile).toContain('14 · 14 · 13 · 11');
+  });
+
+  it('leitet das obere Limit aus den Sekunden ab', async () => {
+    const app = await einheit();
+    [0, 1, 2, 3].forEach(s => {
+      feld(s).value = '20';
+      app.actions['set:sek']({ key: 'support-' + s }, null, feld(s));
+    });
+    const label = document.getElementById('top-support');
+    expect(label.classList.contains('abgeleitet')).toBe(true);
+    expect(label.classList.contains('checked')).toBe(true);
+  });
+
+  it('schreibt die laengste gehaltene Zeit als Bestleistung, nicht die Zielzeit', async () => {
+    const app = await einheit();
+    halte(0, 13);
+    halte(1, 8);
+    await app.actions['workout:finish']();
+    await ruhe();
+    const s = gespeichert();
+    expect(s.prs.support).toMatchObject({ n: 13, art: 'sek' });
+    expect(s.log[0].sek).toEqual({ 'support-0': 13, 'support-1': 8 });
   });
 });

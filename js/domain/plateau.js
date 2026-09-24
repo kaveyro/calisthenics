@@ -26,7 +26,7 @@
    Stufe (vor v15, CSV, nachgetragen) sagen nichts über die aktuelle Stufe
    und bleiben außen vor. */
 
-import { entryExercises, repsOf } from './log.js';
+import { entryExercises, repsOf, sekOf } from './log.js';
 import { limitErreicht } from './target.js';
 
 /* Wie viele Einheiten auf der Stufe ohne Verbesserung als Stillstand gelten,
@@ -79,7 +79,10 @@ export function detectPlateaus(days, log, levels, exById, ziel = () => null){
       if(!k || k.fertig) continue;
       if(!Number.isInteger(lv[id])) continue;
       if(lv[id] !== k.lvl){ k.fertig = true; offen--; continue; }
-      const werte = repsOf(eintrag, id);
+      /* Eine Stufe hat genau eine Masseinheit: bei einer Halteuebung
+         zaehlen die gehaltenen Sekunden (seit v16), sonst Wiederholungen. */
+      const sek = sekOf(eintrag, id);
+      const werte = sek.length ? sek : repsOf(eintrag, id);
       if(werte.length) k.werte.unshift(werte);
     }
   }

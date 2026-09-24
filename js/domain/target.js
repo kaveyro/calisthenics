@@ -58,6 +58,9 @@ export function zielAuswerten(level, setsMode = 'standard'){
     isHold,
     /* Heruntergezählt wird die Obergrenze, wie bisher: 10–20 Sek hält 20. */
     holdSecs: isHold ? l.sek[1] : 0,
+    /* Die Untergrenze einer Halteübung war bis v16 toter Wert: der Countdown
+       lief immer auf die Obergrenze. Jetzt beginnt eine Stufe hier. */
+    minSecs: isHold ? l.sek[0] : 0,
     minReps: wdh ? wdh[0] : null,
     maxReps: wdh ? wdh[1] : null,
     art: isHold ? 'sek' : (wdh && l.art === 'versuche' ? 'versuche' : 'wdh')
@@ -87,20 +90,25 @@ export function zielText(level, woerter = {}){
    setzen und stieg auf.
 
    Drei Antworten, nicht zwei. true und false nur, wenn sich das aus den
-   Zahlen ergibt. null heißt „lässt sich nicht entscheiden": eine
-   Halteübung, deren gehaltene Sekunden die App nicht je Satz erfasst, oder
-   ein Satz ohne Zahl. Dann bleibt es bei der Handeingabe – die App soll
-   nichts behaupten, was sie nicht weiß.
+   Zahlen ergibt. null heißt „lässt sich nicht entscheiden": ein Satz ohne
+   Zahl, oder eine Zielangabe ohne Obergrenze. Dann bleibt es bei der
+   Handeingabe – die App soll nichts behaupten, was sie nicht weiß.
+
+   Seit v16 gilt das auch für Halteübungen: die Werte sind dann die
+   gehaltenen Sekunden je Satz, die Grenze ist holdSecs. Vorher erfasste die
+   App keine Haltezeit, und ein abgehakter Satz hieß nur „Countdown
+   durchgestanden".
 
    ziel ist das Ergebnis von zielAuswerten(), also schon mit Satz-Modus und
    Entlastungswoche: gezählt werden die Sätze, die heute wirklich anstehen. */
 export function limitErreicht(ziel, repsJeSatz){
-  if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
+  const grenze = ziel && (ziel.isHold ? ziel.holdSecs : ziel.maxReps);
+  if(!ziel || !Number.isInteger(grenze) || !(grenze > 0) || !(ziel.sets > 0)) return null;
   const reps = Array.isArray(repsJeSatz) ? repsJeSatz.slice(0, ziel.sets) : [];
   /* 0 ist eine gültige Zahl – ein Satz, der nicht ging –, und kein
      fehlender Eintrag. */
   if(reps.length < ziel.sets || reps.some(n => !Number.isInteger(n) || n < 0)) return null;
-  return reps.every(n => n >= ziel.maxReps);
+  return reps.every(n => n >= grenze);
 }
 
 /* Was heute in jedem Satz ansteht, aus der letzten Einheit derselben Stufe.
@@ -126,10 +134,38 @@ export function limitErreicht(ziel, repsJeSatz){
    der leichteren Variante taugen nicht als Vorgabe. Gerade dort ist „fang
    unten an" aber der nützlichste Satz: wer nach dem Aufstieg gleich die
    Obergrenze versucht, verreißt die Form in der Variante, die er gerade
-   erst lernt. Nicht für Halteübungen und nicht ohne Spanne. */
+   erst lernt. Bei Halteübungen die kürzeste Zeit der Spanne. */
 export function einstiegsziel(ziel){
-  if(!ziel || ziel.isHold || !Number.isInteger(ziel.minReps) || !(ziel.sets > 0)) return null;
-  return Array.from({ length: ziel.sets }, () => ziel.minReps);
+  if(!ziel || !(ziel.sets > 0)) return null;
+  const unten = ziel.isHold ? ziel.minSecs : ziel.minReps;
+  if(!Number.isInteger(unten) || !(unten > 0)) return null;
+  return Array.from({ length: ziel.sets }, () => unten);
+}
+
+/* Die Haltezeit je Satz für heute, aus der letzten Einheit derselben Stufe:
+   die gehaltene Zeit plus ein Fünftel der Spanne (mindestens eine Sekunde),
+   höchstens die Obergrenze. Bei 10–20 Sek sind das zwei Sekunden je
+   Einheit, die Stufe ist also nach etwa fünf Einheiten oben – ungefähr so
+   lange wie eine Wiederholungsspanne mit einer Wiederholung mehr je
+   Einheit.
+
+   Bis v16 lief der Countdown immer auf die Obergrenze: eine frisch
+   erreichte Stufe verlangte sofort das Maximum, und die Untergrenze wurde
+   nirgends gelesen. Wie tagesziel() nur mit Zahlen; ob sie zur heutigen
+   Stufe gehören, prüft der Aufrufer, und ohne Vorgeschichte gilt
+   einstiegsziel(). */
+export function halteziel(ziel, letzte){
+  if(!ziel || !ziel.isHold || !(ziel.sets > 0) || !Number.isInteger(ziel.holdSecs)) return null;
+  const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n > 0);
+  if(!werte.length) return null;
+  const oben = ziel.holdSecs;
+  const schritt = Math.max(1, Math.round((oben - ziel.minSecs) / 5));
+  const vorher = s => werte[Math.min(s, werte.length - 1)];
+  const allesOben = werte.length >= ziel.sets && werte.slice(0, ziel.sets).every(n => n >= oben);
+  return {
+    secs: Array.from({ length: ziel.sets }, (_, s) => Math.min(oben, vorher(s) + schritt)),
+    allesOben
+  };
 }
 
 /* Ist die aktuelle Stufe zu schwer? Ja, wenn die letzten zwei Einheiten

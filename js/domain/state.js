@@ -226,6 +226,11 @@ export function migrateState(raw){
          Angabe hielte die Stagnationserkennung jede Deload-Woche fuer
          Stillstand und schluege gleich die naechste vor. */
       dl: l.dl === true,
+      /* Seit v16: die gehaltenen Sekunden je Satz einer Halteuebung, im
+         selben Schluesselformat wie reps ('front_lever-0'). Getrennt von
+         reps, damit das Volumen, die CSV-Spalte "Wdh" und alles, was
+         Wiederholungen zaehlt, keine Sekunden mitzaehlt. */
+      sek: sekundenJeSatz(l.sek),
       /* Seit v9: die Dauer in Sekunden. 0 heisst "nicht aufgezeichnet" und
          gilt fuer alle Eintraege davor, fuer CSV-Importe und fuer eine
          nachgetragene Einheit. Die Anzeige laesst die Angabe dann weg,
@@ -296,6 +301,20 @@ function dauerWert(v){
   const n = Math.round(Number(v));
   if(!Number.isFinite(n) || n <= 0 || n > MAX_WORKOUT_SECS) return 0;
   return n;
+}
+
+/* log[].sek: 'id-satz' -> Sekunden. Ganze Zahlen ueber 0 und hoechstens
+   eine Stunde; mehr haelt niemand, und ein verbogener Wert soll keine
+   Bestleistung werden. */
+const MAX_HALTE_SEK = 3600;
+function sekundenJeSatz(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(v).slice(0, MAX_EX_PER_ENTRY * 10).forEach(k => {
+    const n = v[k];
+    if(/-[0-9]+$/.test(k) && Number.isInteger(n) && n > 0 && n <= MAX_HALTE_SEK) out[k] = n;
+  });
+  return out;
 }
 
 /* log[].lv: id -> Stufenindex. Nur ganze Zahlen ab 0, und hoechstens so

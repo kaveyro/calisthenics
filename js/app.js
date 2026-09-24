@@ -6,7 +6,7 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
@@ -34,7 +34,7 @@ let state = DEFAULT_STATE();
 /* Alles, was zur laufenden Einheit gehoert – an einer Stelle, damit keine
    Sammlung beim Zuruecksetzen vergessen wird. */
 const leereSession = () => ({
-  dayKey: null, sets: {}, top: {}, reps: {}, notes: {},
+  dayKey: null, sets: {}, top: {}, reps: {}, sek: {}, notes: {},
   /* Nur fuer heute: origId -> ersatzId bzw. origId -> true. Beides steht
      bewusst in der Session und nicht im Plan – wer eine Uebung heute nicht
      machen kann, will deswegen nicht seinen Plan umbauen. */
@@ -243,7 +243,7 @@ function spiegleSession(){
     ? {
       dayKey: session.dayKey, d: today(), tab: fensterId,
       sets: { ...session.sets }, top: { ...session.top },
-      reps: { ...session.reps }, notes: { ...session.notes },
+      reps: { ...session.reps }, sek: { ...session.sek }, notes: { ...session.notes },
       subs: { ...session.subs }, skip: { ...session.skip },
       warm: { ...session.warm }, start: session.start || null,
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
@@ -302,7 +302,7 @@ function restoreActiveSession(){
   if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
   session = {
     dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
-    reps: a.reps || {}, notes: a.notes || {},
+    reps: a.reps || {}, sek: a.sek || {}, notes: a.notes || {},
     subs: a.subs || {}, skip: a.skip || {},
     warm: a.warm || {},
     /* Ein verbogener Zeitstempel wuerde eine absurde Dauer ergeben; die
@@ -331,6 +331,16 @@ function setRep(key, value){
   /* Entprellt: hier feuert jeder Tastendruck. Satz-Tap, Top-Haekchen und
      Tagwechsel schreiben weiterhin sofort – dort ist ein Schreibvorgang pro
      Interaktion angemessen. */
+  persistSessionSpaeter();
+}
+
+/* Gehaltene Sekunden von Hand, etwa wenn mit einer anderen Uhr gestoppt
+   wurde oder der Countdown zu frueh beendet war. Wie setRep(): der Satz
+   wird dadurch nicht abgehakt. */
+function setSek(key, value){
+  const n = parseInt(value, 10);
+  if(Number.isFinite(n) && n > 0) session.sek[key] = n; else delete session.sek[key];
+  topLimitAktualisieren(key.slice(0, key.lastIndexOf('-')));
   persistSessionSpaeter();
 }
 
@@ -1015,20 +1025,24 @@ function zielText(level){
 function repsDerEinheit(id, saetze){
   return Array.from({ length: saetze }, (_, s) => session.reps[id + '-' + s]);
 }
+function sekDerEinheit(id, saetze){
+  return Array.from({ length: saetze }, (_, s) => session.sek[id + '-' + s]);
+}
 
 /* Ob das obere Limit einer Uebung in dieser Einheit erreicht ist.
 
    Liegen fuer jeden Satz Zahlen vor, entscheiden die – das Haekchen ist dann
    eine Anzeige und laesst sich nicht setzen. Bisher entschied allein das
    Haekchen, und die Zahlen daneben zaehlten nur fuer Bestleistungen und
-   Volumen. Fehlt eine Zahl, oder ist es eine Halteuebung, bleibt es beim
-   Haekchen: dort weiss die App es nicht besser als der Nutzer.
+   Volumen. Fehlt eine Zahl, bleibt es beim Haekchen: dort weiss die App es
+   nicht besser als der Nutzer. Bei Halteuebungen sind die Zahlen seit v16
+   die gehaltenen Sekunden.
 
    abgeleitet ist true, false oder null (siehe limitErreicht()); erreicht ist
    das, was am Ende zaehlt. */
 function limitStand(ex){
   const t = zielVon(ex.levels[lvlOf(ex)]);
-  const reps = repsDerEinheit(ex.id, t.sets);
+  const reps = t.isHold ? sekDerEinheit(ex.id, t.sets) : repsDerEinheit(ex.id, t.sets);
   const abgeleitet = limitErreicht(t, reps);
   return { t, reps, abgeleitet, erreicht: abgeleitet === null ? !!session.top[ex.id] : abgeleitet };
 }
@@ -1039,12 +1053,14 @@ function limitStand(ex){
 function toplimitHtml(ex){
   const { t, reps, abgeleitet, erreicht } = limitStand(ex);
   let grund = '';
+  const grenze = t.isHold ? t.holdSecs : t.maxReps;
   if(abgeleitet !== null){
-    grund = __('topLimitDerived', { reps: reps.join(' · '), max: t.maxReps });
-  } else if(!t.isHold && t.maxReps && reps.some(n => Number.isInteger(n))){
+    grund = __('topLimitDerived', {
+      reps: reps.join(' · '), max: t.isHold ? grenze + ' ' + __('secShort') : grenze
+    });
+  } else if(grenze && reps.some(n => Number.isInteger(n))){
     /* Nur, wenn schon etwas eingetragen ist: dann fehlt wirklich nur der
-       Rest. Vor dem ersten Satz waere der Hinweis Laerm, und bei
-       Halteuebungen gibt es nichts einzutragen. */
+       Rest. Vor dem ersten Satz waere der Hinweis Laerm. */
     grund = __('topLimitMissing');
   }
   return '<label class="toplimit' + (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' abgeleitet' : '') +
@@ -1068,12 +1084,17 @@ function toplimitHtml(ex){
    Eintraege, die ihre Stufe nicht kennen (vor v15, CSV, nachgetragen),
    bekommen die Zeile wie bisher, aber kein Tagesziel: ob die Zahlen passen,
    laesst sich dann nicht sagen. */
+/* Zahlen einer Einheit mit ihrer Masseinheit: Sekunden tragen "Sek" mit,
+   Wiederholungen nichts – so war die Zeile schon vorher. */
+const mitEinheit = (werte, sek) => werte.join(' · ') + (sek ? ' ' + __('secShort') : '');
+
 function letzteZeilen(ex, lvl, t, letzte){
   const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
   const andere = bekannt && letzte.lvl !== lvl;
   let html = '';
   if(letzte){
-    const reps = letzte.reps.join(' · '), date = fmtDate(letzte.d);
+    const alsSek = !!(letzte.sek && letzte.sek.length);
+    const reps = mitEinheit(alsSek ? letzte.sek : letzte.reps, alsSek), date = fmtDate(letzte.d);
     /* Mit Nummer und Ziel: 18 Stufen tragen denselben Namen wie ihre
        Nachbarin ("Volle Liegestuetze", erst 5-10, dann 10-15). Nur mit dem
        Namen nannte die Zeile dann die aktuelle Stufe als die andere. */
@@ -1084,20 +1105,36 @@ function letzteZeilen(ex, lvl, t, letzte){
       })
       : __('lastReps', { reps, date })) + '</div>';
   }
-  const heute = bekannt && !andere ? tagesziel(t, letzte.reps) : null;
+  const heute = bekannt && !andere
+    ? (t.isHold ? halteziel(t, letzte.sek) : tagesziel(t, letzte.reps))
+    : null;
   if(heute){
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
-      : __('todayTarget', { reps: heute.reps.join(' · ') })) + '</div>';
+      : __('todayTarget', { reps: mitEinheit(heute.secs || heute.reps, t.isHold) })) + '</div>';
   } else if(!letzte || andere){
     /* Neue Stufe oder noch nie mit Zahlen trainiert: unten anfangen. Ein
        Eintrag, der seine Stufe nicht kennt, bekommt weiterhin gar keine
        Vorgabe – ob er zur heutigen Stufe gehoert, laesst sich nicht sagen. */
     const einstieg = einstiegsziel(t);
     if(einstieg) html += '<div class="last-reps heute">' +
-      esc(__('todayEntry', { reps: einstieg.join(' · ') })) + '</div>';
+      esc(__('todayEntry', { reps: mitEinheit(einstieg, t.isHold) })) + '</div>';
   }
   return html;
+}
+
+/* Worauf der Countdown je Satz heute laeuft. Dieselbe Rechnung wie in der
+   Zeile "Heute:" darueber – aus der letzten Einheit derselben Stufe, sonst
+   die Untergrenze. Ein Eintrag ohne bekannte Stufe zaehlt wie keiner. */
+function halteVorgabe(ex, lvl, t, letzte){
+  const gleich = letzte && letzte.lvl === lvl && letzte.sek && letzte.sek.length;
+  const z = gleich ? halteziel(t, letzte.sek) : null;
+  return (z && z.secs) || einstiegsziel(t) || Array.from({ length: t.sets }, () => t.holdSecs);
+}
+function halteVorgabeFuer(ex){
+  const lvl = lvlOf(ex), t = zielVon(ex.levels[lvl]);
+  const v = verlaufJeUebung(state.log, [ex.id], 1, getDay)[ex.id];
+  return halteVorgabe(ex, lvl, t, v && v[0]);
 }
 
 /* Der Vorschlag, eine Stufe zurueckzugehen – mit dem Knopf, den die Karte
@@ -1190,6 +1227,7 @@ function renderWorkout(){
       rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(exStage(ex, i)) + '" aria-hidden="true"></div>';
     });
 
+    const vorgabe = t.isHold ? halteVorgabe(ex, lvl, t, letzte[ex.id]) : null;
     let dots = '';
     for(let s = 0; s < t.sets; s++){
       const repKey = ex.id + '-' + s;
@@ -1209,6 +1247,13 @@ function renderWorkout(){
           ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
           ' value="' + (session.reps[repKey] ?? '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
+      } else if(t.isHold){
+        /* Die gehaltene Zeit: der Countdown traegt sie ein, von Hand laesst
+           sie sich korrigieren. Der Platzhalter ist die heutige Vorgabe. */
+        dots += '<input class="sek-input" id="sek-' + repKey + '" type="number" min="0" max="3600"' +
+          ' placeholder="' + vorgabe[s] + '"' +
+          ' aria-label="' + esc(__('secsAria', { ex: exName(ex), n: s + 1 })) + '"' +
+          ' value="' + (session.sek[repKey] ?? '') + '" data-action-input="set:sek" data-key="' + repKey + '">';
       }
     }
 
@@ -1244,7 +1289,7 @@ function renderWorkout(){
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets">' + dots + '</div>' +
       '<span class="hold-hint">' +
-        (t.isHold ? esc(__('holdHint', { sec: t.holdSecs })) + ' · ' : '') +
+        (t.isHold ? esc(__('holdHint')) + ' · ' : '') +
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
       toplimitHtml(ex) +
       hint +
@@ -1377,6 +1422,7 @@ function vergissUebung(id){
   const zurUebung = k => k.slice(0, k.lastIndexOf('-')) === id;
   Object.keys(session.sets).forEach(k => { if(zurUebung(k)) delete session.sets[k]; });
   Object.keys(session.reps).forEach(k => { if(zurUebung(k)) delete session.reps[k]; });
+  Object.keys(session.sek).forEach(k => { if(zurUebung(k)) delete session.sek[k]; });
   delete session.top[id];
   delete session.notes[id];
 }
@@ -1482,11 +1528,29 @@ function tapSet(id, s){
   const key = id + '-' + s;
   const el = document.getElementById('set-' + key);
 
-  if(holdTimer && holdTimer.key === key){ cancelHold(); return; }
+  /* Ein Tipp waehrend des Countdowns beendet den Satz mit der Zeit, die
+     bis dahin gehalten wurde. Bisher brach er ihn ab, und die Zeit war
+     verloren – dabei ist "bei 14 von 20 Sekunden abgesetzt" genau die
+     Angabe, aus der die naechste Vorgabe entsteht. Unter einer Sekunde war
+     es ein versehentlicher Doppeltipp, dann bleibt es beim Abbruch. */
+  if(holdTimer && holdTimer.key === key){
+    const gehalten = Math.floor((Date.now() - holdTimer.start) / 1000);
+    if(gehalten < 1){ cancelHold(); return; }
+    clearInterval(holdTimer.interval);
+    holdTimer = null;
+    el.classList.remove('running');
+    halteZeitEintragen(key, gehalten);
+    markDone(key, el, s, ex);
+    melde(__('holdStopped', { sec: gehalten }));
+    return;
+  }
 
   if(session.sets[key]){
     session.sets[key] = false;
     el.classList.remove('done'); el.setAttribute('aria-pressed', 'false'); el.textContent = s + 1;
+    /* Die Haltezeit gehoert zum Satz: wer ihn zuruecknimmt, nimmt sie mit.
+       Wiederholungen bleiben dagegen stehen, sie sind eine eigene Eingabe. */
+    if(t.isHold && session.sek[key] != null) halteZeitEintragen(key, null);
     updateFinish(); persistSession(); return;
   }
 
@@ -1494,10 +1558,12 @@ function tapSet(id, s){
     cancelHold();
     zeitNehmen();
     el.classList.add('running');
-    holdTimer = { key, el, id, s, ex, ende: Date.now() + t.holdSecs * 1000, interval: null };
+    const secs = halteVorgabeFuer(ex)[s] || t.holdSecs;
+    const start = Date.now();
+    holdTimer = { key, el, id, s, ex, secs, start, ende: start + secs * 1000, interval: null };
     haltenAnzeigen();
     holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
-    melde(__('holdStarted', { sec: t.holdSecs }));
+    melde(__('holdStarted', { sec: secs }));
   } else {
     markDone(key, el, s, ex);
   }
@@ -1517,10 +1583,11 @@ function haltenAnzeigen(){
     if(holdTimer.el.textContent !== String(rem)) holdTimer.el.textContent = rem;
     return;
   }
-  const { key, el, s, ex } = holdTimer;
+  const { key, el, s, ex, secs } = holdTimer;
   clearInterval(holdTimer.interval);
   holdTimer = null;
   el.classList.remove('running');
+  halteZeitEintragen(key, secs);
   markDone(key, el, s, ex);
   signal(true);
   melde(__('holdOver'));
@@ -1553,6 +1620,15 @@ function markDone(key, el, s, ex){
   if(cfg('autoRest')) startRest(restFor(ex));
   updateFinish(); persistSession();
 }
+/* Traegt eine Haltezeit in die Einheit und ins Feld daneben ein (null
+   loescht sie) und rechnet das obere Limit nach. */
+function halteZeitEintragen(key, sek){
+  if(sek == null) delete session.sek[key]; else session.sek[key] = sek;
+  const feld = document.getElementById('sek-' + key);
+  if(feld) feld.value = sek == null ? '' : sek;
+  topLimitAktualisieren(key.slice(0, key.lastIndexOf('-')));
+}
+
 function cancelHold(){
   if(!holdTimer) return;
   clearInterval(holdTimer.interval);
@@ -1841,17 +1917,15 @@ async function finishWorkout(){
         const kandidat = { v: v + ' ' + __('reps'), n: v, d: today(), art: 'reps', lvl };
         if(v && besserePR(state.prs[id], kandidat)) state.prs[id] = kandidat;
       }
-    } else if(t.isHold && t.holdSecs){
-      /* Halteuebungen bekamen nie automatisch eine Bestleistung: die Schleife
-         darueber lief nur fuer Wiederholungen. Fuer einen Front Lever musste
-         man sie also in der Bibliothek von Hand eintippen, obwohl die App die
-         Sekunden kennt – ein abgeschlossener Satz IST die gehaltene Zeit.
-         Es genuegt ein geschaffter Satz; die weiteren aendern die Zeit nicht. */
-      const geschafft = Array.from({ length: t.sets }, (_, s) => session.sets[id + '-' + s]).some(Boolean);
+    } else if(t.isHold){
+      /* Die laengste tatsaechlich gehaltene Zeit. Bis v16 stand hier die
+         Zielzeit der Stufe, sobald ein Satz abgehakt war – also das, was die
+         App verlangt hatte, nicht das, was gehalten wurde. */
+      const laengste = Math.max(0, ...sekDerEinheit(id, t.sets).filter(Number.isInteger));
       const kandidat = {
-        v: t.holdSecs + ' ' + __('secShort'), n: t.holdSecs, d: today(), art: 'sek', lvl
+        v: laengste + ' ' + __('secShort'), n: laengste, d: today(), art: 'sek', lvl
       };
-      if(geschafft && besserePR(state.prs[id], kandidat)) state.prs[id] = kandidat;
+      if(laengste > 0 && besserePR(state.prs[id], kandidat)) state.prs[id] = kandidat;
     }
   });
 
@@ -1862,7 +1936,7 @@ async function finishWorkout(){
      gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
   const entry = {
     d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups,
-    reps: { ...session.reps }, lv, dl: deloadAktiv(), dauer: dauerJetzt()
+    reps: { ...session.reps }, sek: { ...session.sek }, lv, dl: deloadAktiv(), dauer: dauerJetzt()
   };
 
   lastWorkoutSnapshot.entry = entry;
@@ -4001,6 +4075,7 @@ export const actions = {
   'day:select':         d => selectDay(d.key),
   'set:tap':            d => tapSet(d.ex, zahl(d.set)),
   'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'set:sek':            (d, ev, el) => setSek(d.key, el.value),
   'note:set':           (d, ev, el) => setNote(d.ex, el.value),
   'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),
   /* mitFokus(): diese Aktionen zeichnen ihren Container neu, das gerade

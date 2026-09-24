@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise, verlaufJeUebung,
+  entryExercises, entryHasExercise, repsOf, lastRepsFor, lastRepsByExercise, verlaufJeUebung, sekOf,
   letztesDatumJeUebung, zaehleJeTag
 } from '../js/domain/log.js';
 
@@ -291,8 +291,8 @@ describe('verlaufJeUebung', () => {
   it('sammelt die letzten Einheiten neueste zuerst', () => {
     const log = [eintrag('2026-07-01', 5, 1), eintrag('2026-07-03', 6, 1), eintrag('2026-07-05', 7, 2)];
     expect(verlaufJeUebung(log, ['pushup'], 2).pushup).toEqual([
-      { d: '2026-07-05', reps: [7], lvl: 2 },
-      { d: '2026-07-03', reps: [6], lvl: 1 }
+      { d: '2026-07-05', reps: [7], sek: [], lvl: 2 },
+      { d: '2026-07-03', reps: [6], sek: [], lvl: 1 }
     ]);
   });
 
@@ -300,12 +300,36 @@ describe('verlaufJeUebung', () => {
     const ohne = { d: '2026-07-04', day: 'A', ex: ['pushup', 'dips'], reps: {} };
     const log = [eintrag('2026-07-01', 5, 1), ohne];
     expect(verlaufJeUebung(log, ['pushup', 'dips'], 2)).toEqual({
-      pushup: [{ d: '2026-07-01', reps: [5], lvl: 1 }]
+      pushup: [{ d: '2026-07-01', reps: [5], sek: [], lvl: 1 }]
     });
   });
 
   it('liefert fuer eine unsinnige Anzahl nichts', () => {
     expect(verlaufJeUebung([eintrag('2026-07-01', 5, 1)], ['pushup'], 0)).toEqual({});
     expect(verlaufJeUebung(null, ['pushup'], 2)).toEqual({});
+  });
+});
+
+/* Seit v16 stehen die gehaltenen Sekunden einer Halteuebung in log[].sek. */
+describe('Haltezeiten im Log', () => {
+  const halt = (d, sek, lvl) => ({ d, day: 'A', ex: ['lever'], reps: {}, sek, lv: { lever: lvl } });
+
+  it('liest die Sekunden eines Eintrags nach Satz', () => {
+    expect(sekOf({ sek: { 'lever-1': 12, 'lever-0': 15, 'andere-0': 9 } }, 'lever')).toEqual([15, 12]);
+    expect(sekOf({}, 'lever')).toEqual([]);
+  });
+
+  it('nimmt Haltezeiten in den Verlauf auf', () => {
+    const log = [halt('2026-07-01', { 'lever-0': 12 }, 0)];
+    expect(verlaufJeUebung(log, ['lever'], 1).lever).toEqual([
+      { d: '2026-07-01', reps: [], sek: [12], lvl: 0 }
+    ]);
+  });
+
+  it('haelt lastRepsByExercise bei Wiederholungen', () => {
+    /* Die Zeile "Letztes Mal" fuer Wiederholungen darf keine Sekunden
+       als Wiederholungen ausgeben. */
+    const log = [halt('2026-07-01', { 'lever-0': 12 }, 0)];
+    expect(lastRepsByExercise(log, ['lever'])).toEqual({});
   });
 });

@@ -311,9 +311,9 @@ details.acc li{margin-bottom:5px}
 .hold-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 
 /* ---------- Rep Input ---------- */
-.rep-input{width:52px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-sm);text-align:center;padding:4px}
-.rep-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
-.rep-input::placeholder{color:var(--ink-soft);font-size:var(--text-xs)}
+.rep-input,.sek-input{width:52px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-sm);text-align:center;padding:4px}
+.rep-input:focus,.sek-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+.rep-input::placeholder,.sek-input::placeholder{color:var(--ink-soft);font-size:var(--text-xs)}
 
 /* ---------- Oberes Limit ---------- */
 .toplimit{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:10px;cursor:pointer;border:1px solid transparent}
@@ -716,7 +716,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
 @media(max-width:420px){
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 5px)}
-  .rep-input{width:44px;height:32px;font-size:var(--text-xs)}
+  .rep-input,.sek-input{width:44px;height:32px;font-size:var(--text-xs)}
   /* Fünf Beschriftungen brauchten bei 375px 364 Pixel und hatten 341 – „Ziele"
      ragte über den Rand. Die Leiste ist zwar wischbar, aber der Scrollbalken
      ist ausgeblendet, es gibt also keinen Hinweis darauf. Weniger Innenabstand

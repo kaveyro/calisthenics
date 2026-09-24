@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel, zuSchwer } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -11,7 +11,7 @@ import { EXERCISES } from '../js/exercises.js';
 describe('zielAuswerten', () => {
   it('liest Wiederholungen', () => {
     expect(zielAuswerten({ saetze: 4, wdh: [6, 10] }))
-      .toEqual({ sets: 4, isHold: false, holdSecs: 0, minReps: 6, maxReps: 10, art: 'wdh' });
+      .toEqual({ sets: 4, isHold: false, holdSecs: 0, minSecs: 0, minReps: 6, maxReps: 10, art: 'wdh' });
   });
 
   it('liest einen festen Wert', () => {
@@ -20,7 +20,7 @@ describe('zielAuswerten', () => {
 
   it('zählt bei Halteübungen die Obergrenze herunter', () => {
     expect(zielAuswerten({ saetze: 4, sek: [10, 20] }))
-      .toEqual({ sets: 4, isHold: true, holdSecs: 20, minReps: null, maxReps: null, art: 'sek' });
+      .toEqual({ sets: 4, isHold: true, holdSecs: 20, minSecs: 10, minReps: null, maxReps: null, art: 'sek' });
     expect(zielAuswerten({ saetze: 2, sek: [60, 60] })).toMatchObject({ isHold: true, holdSecs: 60 });
   });
 
@@ -172,8 +172,13 @@ describe('limitErreicht', () => {
     expect(limitErreicht(ziel, [10, -1, 10])).toBeNull();
   });
 
-  it('laesst Halteuebungen offen', () => {
-    expect(limitErreicht(zielAuswerten({ saetze: 3, sek: [10, 20] }), [20, 20, 20])).toBeNull();
+  /* Seit v16 erfasst die App die gehaltenen Sekunden je Satz. Vorher
+     blieb eine Halteuebung hier offen, weil es nichts zu vergleichen gab. */
+  it('entscheidet Halteuebungen an den gehaltenen Sekunden', () => {
+    const halten = zielAuswerten({ saetze: 3, sek: [10, 20] });
+    expect(limitErreicht(halten, [20, 20, 20])).toBe(true);
+    expect(limitErreicht(halten, [20, 19, 20])).toBe(false);
+    expect(limitErreicht(halten, [20, 20])).toBeNull();
   });
 
   it('laesst eine Stufe ohne Zielzahlen offen', () => {
@@ -256,8 +261,12 @@ describe('einstiegsziel', () => {
     expect(einstiegsziel(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'light'))).toEqual([6, 6, 6]);
   });
 
-  it('schweigt bei Halteuebungen und ohne Ziel', () => {
-    expect(einstiegsziel(zielAuswerten({ saetze: 3, sek: [10, 20] }))).toBeNull();
+  it('nennt bei Halteuebungen die kuerzeste Zeit der Spanne', () => {
+    expect(einstiegsziel(zielAuswerten({ saetze: 3, sek: [10, 20] }))).toEqual([10, 10, 10]);
+  });
+
+  it('schweigt ohne Ziel', () => {
+    expect(einstiegsziel(zielAuswerten({}))).toBeNull();
     expect(einstiegsziel(null)).toBeNull();
     expect(einstiegsziel({ sets: 0, minReps: 5 })).toBeNull();
   });
@@ -297,5 +306,40 @@ describe('zuSchwer', () => {
   it('haelt einem kaputten Eintrag stand', () => {
     expect(zuSchwer(Z, [e([]), e([3])], 2)).toBe(false);
     expect(zuSchwer(Z, [null, e([3])], 2)).toBe(false);
+  });
+});
+
+describe('halteziel', () => {
+  const H = zielAuswerten({ saetze: 3, sek: [10, 20] });
+
+  it('legt ein Fuenftel der Spanne auf die gehaltene Zeit', () => {
+    expect(halteziel(H, [12, 12, 10])).toEqual({ secs: [14, 14, 12], allesOben: false });
+  });
+
+  it('deckelt auf die Obergrenze', () => {
+    expect(halteziel(H, [19, 20, 18]).secs).toEqual([20, 20, 20]);
+  });
+
+  it('sagt, wenn alle Saetze schon oben waren', () => {
+    expect(halteziel(H, [20, 20, 20])).toEqual({ secs: [20, 20, 20], allesOben: true });
+  });
+
+  it('nimmt mindestens eine Sekunde, auch bei enger Spanne', () => {
+    const eng = zielAuswerten({ saetze: 2, sek: [8, 10] });
+    expect(halteziel(eng, [8, 8]).secs).toEqual([9, 9]);
+    /* Ein fester Wert bleibt fest. */
+    const fest = zielAuswerten({ saetze: 2, sek: [60, 60] });
+    expect(halteziel(fest, [40, 60]).secs).toEqual([41, 60]);
+  });
+
+  it('fuellt fehlende Saetze mit dem letzten bekannten', () => {
+    expect(halteziel(H, [12]).secs).toEqual([14, 14, 14]);
+  });
+
+  it('schweigt ohne Zahlen und bei Wiederholungen', () => {
+    expect(halteziel(H, [])).toBeNull();
+    expect(halteziel(H, [0, null])).toBeNull();
+    expect(halteziel(zielAuswerten({ saetze: 3, wdh: [6, 10] }), [8, 8, 8])).toBeNull();
+    expect(halteziel(null, [8])).toBeNull();
   });
 });

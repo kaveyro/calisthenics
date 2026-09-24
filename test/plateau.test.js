@@ -133,6 +133,20 @@ describe('detectPlateaus', () => {
     expect(detectPlateaus(TAGE, reihe('pushup', [10, 10, 10, 10]), {}, EX)).toEqual(['pushup']);
   });
 
+  /* Seit v16 erfasst die App die gehaltenen Sekunden. Eine Halteübung zählt
+     damit wie jede andere – nur eben in Sekunden. */
+  it('liest bei Halteübungen die gehaltenen Sekunden', () => {
+    const halten = { id: 'lever', levels: [{ saetze: 2, sek: [10, 20] }, { saetze: 2, sek: [10, 20] }] };
+    const tage = [{ key: 'A', ex: ['lever'] }];
+    const e = sek => ({ d: '2026-01-01', day: 'A', ex: ['lever'], lv: { lever: 0 }, reps: {},
+      sek: { 'lever-0': sek, 'lever-1': sek } });
+    const ex = { lever: halten };
+    expect(detectPlateaus(tage, [12, 14, 16, 18].map(e), {}, ex, ZIEL)).toEqual([]);
+    expect(detectPlateaus(tage, [14, 14, 13, 14].map(e), {}, ex, ZIEL)).toEqual(['lever']);
+    /* Oben angekommen wartet die Stufe nur noch auf die Serie. */
+    expect(detectPlateaus(tage, [20, 20, 20, 20].map(e), {}, ex, ZIEL)).toEqual([]);
+  });
+
   it('kommt mit fehlerhaften Einträgen zurecht', () => {
     const log = [null, { day: 'A' }, { d: 'x', lv: 'kaputt' }, ...reihe('pushup', [8, 8, 8, 8])];
     expect(pruefe(log)).toEqual(['pushup']);

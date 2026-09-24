@@ -71,9 +71,19 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 }
     ]);
+  });
+
+  /* Seit v16: die gehaltenen Sekunden je Satz. Nur ganze Zahlen ueber 0
+     bis zu einer Stunde, und nur Schluessel im Satzformat. */
+  it('behaelt die Haltezeiten und wirft Unbrauchbares weg', () => {
+    const out = migrateState({ log: [
+      { d: '2026-01-01', sek: { 'lever-0': 15, 'lever-1': 0, 'lever-2': 12.5, 'lever-3': 4000, lever: 9, 'lever-4': '10' } },
+      { d: '2026-01-02', sek: [1, 2] }
+    ]});
+    expect(out.log.map(l => l.sek)).toEqual([{ 'lever-0': 15 }, {}]);
   });
 
   /* Seit v16: die Einheit lag in einer Entlastungswoche. Nur ein echtes
@@ -430,7 +440,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, dauer: 0 }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 }]);
     expect(out.unbekannt).toBeUndefined();
   });
 

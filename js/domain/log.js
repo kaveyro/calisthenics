@@ -52,7 +52,17 @@ export function entryHasExercise(entry, exId, planDay){
    sortiert. Luecken sind zulaessig: wer den zweiten Satz leer laesst, hat
    trotzdem einen ersten und dritten. */
 export function repsOf(entry, exId){
-  const reps = entry && entry.reps;
+  return werteAus(entry && entry.reps, exId);
+}
+
+/* Dasselbe für die gehaltenen Sekunden einer Halteübung (seit v16). Sie
+   stehen in einem eigenen Feld, damit Volumendiagramm, CSV-Spalte und alles
+   andere, was Wiederholungen zählt, keine Sekunden mitzählt. */
+export function sekOf(entry, exId){
+  return werteAus(entry && entry.sek, exId);
+}
+
+function werteAus(reps, exId){
   if(!reps || typeof reps !== 'object') return [];
   const paare = [];
   Object.keys(reps).forEach(k => {
@@ -79,18 +89,27 @@ export function repsOf(entry, exId){
    ausser nimmt einen einzelnen Eintrag aus – etwa den gerade geschriebenen. */
 export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null){
   const out = {};
-  const verlauf = verlaufJeUebung(log, exIds, 1, dayOf, ausser);
-  Object.keys(verlauf).forEach(id => { out[id] = verlauf[id][0]; });
+  const gefunden = sammle(log, exIds, 1, dayOf, ausser, (reps, sek, lvl, d) =>
+    reps.length ? { d, reps, lvl } : null);
+  Object.keys(gefunden).forEach(id => { out[id] = gefunden[id][0]; });
   return out;
 }
 
 /* Die letzten `anzahl` Einheiten mit Zahlen je Uebung, neueste zuerst:
-   { pushup: [{ d, reps, lvl }, …] }. Uebungen ohne jede Zahl fehlen.
+   { pushup: [{ d, reps, sek, lvl }, …] }. Uebungen ohne jede Zahl fehlen.
+   Anders als lastRepsByExercise() zaehlen hier auch gehaltene Sekunden –
+   die Karte braucht fuer eine Halteuebung genau die.
 
    Derselbe rueckwaertige Durchlauf wie oben beschrieben, nur dass er je
    Uebung mehr als einen Eintrag einsammelt – der Hinweis auf eine zu
    schwere Stufe braucht zwei Einheiten, nicht eine. */
 export function verlaufJeUebung(log, exIds, anzahl = 1, dayOf = () => null, ausser = null){
+  return sammle(log, exIds, anzahl, dayOf, ausser, (reps, sek, lvl, d) =>
+    (reps.length || sek.length) ? { d, reps, sek, lvl } : null);
+}
+
+/* nimm(reps, sek, lvl, d) entscheidet, ob ein Eintrag zaehlt, und baut ihn. */
+function sammle(log, exIds, anzahl, dayOf, ausser, nimm){
   const out = {};
   if(!Array.isArray(log) || !exIds || !(anzahl > 0)) return out;
   const offen = new Set(exIds);
@@ -100,15 +119,15 @@ export function verlaufJeUebung(log, exIds, anzahl = 1, dayOf = () => null, auss
     if(l === ausser) continue;
     for(const id of entryExercises(l, dayOf(l && l.day))){
       if(!offen.has(id)) continue;
-      const reps = repsOf(l, id);
-      /* Eine Einheit, in der die Uebung nur abgehakt wurde, hilft nicht
-         weiter – gesucht sind Zahlen zum Vergleichen. Also offen lassen. */
-      if(!reps.length) continue;
       /* Die Stufe gehoert dazu: nach einem Aufstieg stammen die Zahlen von
          der leichteren Variante und taugen nicht als Vorgabe fuer die neue.
          null, wo der Eintrag sie nicht kennt (vor v15, CSV, nachgetragen). */
       const lvl = l.lv && Number.isInteger(l.lv[id]) ? l.lv[id] : null;
-      (out[id] = out[id] || []).push({ d: l.d, reps, lvl });
+      /* Eine Einheit, in der die Uebung nur abgehakt wurde, hilft nicht
+         weiter – gesucht sind Zahlen zum Vergleichen. Also offen lassen. */
+      const treffer = nimm(repsOf(l, id), sekOf(l, id), lvl, l.d);
+      if(!treffer) continue;
+      (out[id] = out[id] || []).push(treffer);
       if(out[id].length >= anzahl) offen.delete(id);
     }
   }
