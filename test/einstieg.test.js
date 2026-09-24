@@ -4,16 +4,16 @@ import { ANKER, ankerUebung, einstiegsFragen, startStufen } from '../js/domain/e
 /* Eine kleine, vollstaendig kontrollierte Uebungsliste. Die echten Daten
    stehen in js/exercises.js und aendern sich; hier soll die Rechnung
    geprueft werden, nicht der Inhalt. */
-const leiter = n => Array.from({ length: n }, (_, i) => ({ stage: 'S' + i, target: '4 × 8' }));
+const leiter = n => Array.from({ length: n }, (_, i) => ({ stage: 'S' + i, saetze: 4, wdh: [8, 8] }));
 
 const EXERCISES = [
   { id: 'pushup', cat: 'push', equip: ['none'], levels: leiter(9) },
   { id: 'dips', cat: 'push', equip: ['chair', 'parallettes'], levels: [
-    { stage: 'A', target: '4 × 8', equip: ['chair'] },
-    { stage: 'B', target: '4 × 8', equip: ['chair'] },
-    { stage: 'C', target: '4 × 8', equip: ['parallettes'] },
-    { stage: 'D', target: '4 × 8', equip: ['parallettes'] },
-    { stage: 'E', target: '4 × 8', equip: ['parallettes'] }
+    { stage: 'A', saetze: 4, wdh: [8, 8], equip: ['chair'] },
+    { stage: 'B', saetze: 4, wdh: [8, 8], equip: ['chair'] },
+    { stage: 'C', saetze: 4, wdh: [8, 8], equip: ['parallettes'] },
+    { stage: 'D', saetze: 4, wdh: [8, 8], equip: ['parallettes'] },
+    { stage: 'E', saetze: 4, wdh: [8, 8], equip: ['parallettes'] }
   ]},
   { id: 'pullup', cat: 'pull', equip: ['bar'], levels: leiter(9) },
   { id: 'row', cat: 'pull', equip: ['chair', 'bar'], levels: leiter(5) },

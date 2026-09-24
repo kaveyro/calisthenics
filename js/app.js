@@ -6,7 +6,7 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { parseTarget as parseTargetPure } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
@@ -985,27 +985,25 @@ function renderHeute(){
 
 /* ================= Sätze & Ziele berechnen ================= */
 /* Der einzige Ort, an dem der Satz-Modus angewandt wird – und damit auch der
-   richtige fuer die Entlastungswoche. */
-function parseTarget(target){
-  const t = parseTargetPure(target, cfg('setsMode'));
+   richtige fuer die Entlastungswoche. Bekommt die Stufe selbst, nicht mehr
+   ihren Zieltext: die Zahlen stehen seit der Umstellung als Daten darin. */
+function zielVon(level){
+  const t = zielAuswerten(level, cfg('setsMode'));
   if(!deloadAktiv()) return t;
   /* Halbe Saetze, unveraenderte Wiederholungen und Haltezeiten: im Deload
      sinkt das Volumen, nicht die Intensitaet. Genau so ist eine
      Entlastungswoche gemeint. */
   return { ...t, sets: Math.max(1, Math.ceil(t.sets / 2)) };
 }
-/* Zielangaben wie '4 × 10–20 Sek' fuer die Anzeige uebersetzen.
+/* Zielangabe fuer die Anzeige, etwa '4 × 10–20 Sek'.
 
-   Nicht in content.en.js gespiegelt, und zwar mit Absicht: parseTarget()
-   erkennt Halteuebungen an 'Sek' (js/domain/target.js). Uebersetzte Ziele in
-   den Daten wuerden die Satz- und Halteerkennung fuer alle 141 Stufen
-   zerlegen. Sprachabhaengig sind ohnehin nur die zwei Einheitenwoerter –
-   '×' und '–' sind neutral. Also nur beim Ausgeben ersetzen, waehrend
-   parseTarget() weiterhin die deutsche Quelle bekommt. */
-function zielText(target){
-  return String(target == null ? '' : target)
-    .replace(/\bSek\b/g, __('secShort'))
-    .replace(/\bVersuche\b/g, __('attempts'));
+   Hier stand eine Textersetzung: das Ziel war ein deutscher Text, die
+   Halteerkennung hing am Wort 'Sek', und uebersetzte Ziele haetten sie
+   zerlegt. Also wurde erst beim Ausgeben ersetzt. Seit die Einheit ein Feld
+   ist, baut zielText() den Text aus den Zahlen, und uebersetzt werden nur
+   noch die beiden Woerter, die hier hineingehen. */
+function zielText(level){
+  return zielTextPure(level, { sek: __('secShort'), versuche: __('attempts') });
 }
 
 /* Wochentagskuerzel in der Sprache der Oberflaeche, Montag zuerst. */
@@ -1071,7 +1069,7 @@ function renderWorkout(){
       return;
     }
     const lvl = lvlOf(ex), level = ex.levels[lvl], maxed = lvl >= ex.levels.length - 1;
-    const t = parseTarget(level.target), streak = state.streaks[ex.id] || 0;
+    const t = zielVon(level), streak = state.streaks[ex.id] || 0;
 
     let rungs = '';
     ex.levels.forEach((l, i) => {
@@ -1121,7 +1119,7 @@ function renderWorkout(){
       '<div class="rungs" role="img" aria-label="' +
         esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
         '">' + rungs + '</div>' +
-      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level.target)) + '</div></div>' +
+      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
       '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
       /* Nur ein Hinweis, keine Sperre – der Ersetzen-Knopf steht weiter
          unten in derselben Karte. Wer sein Gerät heute nicht dabei hat,
@@ -1222,7 +1220,7 @@ async function substituteExercise(origId){
   const gewaehlt = await askChoice(__('substituteFor', { name: exName(ex) }), sameCat.map(e => ({
     value: e.id,
     name: exName(e),
-    sub: exStage(e, lvlOf(e)) + ' · ' + zielText(e.levels[lvlOf(e)].target)
+    sub: exStage(e, lvlOf(e)) + ' · ' + zielText(e.levels[lvlOf(e)])
   })));
   if(!gewaehlt) return;
 
@@ -1374,7 +1372,7 @@ function closeExHistory(){
 /* ================= Satz-Interaktion ================= */
 function tapSet(id, s){
   const ex = EX_BY_ID[id]; if(!ex) return;   /* wie in allen Nachbarfunktionen */
-  const t = parseTarget(ex.levels[lvlOf(ex)].target);
+  const t = zielVon(ex.levels[lvlOf(ex)]);
   const key = id + '-' + s;
   const el = document.getElementById('set-' + key);
 
@@ -1481,7 +1479,7 @@ function updateFinish(){
   const done = Object.values(session.sets).filter(Boolean).length;
   const total = ids.reduce((a, id) => {
     const ex = EX_BY_ID[id];
-    return ex ? a + parseTarget(ex.levels[lvlOf(ex)].target).sets : a;
+    return ex ? a + zielVon(ex.levels[lvlOf(ex)]).sets : a;
   }, 0);
   document.getElementById('finishCount').textContent = done + '/' + total + ' ' + __('sets');
   document.getElementById('finishBtn').disabled = done === 0;
@@ -1677,7 +1675,7 @@ async function finishWorkout(){
     const ex = EX_BY_ID[id]; if(!ex) return;
     /* lvlOf() statt roher Zugriff: der gespeicherte Wert kann ueber der
        Stufenleiter liegen (importiertes Backup, gekuerzte Leiter nach einem
-       Inhalts-Update). Unten greift ex.levels[lvl].target darauf zu und warf
+       Inhalts-Update). Unten greift ex.levels[lvl] darauf zu und warf
        dann mitten in dieser Schleife – also nachdem streaks und levels
        bereits geschrieben waren und bevor save() lief. */
     const lvl = lvlOf(ex);
@@ -1717,7 +1715,7 @@ async function finishWorkout(){
     /* Bestleistung aus den Wiederholungen der Einheit. Quelle ist
        session.reps und nicht mehr das Eingabefeld: der Zustand ueberlebt ein
        Neuzeichnen, das Feld nicht. */
-    const t = parseTarget(ex.levels[lvl].target);
+    const t = zielVon(ex.levels[lvl]);
     if(!t.isHold && t.maxReps){
       for(let s = 0; s < t.sets; s++){
         const v = session.reps[id + '-' + s];
@@ -2090,7 +2088,7 @@ function geplanteSaetze(key){
   if(!day) return 0;
   return day.ex.reduce((summe, id) => {
     const ex = EX_BY_ID[id];
-    return ex ? summe + parseTarget(ex.levels[lvlOf(ex)].target).sets : summe;
+    return ex ? summe + zielVon(ex.levels[lvlOf(ex)]).sets : summe;
   }, 0);
 }
 
@@ -2473,7 +2471,7 @@ function renderLibrary(){
           return '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + (luecke.length ? ' gesperrt' : '') + '">' +
             '<span>' + (i + 1) + '. ' + esc(exStage(ex, i)) +
             (luecke.length ? ' <small>(' + esc(__('needsEquip', { list: equipListe(luecke) })) + ')</small>' : '') +
-            '</span><span class="t">' + esc(zielText(l.target)) + '</span></li>';
+            '</span><span class="t">' + esc(zielText(l)) + '</span></li>';
         }).join('') + '</ul>' +
         '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
           '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
@@ -3194,7 +3192,7 @@ function askEinstieg(){
           /* Erste Wahl ist immer "ganz von vorn" – das ist die ehrlichste
              Vorgabe und der bisherige Zustand. */
           stufen.map(i => '<option value="' + i + '">' +
-            esc((i + 1) + '. ' + exStage(ex, i) + ' · ' + zielText(ex.levels[i].target)) +
+            esc((i + 1) + '. ' + exStage(ex, i) + ' · ' + zielText(ex.levels[i])) +
             '</option>').join('') +
         '</select></div>').join('') ||
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
@@ -3391,7 +3389,7 @@ function verwerfeUeberzaehligeSaetze(){
   Object.keys(session.sets).forEach(key => {
     const id = key.slice(0, key.lastIndexOf('-'));
     const ex = EX_BY_ID[id]; if(!ex) return;
-    const max = parseTarget(ex.levels[lvlOf(ex)].target).sets;
+    const max = zielVon(ex.levels[lvlOf(ex)]).sets;
     if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
   });
 }
@@ -3522,7 +3520,7 @@ function exportText(){
       const ex = EX_BY_ID[id]; if(!ex) return;
       const l = lvlOf(ex);
       lines.push('  ' + exName(ex) + ': ' + __('level') + ' ' + (l + 1) + '/' + ex.levels.length +
-        ' – ' + exStage(ex, l) + ' (' + zielText(ex.levels[l].target) + ')');
+        ' – ' + exStage(ex, l) + ' (' + zielText(ex.levels[l]) + ')');
     });
   });
   const ms = Object.keys(state.milestones || {});

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { meilensteinStatus, erkannteMeilensteine } from '../js/domain/milestones.js';
 import { MILESTONES, EX_BY_ID } from '../js/exercises.js';
 
-const leiter = n => Array.from({ length: n }, (_, i) => ({ stage: 'S' + i, target: '4 × 8' }));
+const leiter = n => Array.from({ length: n }, (_, i) => ({ stage: 'S' + i, saetze: 4, wdh: [8, 8] }));
 const EX = {
   pullup: { id: 'pullup', levels: leiter(6) },
   hang: { id: 'hang', levels: leiter(5) }
@@ -129,11 +129,13 @@ describe('MILESTONES gegen die echten Uebungsdaten', () => {
   it('fordert nichts, was die Leiter dort nicht hergibt', () => {
     MILESTONES.forEach(m => {
       const ex = EX_BY_ID[m.when.ex];
+      /* Frueher las dieser Test die Zahlen mit einem regulaeren Ausdruck
+         aus dem Zieltext und erkannte Halteuebungen am Wort 'Sek'. Seit das
+         Ziel als Daten vorliegt, steht die Obergrenze direkt da. */
       const erreichbar = ex.levels.slice(m.when.lvl).some(l => {
-        const t = String(l.target);
-        const zahlen = (t.match(/\d+/g) || []).map(Number);
-        const max = Math.max(...zahlen.slice(1), 0);
-        return /Sek/.test(t) === Number.isFinite(m.when.sek) &&
+        const istSek = Array.isArray(l.sek);
+        const max = (istSek ? l.sek : l.wdh)[1];
+        return istSek === Number.isFinite(m.when.sek) &&
           max >= (Number.isFinite(m.when.sek) ? m.when.sek : m.when.reps);
       });
       expect(erreichbar, m.id).toBe(true);

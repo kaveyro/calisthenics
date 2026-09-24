@@ -1,38 +1,77 @@
-/* Auswertung der Zielangaben aus exercises.js, z. B.
-     '3 × 8–12'          -> 3 Saetze, 8 bis 12 Wiederholungen
-     '4 × 10–20 Sek'     -> 4 Saetze Halteuebung, 20 Sekunden Countdown
-     '4 × 5–8 Versuche'  -> 4 Saetze, 5 bis 8 Wiederholungen
+/* Auswertung der Zielangaben aus exercises.js.
 
-   Bindestrich und Halbgeviertstrich werden beide akzeptiert, und eine
-   nachgestellte Einheit ist erlaubt: mit dem frueheren, auf das Zeilenende
-   verankerten Muster lieferte '4 × 5–8 Versuche' keine Wiederholungszahl,
-   wodurch weder Eingabefelder noch PR-Erfassung erschienen. */
+   Eine Stufe trägt ihr Ziel als Daten:
+     { saetze: 4, wdh: [6, 10] }                   Wiederholungen
+     { saetze: 4, sek: [10, 20] }                  Halteübung
+     { saetze: 4, wdh: [5, 8], art: 'versuche' }   Versuche
+   Ein fester Wert steht als [n, n].
 
-const SETS = /^(\d+)\s*×/;
-const HOLD = /(\d+)(?:[–-](\d+))?\s*Sek/;
-const REPS = /(\d+)(?:[–-](\d+))?\s*(?:Wdh|Versuche|Reps)?\.?$/;
+   Bis hierher war das ein Text wie '4 × 6–10', den drei reguläre Ausdrücke
+   zerlegten. Das Muster musste Binde- und Halbgeviertstrich kennen, eine
+   nachgestellte Einheit dulden und Halteübungen am Wort 'Sek' erkennen – und
+   ein Tippfehler in einer der 166 Stufen ergab still „3 Sätze, keine
+   Wiederholungen": keine Fehlermeldung, nur eine Übung ohne Eingabefelder.
+   stufeGueltig() macht daraus eine Aussage, die sich prüfen lässt, und
+   test/target.test.js prüft damit den ganzen Katalog.
 
-/* setsMode: 'light' deckelt auf 3 Saetze, 'hard' legt einen drauf. */
-export function parseTarget(target, setsMode = 'standard'){
-  const str = String(target == null ? '' : target);
-  const sm = str.match(SETS);
-  const hm = str.match(HOLD);
-  const rm = str.match(REPS);
+   Die Übersetzung wurde dabei gleich mit einfacher. Die Anzeige ersetzte
+   bisher 'Sek' und 'Versuche' im fertigen Text, weil die Halteerkennung am
+   deutschen Wort hing und übersetzte Ziele sie zerlegt hätten. Jetzt ist die
+   Einheit ein Feld, und zielText() bekommt die Wörter herein.
 
-  let sets = sm ? parseInt(sm[1], 10) : 3;
+   Rein: kein DOM, kein Zustand, keine Übersetzung. */
+
+/* [min, max] aus ganzen Zahlen größer null, min nicht über max. */
+const paar = v => Array.isArray(v) && v.length === 2 &&
+  Number.isInteger(v[0]) && Number.isInteger(v[1]) && v[0] > 0 && v[0] <= v[1];
+
+/* Ob eine Stufe ein brauchbares Ziel trägt: eine Satzzahl, genau eines von
+   wdh und sek, und art nur als 'versuche' an Wiederholungen. */
+export function stufeGueltig(level){
+  if(!level || typeof level !== 'object') return false;
+  if(!Number.isInteger(level.saetze) || level.saetze < 1) return false;
+  const hatWdh = level.wdh !== undefined, hatSek = level.sek !== undefined;
+  if(hatWdh === hatSek) return false;
+  if(!paar(hatWdh ? level.wdh : level.sek)) return false;
+  if(level.art !== undefined && (level.art !== 'versuche' || !hatWdh)) return false;
+  return true;
+}
+
+/* Sätze und Zielzahlen einer Stufe. setsMode: 'light' deckelt auf 3 Sätze,
+   'hard' legt einen drauf.
+
+   Die Form des Ergebnisses ist dieselbe wie beim früheren parseTarget(), damit
+   sich an den Aufrufern nur der Eingang ändert. Neu ist allein `art`. */
+export function zielAuswerten(level, setsMode = 'standard'){
+  const l = level && typeof level === 'object' ? level : {};
+  /* Rückfall statt Absturz: eine unbrauchbare Stufe ergibt drei Sätze ohne
+     Zahlen. Das ist dasselbe stille Verhalten wie früher – nur dass der
+     Katalogtest es jetzt verhindert, bevor es ausgeliefert wird. */
+  let sets = Number.isInteger(l.saetze) && l.saetze > 0 ? l.saetze : 3;
   if(setsMode === 'light') sets = Math.min(sets, 3);
   if(setsMode === 'hard') sets = sets + 1;
 
-  let minReps = null, maxReps = null;
-  if(rm && !hm){
-    minReps = parseInt(rm[1], 10);
-    maxReps = rm[2] ? parseInt(rm[2], 10) : minReps;
-  }
+  const isHold = paar(l.sek);
+  const wdh = !isHold && paar(l.wdh) ? l.wdh : null;
   return {
     sets,
-    isHold: !!hm,
-    holdSecs: hm ? parseInt(hm[2] || hm[1], 10) : 0,
-    minReps,
-    maxReps
+    isHold,
+    /* Heruntergezählt wird die Obergrenze, wie bisher: 10–20 Sek hält 20. */
+    holdSecs: isHold ? l.sek[1] : 0,
+    minReps: wdh ? wdh[0] : null,
+    maxReps: wdh ? wdh[1] : null,
+    art: isHold ? 'sek' : (wdh && l.art === 'versuche' ? 'versuche' : 'wdh')
   };
+}
+
+/* Anzeigetext, etwa '4 × 6–10', '4 × 10–20 Sek' oder '4 × 5–8 Versuche'.
+   Die Einheitenwörter kommen herein; ohne sie stehen die deutschen. Ein
+   fester Wert erscheint einmal: '2 × 60 Sek', nicht '2 × 60–60 Sek'. */
+export function zielText(level, woerter = {}){
+  const l = level && typeof level === 'object' ? level : {};
+  const spanne = v => paar(v) ? (v[0] === v[1] ? String(v[0]) : v[0] + '–' + v[1]) : '';
+  const saetze = Number.isInteger(l.saetze) && l.saetze > 0 ? l.saetze : 3;
+  if(paar(l.sek)) return saetze + ' × ' + spanne(l.sek) + ' ' + (woerter.sek || 'Sek');
+  const text = saetze + ' × ' + spanne(l.wdh);
+  return l.art === 'versuche' ? text + ' ' + (woerter.versuche || 'Versuche') : text;
 }

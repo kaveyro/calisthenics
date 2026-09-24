@@ -18,8 +18,13 @@
                (js/domain/planbuilder.js), sonst wird das Feld nicht gelesen.
      rest      empfohlene Satzpause in Sekunden (optional)
      levels    Progressionsstufen, von leicht nach schwer
-               { stage: Variantenname, target: "4 × 6–10" }
-               Halteübungen: "4 × 10–20 Sek"
+               { stage: Variantenname, saetze: 4, wdh: [6, 10] }
+               Halteübungen:   { ..., saetze: 4, sek: [10, 20] }
+               Versuche:       { ..., saetze: 4, wdh: [5, 8], art: 'versuche' }
+               Ein fester Wert steht als [n, n]. Bis hierher war das ein Text
+               wie '4 × 6–10', den drei reguläre Ausdrücke zerlegten – ein
+               Tippfehler ergab dort still „3 Sätze, keine Wiederholungen".
+               test/target.test.js prüft jetzt jede Stufe.
                Eine Stufe darf ein eigenes "equip" tragen und überschreibt
                damit die Angabe der Übung – nötig, weil Progressionen
                unterwegs das Gerät wechseln (Dips: Bank → Parallettes).
@@ -45,13 +50,13 @@ export const EXERCISES = [
   {
     id: 'pushup', name: 'Liegestütze', cat: 'push', equip: ['none'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Erhöht (Tisch)', target: '4 × 6–10' },
-      { stage: 'Erhöht (Bank/Stufe)', target: '4 × 6–10' },
-      { stage: 'Knie-Liegestütze', target: '4 × 8–12' },
-      { stage: 'Volle Liegestütze', target: '4 × 5–10' },
-      { stage: 'Volle Liegestütze', target: '4 × 10–15' },
-      { stage: 'Auf Parallettes (tiefer)', target: '4 × 8–12', equip: ['parallettes'] },
-      { stage: 'Pseudo-Planche Liegestütze', target: '4 × 4–8' }
+      { stage: 'Erhöht (Tisch)', saetze: 4, wdh: [6, 10] },
+      { stage: 'Erhöht (Bank/Stufe)', saetze: 4, wdh: [6, 10] },
+      { stage: 'Knie-Liegestütze', saetze: 4, wdh: [8, 12] },
+      { stage: 'Volle Liegestütze', saetze: 4, wdh: [5, 10] },
+      { stage: 'Volle Liegestütze', saetze: 4, wdh: [10, 15] },
+      { stage: 'Auf Parallettes (tiefer)', saetze: 4, wdh: [8, 12], equip: ['parallettes'] },
+      { stage: 'Pseudo-Planche Liegestütze', saetze: 4, wdh: [4, 8] }
     ],
     tips: [
       'Körper als Brett: Bauch und Po fest anspannen, Rippen nach unten.',
@@ -62,9 +67,9 @@ export const EXERCISES = [
   {
     id: 'diamond', name: 'Diamant-Liegestütze', cat: 'push', equip: ['none'], rest: 90,
     levels: [
-      { stage: 'Erhöht', target: '3 × 6–10' },
-      { stage: 'Auf Knien', target: '3 × 8–12' },
-      { stage: 'Voll', target: '3 × 6–10' }
+      { stage: 'Erhöht', saetze: 3, wdh: [6, 10] },
+      { stage: 'Auf Knien', saetze: 3, wdh: [8, 12] },
+      { stage: 'Voll', saetze: 3, wdh: [6, 10] }
     ],
     tips: [
       'Hände bilden ein Dreieck unter der Brust – Daumen und Zeigefinger berühren sich.',
@@ -75,9 +80,9 @@ export const EXERCISES = [
   {
     id: 'archer_push', name: 'Archer-Liegestütze', cat: 'push', equip: ['none'], prio: 3, rest: 120,
     levels: [
-      { stage: 'Erhöht, leichte Verlagerung', target: '3 × 5–8' },
-      { stage: 'Voll, halbe Verlagerung', target: '3 × 5–8' },
-      { stage: 'Voll, Arm fast gestreckt', target: '3 × 4–6' }
+      { stage: 'Erhöht, leichte Verlagerung', saetze: 3, wdh: [5, 8] },
+      { stage: 'Voll, halbe Verlagerung', saetze: 3, wdh: [5, 8] },
+      { stage: 'Voll, Arm fast gestreckt', saetze: 3, wdh: [4, 6] }
     ],
     tips: [
       'Angaben gelten je Seite. Ein Arm beugt, der andere streckt sich seitlich.',
@@ -88,10 +93,10 @@ export const EXERCISES = [
   {
     id: 'support', name: 'Stützhalte', cat: 'push', equip: ['parallettes'], rest: 60,
     levels: [
-      { stage: 'Support Hold', target: '4 × 10–20 Sek' },
-      { stage: 'Support Hold', target: '4 × 20–30 Sek' },
-      { stage: 'Support Hold', target: '4 × 30–45 Sek' },
-      { stage: 'Support + leichter Lean', target: '4 × 15–25 Sek' }
+      { stage: 'Support Hold', saetze: 4, sek: [10, 20] },
+      { stage: 'Support Hold', saetze: 4, sek: [20, 30] },
+      { stage: 'Support Hold', saetze: 4, sek: [30, 45] },
+      { stage: 'Support + leichter Lean', saetze: 4, sek: [15, 25] }
     ],
     tips: [
       'Arme komplett gestreckt, Ellbogen "einrasten".',
@@ -102,11 +107,11 @@ export const EXERCISES = [
   {
     id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes', 'rings'], prio: 1, rest: 120,
     levels: [
-      { stage: 'Bank-Dips (Füße am Boden)', target: '3 × 8–12', equip: ['chair'] },
-      { stage: 'Bank-Dips, Füße erhöht', target: '3 × 8–12', equip: ['chair'] },
-      { stage: 'Negativ-Dips (Parallettes)', target: '3 × 4–6', equip: ['parallettes', 'rings'] },
-      { stage: 'Dips auf Parallettes', target: '3 × 5–8', equip: ['parallettes', 'rings'] },
-      { stage: 'Dips auf Parallettes', target: '3 × 8–12', equip: ['parallettes', 'rings'] }
+      { stage: 'Bank-Dips (Füße am Boden)', saetze: 3, wdh: [8, 12], equip: ['chair'] },
+      { stage: 'Bank-Dips, Füße erhöht', saetze: 3, wdh: [8, 12], equip: ['chair'] },
+      { stage: 'Negativ-Dips (Parallettes)', saetze: 3, wdh: [4, 6], equip: ['parallettes', 'rings'] },
+      { stage: 'Dips auf Parallettes', saetze: 3, wdh: [5, 8], equip: ['parallettes', 'rings'] },
+      { stage: 'Dips auf Parallettes', saetze: 3, wdh: [8, 12], equip: ['parallettes', 'rings'] }
     ],
     tips: [
       'Schultern unten halten, nicht zu den Ohren ziehen.',
@@ -117,11 +122,11 @@ export const EXERCISES = [
   {
     id: 'ring_pushup', name: 'Ring-Liegestütze', cat: 'push', equip: ['rings'], rest: 90,
     levels: [
-      { stage: 'Ringe hoch, Körper steil', target: '4 × 8–12' },
-      { stage: 'Ringe tief, Körper flacher', target: '4 × 6–10' },
-      { stage: 'Ringe knapp über dem Boden', target: '3 × 6–10' },
-      { stage: 'Füße erhöht', target: '3 × 5–8' },
-      { stage: 'Mit Auswärtsdrehung (RTO)', target: '3 × 5–8' }
+      { stage: 'Ringe hoch, Körper steil', saetze: 4, wdh: [8, 12] },
+      { stage: 'Ringe tief, Körper flacher', saetze: 4, wdh: [6, 10] },
+      { stage: 'Ringe knapp über dem Boden', saetze: 3, wdh: [6, 10] },
+      { stage: 'Füße erhöht', saetze: 3, wdh: [5, 8] },
+      { stage: 'Mit Auswärtsdrehung (RTO)', saetze: 3, wdh: [5, 8] }
     ],
     tips: [
       'Die Ringe wackeln – genau das ist der Reiz. Schultern und Rumpf halten dagegen.',
@@ -132,11 +137,11 @@ export const EXERCISES = [
   {
     id: 'ring_dip', name: 'Ring-Dips', cat: 'push', equip: ['rings'], rest: 150,
     levels: [
-      { stage: 'Stützhalte an den Ringen', target: '4 × 10–20 Sek' },
-      { stage: 'Stützhalte mit Auswärtsdrehung', target: '4 × 15–25 Sek' },
-      { stage: 'Negativ, 5 Sek ablassen', target: '3 × 3–5' },
-      { stage: 'Ring-Dips', target: '3 × 4–8' },
-      { stage: 'Ring-Dips mit RTO oben', target: '3 × 5–8' }
+      { stage: 'Stützhalte an den Ringen', saetze: 4, sek: [10, 20] },
+      { stage: 'Stützhalte mit Auswärtsdrehung', saetze: 4, sek: [15, 25] },
+      { stage: 'Negativ, 5 Sek ablassen', saetze: 3, wdh: [3, 5] },
+      { stage: 'Ring-Dips', saetze: 3, wdh: [4, 8] },
+      { stage: 'Ring-Dips mit RTO oben', saetze: 3, wdh: [5, 8] }
     ],
     tips: [
       'Deutlich schwerer als Dips auf Parallettes: die Ringe wollen zusätzlich stabilisiert werden.',
@@ -147,11 +152,11 @@ export const EXERCISES = [
   {
     id: 'pike', name: 'Pike-Progression', cat: 'push', equip: ['none'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Pike-Halte', target: '3 × 15–20 Sek' },
-      { stage: 'Pike-Halte', target: '3 × 25–35 Sek' },
-      { stage: 'Pike, Füße erhöht (Halte)', target: '3 × 15–25 Sek' },
-      { stage: 'Pike Push-ups', target: '3 × 5–8' },
-      { stage: 'Pike Push-ups, Füße erhöht', target: '3 × 5–8' }
+      { stage: 'Pike-Halte', saetze: 3, sek: [15, 20] },
+      { stage: 'Pike-Halte', saetze: 3, sek: [25, 35] },
+      { stage: 'Pike, Füße erhöht (Halte)', saetze: 3, sek: [15, 25] },
+      { stage: 'Pike Push-ups', saetze: 3, wdh: [5, 8] },
+      { stage: 'Pike Push-ups, Füße erhöht', saetze: 3, wdh: [5, 8] }
     ],
     tips: [
       'Po so hoch wie möglich, Gewicht auf die Schultern schieben.',
@@ -162,10 +167,10 @@ export const EXERCISES = [
   {
     id: 'planche_lean', name: 'Planche Lean', cat: 'push', equip: ['parallettes'], prio: 3, rest: 90,
     levels: [
-      { stage: 'Leichter Lean', target: '3 × 10–15 Sek' },
-      { stage: 'Mittlerer Lean', target: '3 × 15–20 Sek' },
-      { stage: 'Deutlicher Lean', target: '3 × 20–30 Sek' },
-      { stage: 'Max Lean (Füße auf Zehenspitzen)', target: '4 × 15–25 Sek' }
+      { stage: 'Leichter Lean', saetze: 3, sek: [10, 15] },
+      { stage: 'Mittlerer Lean', saetze: 3, sek: [15, 20] },
+      { stage: 'Deutlicher Lean', saetze: 3, sek: [20, 30] },
+      { stage: 'Max Lean (Füße auf Zehenspitzen)', saetze: 4, sek: [15, 25] }
     ],
     tips: [
       'Liegestützposition auf den Parallettes, Schultern vor die Hände lehnen.',
@@ -176,11 +181,11 @@ export const EXERCISES = [
   {
     id: 'wall_hs', name: 'Wand-Handstand', cat: 'push', equip: ['none'], rest: 90,
     levels: [
-      { stage: 'Wand-Plank, flacher Winkel', target: '3 × 20–30 Sek' },
-      { stage: 'Wand-Plank, steiler', target: '3 × 30–45 Sek' },
-      { stage: 'Brust zur Wand Handstand', target: '3 × 15–25 Sek' },
-      { stage: 'Brust zur Wand Handstand', target: '3 × 30–45 Sek' },
-      { stage: 'Wand-Handstand + Wandläufe', target: '4 × 20–30 Sek' }
+      { stage: 'Wand-Plank, flacher Winkel', saetze: 3, sek: [20, 30] },
+      { stage: 'Wand-Plank, steiler', saetze: 3, sek: [30, 45] },
+      { stage: 'Brust zur Wand Handstand', saetze: 3, sek: [15, 25] },
+      { stage: 'Brust zur Wand Handstand', saetze: 3, sek: [30, 45] },
+      { stage: 'Wand-Handstand + Wandläufe', saetze: 4, sek: [20, 30] }
     ],
     tips: [
       'Aktiv aus den Schultern herausdrücken – so lang wie möglich machen.',
@@ -193,11 +198,11 @@ export const EXERCISES = [
   {
     id: 'hang', name: 'Dead Hang', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 60,
     levels: [
-      { stage: 'Passiv hängen', target: '4 × 15–30 Sek' },
-      { stage: 'Passiv hängen', target: '4 × 30–45 Sek' },
-      { stage: 'Passiv hängen', target: '4 × 45–60 Sek' },
-      { stage: 'Aktiv hängen (Schultern unten)', target: '4 × 20–40 Sek' },
-      { stage: 'Einarmig unterstützt', target: '4 × 15–25 Sek' }
+      { stage: 'Passiv hängen', saetze: 4, sek: [15, 30] },
+      { stage: 'Passiv hängen', saetze: 4, sek: [30, 45] },
+      { stage: 'Passiv hängen', saetze: 4, sek: [45, 60] },
+      { stage: 'Aktiv hängen (Schultern unten)', saetze: 4, sek: [20, 40] },
+      { stage: 'Einarmig unterstützt', saetze: 4, sek: [15, 25] }
     ],
     tips: [
       'Griff etwas breiter als schulterbreit, Daumen umgreifen die Stange.',
@@ -208,9 +213,9 @@ export const EXERCISES = [
   {
     id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 60,
     levels: [
-      { stage: 'Scapula Pull-ups', target: '3 × 5–8' },
-      { stage: 'Scapula Pull-ups', target: '3 × 8–12' },
-      { stage: 'Mit 2 Sek Pause oben', target: '3 × 6–10' }
+      { stage: 'Scapula Pull-ups', saetze: 3, wdh: [5, 8] },
+      { stage: 'Scapula Pull-ups', saetze: 3, wdh: [8, 12] },
+      { stage: 'Mit 2 Sek Pause oben', saetze: 3, wdh: [6, 10] }
     ],
     tips: [
       'Arme bleiben komplett gestreckt – nur die Schulterblätter ziehen dich hoch.',
@@ -221,10 +226,10 @@ export const EXERCISES = [
   {
     id: 'row', name: 'Rudern (horizontal)', cat: 'pull', equip: ['chair', 'bar', 'rings'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Tisch-Rudern, Knie gebeugt', target: '4 × 8–12', equip: ['chair'] },
-      { stage: 'Tisch-Rudern, Beine gestreckt', target: '4 × 8–12', equip: ['chair'] },
-      { stage: 'Australian Pull-ups (tiefe Stange)', target: '4 × 8–12', equip: ['bar', 'rings'] },
-      { stage: 'Australian, Füße erhöht', target: '4 × 8–12', equip: ['bar', 'rings'] }
+      { stage: 'Tisch-Rudern, Knie gebeugt', saetze: 4, wdh: [8, 12], equip: ['chair'] },
+      { stage: 'Tisch-Rudern, Beine gestreckt', saetze: 4, wdh: [8, 12], equip: ['chair'] },
+      { stage: 'Australian Pull-ups (tiefe Stange)', saetze: 4, wdh: [8, 12], equip: ['bar', 'rings'] },
+      { stage: 'Australian, Füße erhöht', saetze: 4, wdh: [8, 12], equip: ['bar', 'rings'] }
     ],
     tips: [
       'Unter einem stabilen Tisch oder einer tiefen Stange: Brust zur Kante ziehen.',
@@ -235,11 +240,11 @@ export const EXERCISES = [
   {
     id: 'ring_row', name: 'Ring-Rows', cat: 'pull', equip: ['rings'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Körper steil, Füße unter den Ringen', target: '4 × 8–12' },
-      { stage: 'Körper flacher', target: '4 × 8–12' },
-      { stage: 'Waagerecht, Fersen am Boden', target: '4 × 8–12' },
-      { stage: 'Waagerecht, Füße erhöht', target: '4 × 8–12' },
-      { stage: 'Einarmig unterstützt', target: '3 × 5–8' }
+      { stage: 'Körper steil, Füße unter den Ringen', saetze: 4, wdh: [8, 12] },
+      { stage: 'Körper flacher', saetze: 4, wdh: [8, 12] },
+      { stage: 'Waagerecht, Fersen am Boden', saetze: 4, wdh: [8, 12] },
+      { stage: 'Waagerecht, Füße erhöht', saetze: 4, wdh: [8, 12] },
+      { stage: 'Einarmig unterstützt', saetze: 3, wdh: [5, 8] }
     ],
     tips: [
       'Der Winkel bestimmt die Last – ein Schritt nach vorn oder zurück verstellt sie feiner als jede Gewichtsscheibe.',
@@ -250,10 +255,10 @@ export const EXERCISES = [
   {
     id: 'band_pullup', name: 'Klimmzug mit Band', cat: 'pull', equip: ['bar+band', 'rings+band'], rest: 150,
     levels: [
-      { stage: 'Dickes Band, viel Unterstützung', target: '4 × 5–8' },
-      { stage: 'Mittleres Band', target: '4 × 5–8' },
-      { stage: 'Dünnes Band', target: '4 × 4–6' },
-      { stage: 'Dünnes Band, nur die letzten Wiederholungen', target: '4 × 3–5' }
+      { stage: 'Dickes Band, viel Unterstützung', saetze: 4, wdh: [5, 8] },
+      { stage: 'Mittleres Band', saetze: 4, wdh: [5, 8] },
+      { stage: 'Dünnes Band', saetze: 4, wdh: [4, 6] },
+      { stage: 'Dünnes Band, nur die letzten Wiederholungen', saetze: 4, wdh: [3, 5] }
     ],
     tips: [
       'Band über die Stange schlingen und Knie oder Fuß hineinstellen. Unten hilft es am meisten, oben kaum.',
@@ -264,12 +269,12 @@ export const EXERCISES = [
   {
     id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 150,
     levels: [
-      { stage: 'Negativ, 3 Sek ablassen', target: '4 × 3–5' },
-      { stage: 'Negativ, 5–8 Sek ablassen', target: '4 × 3–5' },
-      { stage: 'Erster Klimmzug + Negativs', target: '5 × 1' },
-      { stage: 'Klimmzüge', target: '4 × 1–3' },
-      { stage: 'Klimmzüge', target: '4 × 3–5' },
-      { stage: 'Klimmzüge', target: '4 × 6–10' }
+      { stage: 'Negativ, 3 Sek ablassen', saetze: 4, wdh: [3, 5] },
+      { stage: 'Negativ, 5–8 Sek ablassen', saetze: 4, wdh: [3, 5] },
+      { stage: 'Erster Klimmzug + Negativs', saetze: 5, wdh: [1, 1] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [1, 3] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [3, 5] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [6, 10] }
     ],
     tips: [
       'Mit Sprung oder Stuhl nach oben, Kinn über die Stange, dann langsam ablassen.',
@@ -280,9 +285,9 @@ export const EXERCISES = [
   {
     id: 'chinup', name: 'Chin-ups (Kammgriff)', cat: 'pull', equip: ['bar', 'rings'], rest: 150,
     levels: [
-      { stage: 'Negativ, 3–5 Sek', target: '3 × 3–5' },
-      { stage: 'Chin-ups', target: '3 × 1–3' },
-      { stage: 'Chin-ups', target: '3 × 4–8' }
+      { stage: 'Negativ, 3–5 Sek', saetze: 3, wdh: [3, 5] },
+      { stage: 'Chin-ups', saetze: 3, wdh: [1, 3] },
+      { stage: 'Chin-ups', saetze: 3, wdh: [4, 8] }
     ],
     tips: [
       'Handflächen zeigen zu dir – dadurch hilft der Bizeps stärker mit.',
@@ -293,10 +298,10 @@ export const EXERCISES = [
   {
     id: 'front_lever', name: 'Front Lever', cat: 'pull', equip: ['bar', 'rings'], prio: 3, rest: 120,
     levels: [
-      { stage: 'Tuck Hang (Knie an Brust)', target: '4 × 10–15 Sek' },
-      { stage: 'Tuck Front Lever', target: '4 × 8–15 Sek' },
-      { stage: 'Advanced Tuck', target: '4 × 8–12 Sek' },
-      { stage: 'One-Leg Front Lever', target: '4 × 6–10 Sek' }
+      { stage: 'Tuck Hang (Knie an Brust)', saetze: 4, sek: [10, 15] },
+      { stage: 'Tuck Front Lever', saetze: 4, sek: [8, 15] },
+      { stage: 'Advanced Tuck', saetze: 4, sek: [8, 12] },
+      { stage: 'One-Leg Front Lever', saetze: 4, sek: [6, 10] }
     ],
     tips: [
       'Arme gestreckt, Schultern nach unten und hinten ziehen.',
@@ -308,9 +313,9 @@ export const EXERCISES = [
   {
     id: 'face_pull', name: 'Face Pulls mit Band', cat: 'pull', equip: ['band'], rest: 60,
     levels: [
-      { stage: 'Face Pulls im Stehen', target: '3 × 12–15' },
-      { stage: 'Mit 2 Sek Halten hinten', target: '3 × 10–12' },
-      { stage: 'Mit Außenrotation am Ende', target: '3 × 10–12' }
+      { stage: 'Face Pulls im Stehen', saetze: 3, wdh: [12, 15] },
+      { stage: 'Mit 2 Sek Halten hinten', saetze: 3, wdh: [10, 12] },
+      { stage: 'Mit Außenrotation am Ende', saetze: 3, wdh: [10, 12] }
     ],
     tips: [
       'Band auf Gesichtshöhe befestigen und zu den Ohren ziehen – die Ellbogen bleiben oben.',
@@ -323,10 +328,10 @@ export const EXERCISES = [
   {
     id: 'squat', name: 'Kniebeugen', cat: 'legs', equip: ['none'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Kniebeugen', target: '4 × 12–15' },
-      { stage: 'Tiefe Kniebeugen', target: '4 × 15–20' },
-      { stage: 'Tempo-Kniebeugen (3 Sek runter)', target: '4 × 12–15' },
-      { stage: 'Bulgarian Split Squats', target: '3 × 8–12' }
+      { stage: 'Kniebeugen', saetze: 4, wdh: [12, 15] },
+      { stage: 'Tiefe Kniebeugen', saetze: 4, wdh: [15, 20] },
+      { stage: 'Tempo-Kniebeugen (3 Sek runter)', saetze: 4, wdh: [12, 15] },
+      { stage: 'Bulgarian Split Squats', saetze: 3, wdh: [8, 12] }
     ],
     tips: [
       'Fersen bleiben am Boden, Knie folgen der Fußrichtung.',
@@ -337,9 +342,9 @@ export const EXERCISES = [
   {
     id: 'lunge', name: 'Ausfallschritte', cat: 'legs', equip: ['none'], prio: 1, rest: 90,
     levels: [
-      { stage: 'Ausfallschritte', target: '3 × 8–10' },
-      { stage: 'Ausfallschritte', target: '3 × 12–15' },
-      { stage: 'Rückwärts mit Defizit', target: '3 × 8–12' }
+      { stage: 'Ausfallschritte', saetze: 3, wdh: [8, 10] },
+      { stage: 'Ausfallschritte', saetze: 3, wdh: [12, 15] },
+      { stage: 'Rückwärts mit Defizit', saetze: 3, wdh: [8, 12] }
     ],
     tips: [
       'Angaben gelten je Bein.',
@@ -350,10 +355,10 @@ export const EXERCISES = [
   {
     id: 'pistol', name: 'Einbeinige Kniebeuge', cat: 'legs', equip: ['chair'], prio: 3, rest: 120,
     levels: [
-      { stage: 'Assisted (an Türrahmen)', target: '3 × 5–8', equip: ['none'] },
-      { stage: 'Box Squat einbeinig (hoch)', target: '3 × 5–8', equip: ['chair'] },
-      { stage: 'Box Squat einbeinig (tief)', target: '3 × 5–8', equip: ['chair'] },
-      { stage: 'Pistol Squat', target: '3 × 3–6', equip: ['none'] }
+      { stage: 'Assisted (an Türrahmen)', saetze: 3, wdh: [5, 8], equip: ['none'] },
+      { stage: 'Box Squat einbeinig (hoch)', saetze: 3, wdh: [5, 8], equip: ['chair'] },
+      { stage: 'Box Squat einbeinig (tief)', saetze: 3, wdh: [5, 8], equip: ['chair'] },
+      { stage: 'Pistol Squat', saetze: 3, wdh: [3, 6], equip: ['none'] }
     ],
     tips: [
       'Angaben gelten je Bein.',
@@ -364,9 +369,9 @@ export const EXERCISES = [
   {
     id: 'glute_bridge', name: 'Glute Bridge', cat: 'legs', equip: ['none'], prio: 1, rest: 60,
     levels: [
-      { stage: 'Beidbeinig', target: '3 × 15–20' },
-      { stage: 'Beidbeinig, Füße erhöht', target: '3 × 12–15' },
-      { stage: 'Einbeinig', target: '3 × 10–12' }
+      { stage: 'Beidbeinig', saetze: 3, wdh: [15, 20] },
+      { stage: 'Beidbeinig, Füße erhöht', saetze: 3, wdh: [12, 15] },
+      { stage: 'Einbeinig', saetze: 3, wdh: [10, 12] }
     ],
     tips: [
       'Po oben 1–2 Sekunden fest zusammendrücken.',
@@ -377,9 +382,9 @@ export const EXERCISES = [
   {
     id: 'calf', name: 'Wadenheben', cat: 'legs', equip: ['none'], rest: 45,
     levels: [
-      { stage: 'Beidbeinig', target: '3 × 15–20' },
-      { stage: 'Beidbeinig an Stufe (volle Amplitude)', target: '3 × 15–20' },
-      { stage: 'Einbeinig an Stufe', target: '3 × 10–15' }
+      { stage: 'Beidbeinig', saetze: 3, wdh: [15, 20] },
+      { stage: 'Beidbeinig an Stufe (volle Amplitude)', saetze: 3, wdh: [15, 20] },
+      { stage: 'Einbeinig an Stufe', saetze: 3, wdh: [10, 15] }
     ],
     tips: [
       'Langsam ablassen, unten kurz dehnen.',
@@ -390,9 +395,9 @@ export const EXERCISES = [
   {
     id: 'nordic', name: 'Beinbeuger (Nordic-Progression)', cat: 'legs', equip: ['none'], rest: 90,
     levels: [
-      { stage: 'Kniebeugen mit gestreckten Beinen (Good Morning)', target: '3 × 12–15' },
-      { stage: 'Nordic Negativ (kurzer Weg)', target: '3 × 5–8' },
-      { stage: 'Nordic Negativ (weiter Weg)', target: '3 × 4–6' }
+      { stage: 'Kniebeugen mit gestreckten Beinen (Good Morning)', saetze: 3, wdh: [12, 15] },
+      { stage: 'Nordic Negativ (kurzer Weg)', saetze: 3, wdh: [5, 8] },
+      { stage: 'Nordic Negativ (weiter Weg)', saetze: 3, wdh: [4, 6] }
     ],
     tips: [
       'Füße unter etwas Schweres klemmen oder von jemandem halten lassen.',
@@ -405,10 +410,10 @@ export const EXERCISES = [
   {
     id: 'hollow', name: 'Hollow Body Hold', cat: 'core', equip: ['none'], prio: 1, rest: 60,
     levels: [
-      { stage: 'Knie angewinkelt', target: '3 × 15–25 Sek' },
-      { stage: 'Beine gestreckt', target: '3 × 25–40 Sek' },
-      { stage: 'Arme über Kopf', target: '3 × 25–40 Sek' },
-      { stage: 'Hollow Rocks', target: '3 × 12–20' }
+      { stage: 'Knie angewinkelt', saetze: 3, sek: [15, 25] },
+      { stage: 'Beine gestreckt', saetze: 3, sek: [25, 40] },
+      { stage: 'Arme über Kopf', saetze: 3, sek: [25, 40] },
+      { stage: 'Hollow Rocks', saetze: 3, wdh: [12, 20] }
     ],
     tips: [
       'Unteren Rücken fest in den Boden pressen – keine Lücke!',
@@ -419,10 +424,10 @@ export const EXERCISES = [
   {
     id: 'knee_raise', name: 'Hängendes Beinheben', cat: 'core', equip: ['bar', 'rings'], rest: 60,
     levels: [
-      { stage: 'Knieheben', target: '3 × 6–10' },
-      { stage: 'Knieheben', target: '3 × 10–15' },
-      { stage: 'Leg Raises (gestreckt)', target: '3 × 6–10' },
-      { stage: 'Toes to Bar', target: '3 × 5–10' }
+      { stage: 'Knieheben', saetze: 3, wdh: [6, 10] },
+      { stage: 'Knieheben', saetze: 3, wdh: [10, 15] },
+      { stage: 'Leg Raises (gestreckt)', saetze: 3, wdh: [6, 10] },
+      { stage: 'Toes to Bar', saetze: 3, wdh: [5, 10] }
     ],
     tips: [
       'Ohne Schwung – langsam hoch, langsam runter.',
@@ -433,10 +438,10 @@ export const EXERCISES = [
   {
     id: 'plank', name: 'Plank', cat: 'core', equip: ['none'], prio: 1, rest: 45,
     levels: [
-      { stage: 'Plank', target: '3 × 20–40 Sek' },
-      { stage: 'Plank', target: '3 × 45–60 Sek' },
-      { stage: 'Plank, Arme vorgestreckt', target: '3 × 20–40 Sek' },
-      { stage: 'RKC Plank (max. Spannung)', target: '3 × 15–25 Sek' }
+      { stage: 'Plank', saetze: 3, sek: [20, 40] },
+      { stage: 'Plank', saetze: 3, sek: [45, 60] },
+      { stage: 'Plank, Arme vorgestreckt', saetze: 3, sek: [20, 40] },
+      { stage: 'RKC Plank (max. Spannung)', saetze: 3, sek: [15, 25] }
     ],
     tips: [
       'Ellbogen unter den Schultern, Po nicht durchhängen lassen.',
@@ -447,9 +452,9 @@ export const EXERCISES = [
   {
     id: 'side_plank', name: 'Seitstütz', cat: 'core', equip: ['none'], rest: 45,
     levels: [
-      { stage: 'Auf Knien', target: '3 × 20–30 Sek' },
-      { stage: 'Gestreckt', target: '3 × 25–40 Sek' },
-      { stage: 'Mit angehobenem Bein', target: '3 × 20–30 Sek' }
+      { stage: 'Auf Knien', saetze: 3, sek: [20, 30] },
+      { stage: 'Gestreckt', saetze: 3, sek: [25, 40] },
+      { stage: 'Mit angehobenem Bein', saetze: 3, sek: [20, 30] }
     ],
     tips: [
       'Angaben gelten je Seite.',
@@ -460,9 +465,9 @@ export const EXERCISES = [
   {
     id: 'dragon_flag', name: 'Dragon Flag', cat: 'core', equip: ['none'], prio: 3, rest: 120,
     levels: [
-      { stage: 'Tuck Negativ', target: '3 × 5–8' },
-      { stage: 'One-Leg Negativ', target: '3 × 5–8' },
-      { stage: 'Gestreckt Negativ', target: '3 × 4–6' }
+      { stage: 'Tuck Negativ', saetze: 3, wdh: [5, 8] },
+      { stage: 'One-Leg Negativ', saetze: 3, wdh: [5, 8] },
+      { stage: 'Gestreckt Negativ', saetze: 3, wdh: [4, 6] }
     ],
     tips: [
       'An etwas Festem hinter dem Kopf festhalten, nur Schulterblätter am Boden.',
@@ -475,11 +480,11 @@ export const EXERCISES = [
   {
     id: 'lsit', name: 'L-Sit', cat: 'skill', equip: ['parallettes', 'rings'], rest: 90,
     levels: [
-      { stage: 'Tuck L-Sit', target: '4 × 5–10 Sek' },
-      { stage: 'Tuck L-Sit', target: '4 × 10–15 Sek' },
-      { stage: 'One-Leg L-Sit', target: '4 × 8–12 Sek' },
-      { stage: 'L-Sit', target: '4 × 5–10 Sek' },
-      { stage: 'L-Sit', target: '4 × 15–20 Sek' }
+      { stage: 'Tuck L-Sit', saetze: 4, sek: [5, 10] },
+      { stage: 'Tuck L-Sit', saetze: 4, sek: [10, 15] },
+      { stage: 'One-Leg L-Sit', saetze: 4, sek: [8, 12] },
+      { stage: 'L-Sit', saetze: 4, sek: [5, 10] },
+      { stage: 'L-Sit', saetze: 4, sek: [15, 20] }
     ],
     tips: [
       'Erst Stützhalte einnehmen, dann Knie zur Brust ziehen.',
@@ -490,11 +495,11 @@ export const EXERCISES = [
   {
     id: 'handstand', name: 'Freier Handstand', cat: 'skill', equip: ['none'], prio: 3, rest: 90,
     levels: [
-      { stage: 'Wandläufe / Kick-up-Übungen', target: '4 × 5–8 Versuche' },
-      { stage: 'Kick-up mit Balance-Versuch', target: '5 × 3–5 Versuche' },
-      { stage: 'Freistehend 3–5 Sek', target: '5 × 3–5 Sek' },
-      { stage: 'Freistehend 10–20 Sek', target: '5 × 10–20 Sek' },
-      { stage: 'Freistehend 30+ Sek', target: '5 × 25–40 Sek' }
+      { stage: 'Wandläufe / Kick-up-Übungen', saetze: 4, wdh: [5, 8], art: 'versuche' },
+      { stage: 'Kick-up mit Balance-Versuch', saetze: 5, wdh: [3, 5], art: 'versuche' },
+      { stage: 'Freistehend 3–5 Sek', saetze: 5, sek: [3, 5] },
+      { stage: 'Freistehend 10–20 Sek', saetze: 5, sek: [10, 20] },
+      { stage: 'Freistehend 30+ Sek', saetze: 5, sek: [25, 40] }
     ],
     tips: [
       'Balance kommt aus den Fingern: Kippen nach vorn mit den Fingerkuppen abbremsen.',
@@ -505,11 +510,11 @@ export const EXERCISES = [
   {
     id: 'planche', name: 'Planche', cat: 'skill', equip: ['parallettes'], prio: 3, rest: 150,
     levels: [
-      { stage: 'Frog Stand (Krähe)', target: '4 × 15–30 Sek', equip: ['none'] },
-      { stage: 'Tuck Planche', target: '4 × 8–15 Sek' },
-      { stage: 'Advanced Tuck Planche', target: '4 × 8–12 Sek' },
-      { stage: 'Straddle Planche Negativ', target: '4 × 4–6' },
-      { stage: 'Straddle Planche', target: '4 × 5–10 Sek' }
+      { stage: 'Frog Stand (Krähe)', saetze: 4, sek: [15, 30], equip: ['none'] },
+      { stage: 'Tuck Planche', saetze: 4, sek: [8, 15] },
+      { stage: 'Advanced Tuck Planche', saetze: 4, sek: [8, 12] },
+      { stage: 'Straddle Planche Negativ', saetze: 4, wdh: [4, 6] },
+      { stage: 'Straddle Planche', saetze: 4, sek: [5, 10] }
     ],
     tips: [
       'Ellbogen bleiben komplett gestreckt – sonst wird es ein Bent-Arm-Hold.',
@@ -520,10 +525,10 @@ export const EXERCISES = [
   {
     id: 'hspu', name: 'Handstand Push-up', cat: 'skill', equip: ['none'], prio: 3, rest: 150,
     levels: [
-      { stage: 'Pike Push-up, Füße erhöht', target: '4 × 5–8' },
-      { stage: 'Wand-HSPU Negativ', target: '4 × 3–5' },
-      { stage: 'Wand-HSPU', target: '4 × 2–5' },
-      { stage: 'Wand-HSPU', target: '4 × 6–10' }
+      { stage: 'Pike Push-up, Füße erhöht', saetze: 4, wdh: [5, 8] },
+      { stage: 'Wand-HSPU Negativ', saetze: 4, wdh: [3, 5] },
+      { stage: 'Wand-HSPU', saetze: 4, wdh: [2, 5] },
+      { stage: 'Wand-HSPU', saetze: 4, wdh: [6, 10] }
     ],
     tips: [
       'Kopf bildet mit den Händen ein Dreieck am Boden.',
@@ -534,11 +539,11 @@ export const EXERCISES = [
   {
     id: 'lsit_hs', name: 'L-Sit zum Handstand', cat: 'skill', equip: ['parallettes'], prio: 3, rest: 180,
     levels: [
-      { stage: 'Tuck-Press Negativ (aus HS ablassen)', target: '4 × 3–5' },
-      { stage: 'Press mit Absprunghilfe', target: '4 × 3–5' },
-      { stage: 'Tuck Press to Handstand', target: '5 × 2–4' },
-      { stage: 'Straddle Press to Handstand', target: '5 × 2–4' },
-      { stage: 'L-Sit to Handstand', target: '5 × 1–3' }
+      { stage: 'Tuck-Press Negativ (aus HS ablassen)', saetze: 4, wdh: [3, 5] },
+      { stage: 'Press mit Absprunghilfe', saetze: 4, wdh: [3, 5] },
+      { stage: 'Tuck Press to Handstand', saetze: 5, wdh: [2, 4] },
+      { stage: 'Straddle Press to Handstand', saetze: 5, wdh: [2, 4] },
+      { stage: 'L-Sit to Handstand', saetze: 5, wdh: [1, 3] }
     ],
     tips: [
       'Voraussetzungen: sicherer L-Sit, 30 Sek freier Handstand, viel Pike-Beweglichkeit.',
@@ -551,9 +556,9 @@ export const EXERCISES = [
   {
     id: 'wrist_prep', name: 'Handgelenks-Routine', cat: 'mobility', equip: ['none'], prio: 1, rest: 30,
     levels: [
-      { stage: 'Basis-Routine', target: '2 × 60 Sek' },
-      { stage: 'Mit Gewichtsverlagerung', target: '3 × 60 Sek' },
-      { stage: 'Mit Fingerliegestützen', target: '3 × 45 Sek' }
+      { stage: 'Basis-Routine', saetze: 2, sek: [60, 60] },
+      { stage: 'Mit Gewichtsverlagerung', saetze: 3, sek: [60, 60] },
+      { stage: 'Mit Fingerliegestützen', saetze: 3, sek: [45, 45] }
     ],
     tips: [
       'Handflächen am Boden, Finger nach vorn / zur Seite / nach hinten – je 20–30 Sek.',
@@ -564,9 +569,9 @@ export const EXERCISES = [
   {
     id: 'shoulder_mob', name: 'Schulter-Mobility', cat: 'mobility', equip: ['none'], rest: 30,
     levels: [
-      { stage: 'Handtuch-Dislocates + Armkreisen', target: '2 × 10–12' },
-      { stage: 'Dislocates enger + Wand-Slides', target: '3 × 10–12' },
-      { stage: 'Skin the Cat (an der Stange)', target: '3 × 4–6', equip: ['bar', 'rings'] }
+      { stage: 'Handtuch-Dislocates + Armkreisen', saetze: 2, wdh: [10, 12] },
+      { stage: 'Dislocates enger + Wand-Slides', saetze: 3, wdh: [10, 12] },
+      { stage: 'Skin the Cat (an der Stange)', saetze: 3, wdh: [4, 6], equip: ['bar', 'rings'] }
     ],
     tips: [
       'Handtuch weit greifen, langsam über den Kopf nach hinten führen.',
@@ -577,9 +582,9 @@ export const EXERCISES = [
   {
     id: 'band_pullapart', name: 'Band-Auseinanderziehen', cat: 'mobility', equip: ['band'], rest: 30,
     levels: [
-      { stage: 'Vor der Brust, Arme gestreckt', target: '2 × 12–15' },
-      { stage: 'Über Kopf und zurück', target: '3 × 10–12' },
-      { stage: 'Dislocates mit dem Band', target: '3 × 8–10' }
+      { stage: 'Vor der Brust, Arme gestreckt', saetze: 2, wdh: [12, 15] },
+      { stage: 'Über Kopf und zurück', saetze: 3, wdh: [10, 12] },
+      { stage: 'Dislocates mit dem Band', saetze: 3, wdh: [8, 10] }
     ],
     tips: [
       'Arme bleiben gestreckt – die Bewegung kommt aus den Schulterblättern.',
@@ -590,9 +595,9 @@ export const EXERCISES = [
   {
     id: 'pike_stretch', name: 'Pike / Vorbeuge', cat: 'mobility', equip: ['none'], rest: 30,
     levels: [
-      { stage: 'Sitzende Vorbeuge', target: '3 × 45 Sek' },
-      { stage: 'Vorbeuge mit aktivem Ziehen', target: '3 × 60 Sek' },
-      { stage: 'Erhöhte Pike-Kompression', target: '3 × 45 Sek' }
+      { stage: 'Sitzende Vorbeuge', saetze: 3, sek: [45, 45] },
+      { stage: 'Vorbeuge mit aktivem Ziehen', saetze: 3, sek: [60, 60] },
+      { stage: 'Erhöhte Pike-Kompression', saetze: 3, sek: [45, 45] }
     ],
     tips: [
       'Aktiv arbeiten: Bauch anspannen und sich selbst näher ziehen, nicht nur hängen.',
@@ -603,9 +608,9 @@ export const EXERCISES = [
   {
     id: 'pancake', name: 'Pancake / Grätsche', cat: 'mobility', equip: ['none'], rest: 30,
     levels: [
-      { stage: 'Grätsche sitzend', target: '3 × 45 Sek' },
-      { stage: 'Pancake mit Vorbeuge', target: '3 × 60 Sek' },
-      { stage: 'Aktive Pancake-Lifts', target: '3 × 8–10' }
+      { stage: 'Grätsche sitzend', saetze: 3, sek: [45, 45] },
+      { stage: 'Pancake mit Vorbeuge', saetze: 3, sek: [60, 60] },
+      { stage: 'Aktive Pancake-Lifts', saetze: 3, wdh: [8, 10] }
     ],
     tips: [
       'Knie zeigen nach oben, nicht nach vorn kippen lassen.',
@@ -616,9 +621,9 @@ export const EXERCISES = [
   {
     id: 'bridge', name: 'Brücke', cat: 'mobility', equip: ['none'], rest: 45,
     levels: [
-      { stage: 'Schulterbrücke', target: '3 × 20–30 Sek' },
-      { stage: 'Kopfbrücke', target: '3 × 15–25 Sek' },
-      { stage: 'Volle Brücke', target: '3 × 20–30 Sek' }
+      { stage: 'Schulterbrücke', saetze: 3, sek: [20, 30] },
+      { stage: 'Kopfbrücke', saetze: 3, sek: [15, 25] },
+      { stage: 'Volle Brücke', saetze: 3, sek: [20, 30] }
     ],
     tips: [
       'Öffnet Brust und Schultern – guter Gegenspieler zu vielen Liegestützen.',
@@ -629,9 +634,9 @@ export const EXERCISES = [
   {
     id: 'hip_mob', name: 'Hüft-Mobility', cat: 'mobility', equip: ['none'], rest: 30,
     levels: [
-      { stage: 'Hüftbeuger-Dehnung + 90/90', target: '2 × 45 Sek' },
-      { stage: 'Couch Stretch + Frosch', target: '3 × 45 Sek' },
-      { stage: 'Aktive 90/90-Wechsel', target: '3 × 8–10' }
+      { stage: 'Hüftbeuger-Dehnung + 90/90', saetze: 2, sek: [45, 45] },
+      { stage: 'Couch Stretch + Frosch', saetze: 3, sek: [45, 45] },
+      { stage: 'Aktive 90/90-Wechsel', saetze: 3, wdh: [8, 10] }
     ],
     tips: [
       'Angaben gelten je Seite.',
