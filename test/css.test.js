@@ -129,7 +129,10 @@ describe('Layout auf breiten Schirmen', () => {
     expect(css).toMatch(/\.wrap\{[^}]*max-width:var\(--inhalt-max\)/);
     /* Die Abschlussleiste musste frueher von Hand auf demselben Wert
        gehalten werden – dort standen die 660 ein zweites Mal. */
-    expect(css).toMatch(/\.finish-bar \.inner\{[^}]*max-width:var\(--inhalt-max\)/);
+    expect(css).toMatch(/\.finish-bar \.inner\{[^}]*max-width:calc\(var\(--inhalt-max\) - 2 \* var\(--abstand-4\)\)/);
+    /* Und .wrap zieht denselben Innenabstand ab – sonst stuenden die beiden
+       wieder um 16px auseinander. */
+    expect(css).toMatch(/\.wrap\{[^}]*padding:0 var\(--abstand-4\)/);
     /* Und nirgends sonst mehr als rohe Zahl. */
     expect(css).not.toMatch(/max-width:660px/);
   });
@@ -152,6 +155,61 @@ describe('Layout auf breiten Schirmen', () => {
     /* 0px heisst: alle Rechnungen damit ergeben unveraendert den alten
        Zustand, ohne dass irgendwo eine Fallunterscheidung noetig waere. */
     expect(css).toMatch(/--schiene:0px/);
+  });
+
+  /* Die mehrspaltigen Regeln duerfen nur auf breiten Schirmen greifen. Ein
+     .raster ausserhalb des Blocks machte das Handy-Layout zweispaltig. */
+  it('schaltet das Raster nur ab 1040px ein', () => {
+    const ausserhalb = css.split('@media(min-width:1040px){')[0];
+    expect(ausserhalb).not.toMatch(/\.raster\{/);
+    expect(css).toMatch(/\.raster\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(var\(--spalte\),1fr\)\)/);
+  });
+
+  /* Der Kniff gegen die Luecke: der Ueberhang eines spannenden Panels
+     fliesst in die flexible letzte Zeile. Mit auto-Zeilen stuende er als
+     Luecke zwischen den gestapelten Panels. */
+  it('laesst den Ueberhang langer Panels in die letzte Zeile fliessen', () => {
+    expect(css).toMatch(/\.panel--lang\{grid-row:span 2\}/);
+    expect(css).toMatch(/\.raster--verlauf\{grid-template-rows:auto auto auto 1fr\}/);
+    expect(css).toMatch(/\.raster--ziele\{grid-template-rows:auto 1fr\}/);
+  });
+
+  /* Die Suche blendet Bibliothekseintraege ueber das hidden-Attribut aus.
+     Ein display in der Kachelregel wuerde es aushebeln, und die Suche
+     faende scheinbar nichts mehr. */
+  it('ruehrt an den Bibliothekskacheln kein display an', () => {
+    const regel = css.match(/\.raster > \.lib-item,[^{]*\{[^}]*\}/);
+    expect(regel).toBeTruthy();
+    expect(regel[0]).not.toMatch(/display:/);
+  });
+
+  it('haengt die Rasterklasse an alle mehrspaltigen Bereiche', () => {
+    expect(html).toMatch(/id="content" class="raster"/);
+    expect(html).toMatch(/id="planEditor" class="raster"/);
+    expect(html).toMatch(/class="card raster" id="libList"/);
+    expect(html).toContain('class="raster raster--verlauf"');
+    expect(html).toContain('class="raster raster--ziele"');
+  });
+
+  /* Die Zeilenvorlage des Verlaufs haengt an der Zahl der Panels vor der
+     Trainingsliste. Bei zwei Spalten muss sie UNGERADE sein, sonst begaenne
+     die Liste links in einer neuen Zeile statt rechts neben dem letzten
+     kurzen Panel. Und die Vorlage braucht so viele auto-Zeilen, wie die
+     Panels davor belegen, gefolgt von der flexiblen.
+
+     Hergeleitet statt als feste Zahl: kommt ein Panel dazu, sagt der Test
+     genau, welche Vorlage jetzt stimmen wuerde. */
+  it('haelt die Zeilenvorlage des Verlaufs mit dem Markup deckungsgleich', () => {
+    const verlauf = html.split('class="raster raster--verlauf"')[1].split('</section>')[0];
+    const davor = verlauf.split('panel--lang')[0].match(/class="panel"/g).length;
+    expect(davor % 2).toBe(1);
+    const erwartet = 'auto '.repeat(Math.ceil(davor / 2)) + '1fr';
+    expect(css).toContain('.raster--verlauf{grid-template-rows:' + erwartet + '}');
+  });
+
+  it('stellt in den Zielen das lange Panel an den Anfang', () => {
+    const ziele = html.split('class="raster raster--ziele"')[1];
+    expect(ziele.indexOf('class="panel panel--lang"')).toBeLessThan(ziele.indexOf('class="panel"'));
   });
 
   it('klammert Kennzahlen und Navigation im Markup zusammen', () => {

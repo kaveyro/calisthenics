@@ -113,7 +113,7 @@
       <button class="mini-btn" data-action="warmup:add" data-i18n="warmupAddShort" data-i18n-aria-label="warmupAdd" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
     </details>
 
-    <div id="content"><div class="loading" data-i18n="loading">Lade deinen Fortschritt …</div></div>
+    <div id="content" class="raster"><div class="loading" data-i18n="loading">Lade deinen Fortschritt …</div></div>
   </section>
 
   <!-- ============ VERLAUF ============ -->
@@ -130,19 +130,29 @@
         <option value="all" data-i18n="histRangeAll">Alles</option>
       </select>
     </div>
+    <!-- Auf breiten Schirmen zweispaltig. Jede Überschrift steht mit ihrer
+         Karte in einer .panel-Klammer – als Geschwister würde das Raster sie
+         auseinanderreißen. Die DOM-Reihenfolge ist dieselbe wie vorher, auf
+         dem Handy ändert sich also nichts. -->
+    <div class="raster raster--verlauf">
+    <div class="panel">
     <div class="section-title" data-i18n="chartWorkouts">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>
       <div class="vol-legend" id="weekLegend"></div>
     </div>
+    </div>
 
+    <div class="panel">
     <div class="section-title" data-i18n="chartVolume">Wiederholungen pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="volChart"></div>
       <div class="vol-legend" data-i18n="volumeLegend">Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft.</div>
       <div id="volSplit"></div>
     </div>
+    </div>
 
+    <div class="panel">
     <div class="section-title" data-i18n="bodyWeight">Körpergewicht</div>
     <div class="card">
       <div class="inline-row">
@@ -152,22 +162,32 @@
       <svg class="spark" id="weightSpark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div class="weight-meta" id="weightMeta"></div>
     </div>
+    </div>
 
     <!-- Measurements container (rendered by JS) -->
-    <div id="measContainer"></div>
+    <div id="measContainer" class="panel"></div>
 
+    <div class="panel">
     <div class="section-title" data-i18n="yearReview">Jahresrückblick</div>
     <div class="card" id="yearReview"></div>
+    </div>
 
+    <!-- Die Trainingsliste ist das lange Stück dieses Bereichs. Auf breiten
+         Schirmen belegt sie rechts zwei Zeilen, und Jahresrückblick und
+         Kalender stapeln sich daneben. -->
+    <div class="panel panel--lang">
     <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
     <div class="muted" id="logSummary"></div>
     <!-- Ohne das ging eine Einheit ohne Handy nur über eine von Hand
          gebaute CSV wieder herein. -->
     <button class="btn secondary btn--standalone" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
     <div class="card" id="logList"></div>
+    </div>
 
-    <!-- Calendar container (rendered by JS) -->
-    <div id="calendarView"></div>
+    <!-- Calendar container (rendered by JS). Ohne Log bleibt er leer und
+         verschwindet dann per :empty auch aus dem Raster. -->
+    <div id="calendarView" class="panel"></div>
+    </div>
   </section>
 
   <!-- ============ ÜBUNGEN ============ -->
@@ -193,7 +213,7 @@
       <input type="checkbox" id="libOnlyAvailable" data-action-change="library:onlyAvailable">
       <span data-i18n="onlyAvailable">Nur mit meiner Ausrüstung</span>
     </label>
-    <div class="card" id="libList"></div>
+    <div class="card raster" id="libList"></div>
     <!-- Steht im Markup statt in der Liste: die Suche blendet Eintraege nur
          aus, statt sie neu aufzubauen (siehe filterLibrary()). -->
     <div class="empty-hint" id="libEmpty" hidden data-i18n="noExercises">Keine Übung gefunden.</div>
@@ -208,7 +228,7 @@
         <select id="planSelect" data-action-change="plan:change" aria-describedby="planDesc"></select>
       </div>
     </div>
-    <div id="planEditor"></div>
+    <div id="planEditor" class="raster"></div>
     <div class="data-btns">
       <button class="btn" data-action="plan:build" data-i18n="buildPlan">Plan aus meiner Ausrüstung</button>
       <button class="btn secondary" data-action="planDay:add" data-i18n="addDay">Trainingstag hinzufügen</button>
@@ -230,6 +250,10 @@
 
   <!-- ============ ZIELE ============ -->
   <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
+    <!-- Meilensteine sind die lange Liste: links über zwei Zeilen, rechts
+         Bestleistungen und Fahrplan gestapelt. -->
+    <div class="raster raster--ziele">
+    <div class="panel panel--lang">
     <div class="section-title" data-i18n="milestonesTitle">Meilensteine</div>
     <div class="data-btns">
       <button class="btn secondary btn--standalone" data-action="milestone:add" data-i18n="addMilestone">Eigener Meilenstein</button>
@@ -239,13 +263,19 @@
     </div>
     <div class="card" id="msList"></div>
     <p class="muted" data-i18n="milestoneNote">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert. „Sieht geschafft aus" ist ein Hinweis aus deinen Zahlen, kein Urteil über die Ausführung.</p>
+    </div>
 
     <!-- Bestleistungen lagen bisher verstreut in 42 Bibliothekseinträgen. -->
+    <div class="panel">
     <div class="section-title" data-i18n="bestsTitle">Bestleistungen</div>
     <div class="card" id="bestsList"></div>
+    </div>
 
+    <div class="panel">
     <div class="section-title" data-i18n="roadmap">Skill-Fahrplan</div>
     <div class="card" id="roadmap"></div>
+    </div>
+    </div>
   </section>
   </main>
 

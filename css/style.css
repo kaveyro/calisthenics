@@ -430,7 +430,12 @@ details.acc li{margin-bottom:5px}
 
 /* ---------- Fußzeile Training ---------- */
 .finish-bar{position:fixed;bottom:0;left:0;right:0;background:var(--bar-bg);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:none;z-index:20}
-.finish-bar .inner{max-width:var(--inhalt-max);margin:0 auto;display:flex;gap:10px;align-items:center;padding-left:var(--schiene)}
+/* Abzüglich des Innenabstands von .wrap: dessen 660px schließen die 16px
+   links und rechts ein (box-sizing:border-box), die der Leiste nicht. Die
+   Leiste stand deshalb schon immer 16px über den Inhalt hinaus, sobald der
+   Schirm breiter als 660px war – es fiel nur nicht auf, weil nichts daneben
+   stand. Mit der Schiene links war es plötzlich sichtbar. */
+.finish-bar .inner{max-width:calc(var(--inhalt-max) - 2 * var(--abstand-4));margin:0 auto;display:flex;gap:10px;align-items:center;padding-left:var(--schiene)}
 .finish-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:15px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
 .finish-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:default}
 .finish-btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
@@ -568,6 +573,54 @@ footer small{display:block;margin-top:4px;opacity:.6}
      von der Schiene – ihr Knopf stünde sonst unter der Navigation statt unter
      der Einheit, die er abschließt. */
   .finish-bar .inner{padding-left:calc(var(--schiene) + var(--abstand-5))}
+}
+
+/* ---------- Mehrspaltiger Inhalt ----------
+   Eine Hilfsklasse für alle fünf Bereiche statt einer Sonderlösung je Tab.
+   auto-fill mit einer Mindestbreite ergibt ab 1040px durchgehend zwei
+   Spalten: bei 1040px bleiben dem Inhalt 752px, bei 1600px 892px, und drei
+   Spalten zu 320px bräuchten 992. Zwei Spalten sind damit keine Annahme,
+   sondern folgen aus den Breiten oben. */
+@media(min-width:1040px){
+  .raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--spalte),1fr));
+    gap:var(--abstand-4);align-items:start}
+  /* Was keine Kachel ist, läuft über die ganze Breite: der Ladehinweis, der
+     Leerzustand ohne gewählten Tag und der Rückgängig-Knopf nach dem
+     Abschluss. Sonst stünden sie als halbe Zelle links. */
+  .raster > .loading,.raster > .empty-hint,.raster > .undo-btn{grid-column:1/-1}
+  /* Die Abstände kommen vom Raster. Die Außenränder der Kacheln stammen aus
+     dem Handy-Layout, wo sie untereinander stehen – im Raster addierten sie
+     sich zum gap. */
+  .raster > .ex,.raster > .plan-day{margin-bottom:0}
+  .raster > .panel > .section-title:first-child{margin-top:0}
+  .raster > .panel > .card:last-child{margin-bottom:0}
+  /* Der Kalender ist leer, solange es kein Log gibt – dann soll er auch
+     keine Zelle belegen. */
+  .raster > .panel:empty{display:none}
+
+  /* Ein Panel, das deutlich länger ist als seine Nachbarn, belegt zwei
+     Zeilen, und die kurzen stapeln sich daneben. Die letzte Zeile ist 1fr,
+     und das ist der eigentliche Kniff: der Überhang eines spannenden
+     Elements fließt laut Grid-Spezifikation (§12.7) in die flexible Spur.
+     Mit zwei auto-Zeilen würde er gleichmäßig verteilt und stünde als Lücke
+     ZWISCHEN den gestapelten Panels statt darunter. */
+  .panel--lang{grid-row:span 2}
+  .raster--verlauf,.raster--ziele{row-gap:var(--abstand-5)}
+  /* Verlauf: vier kurze Panels füllen die ersten zwei Zeilen, der
+     Jahresrückblick steht in der dritten links und die Trainingsliste rechts
+     daneben über die dritte und vierte. Der Kalender rückt in die vierte
+     links nach. Ändert sich die Zahl der Panels vor der Liste, muss die
+     Vorlage mit – test/css.test.js leitet sie aus dem Markup her. */
+  .raster--verlauf{grid-template-rows:auto auto auto 1fr}
+  .raster--ziele{grid-template-rows:auto 1fr}
+
+  /* Bibliothek: aus den Zeilen einer Karte werden eigenständige Kacheln, die
+     Karte gibt ihren Rahmen an die Einträge ab. display bleibt dabei
+     unberührt – es hebelte sonst das hidden-Attribut aus, mit dem die Suche
+     Einträge ausblendet. */
+  #libList.raster{background:none;border:none;padding:0}
+  .raster > .lib-item,.raster > .lib-item:last-child{background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:var(--abstand-3) var(--abstand-4)}
 }
 
 /* Deckt keine per JavaScript ausgeloesten Bewegungen ab – window.scrollTo
