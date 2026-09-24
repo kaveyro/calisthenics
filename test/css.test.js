@@ -219,3 +219,44 @@ describe('Layout auf breiten Schirmen', () => {
     expect(schiene).toContain('class="tabs"');
   });
 });
+/* Vorher standen 17 verschiedene Schriftgroessen zwischen 9 und 20px im
+   Regelwerk, viele einen halben Pixel auseinander. Die Skala hat sechs
+   Stufen; eine neue Regel mit roher Pixelgroesse waere der erste Schritt
+   zurueck. Die zwei Ausnahmen sind benannt und begruendet. */
+describe('Gestaltungsstufen', () => {
+  const stufen = ['xs', 'sm', 'md', 'base', 'lg', 'xl'];
+
+  it('definiert sechs Schriftstufen', () => {
+    stufen.forEach(s => expect(css).toMatch(new RegExp('--text-' + s + ':[0-9]')));
+  });
+
+  it('laesst keine rohe Schriftgroesse ausser den zwei begruendeten zu', () => {
+    const roh = [...css.matchAll(/([^{};]*)\{[^}]*font-size:(\d+(?:\.\d+)?)px/g)]
+      .map(m => m[1].trim().split('\n').pop().trim() + ' ' + m[2]);
+    expect(roh.sort()).toEqual([
+      /* Die Handy-Tableiste: fuenf Beschriftungen muessen in 341px passen. */
+      '.tab 13',
+      /* Keine Schrift, sondern die Groesse eines Symbols im runden Knopf. */
+      '.icon-btn 18'
+    ].sort());
+  });
+
+  it('verweist nur auf Stufen, die es gibt', () => {
+    const benutzt = new Set([...css.matchAll(/var\(--text-([a-z]+)\)/g)].map(m => m[1]));
+    [...benutzt].forEach(s => expect(stufen).toContain(s));
+    expect(benutzt.size).toBe(stufen.length);
+  });
+
+  it('mischt die Hoehenstufen fuer den dunklen Grund eigens', () => {
+    const dunkel = css.match(/html\[data-theme="dark"\]\s*\{([^}]+)\}/)[1];
+    expect(dunkel).toContain('--schatten-1');
+    expect(dunkel).toContain('--schatten-2');
+  });
+
+  it('setzt die tragenden Flaechen auf die Stufen', () => {
+    expect(css).toMatch(/^\.card\{[^}]*padding:var\(--abstand-4\)[^}]*box-shadow:var\(--schatten-1\)/m);
+    expect(css).toMatch(/^\.ex\{[^}]*padding:var\(--abstand-4\)/m);
+    expect(css).toMatch(/^\.section-title\{[^}]*margin:var\(--abstand-6\) 0 var\(--abstand-3\)/m);
+    expect(css).toMatch(/^\.modal\{[^}]*box-shadow:var\(--schatten-2\)/m);
+  });
+});

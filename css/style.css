@@ -95,6 +95,34 @@
   --schiene:0px;
   /* Mindestbreite einer Spalte im mehrspaltigen Inhalt. */
   --spalte:320px;
+
+  /* Schriftgrößen nach Rolle. Vorher standen 17 verschiedene Werte zwischen
+     9 und 20px im Regelwerk, viele davon einen halben Pixel auseinander –
+     13 neben 13.5, 14 neben 14.5, 11 neben 11.5. Solche Nachbarn sieht
+     niemand als Stufe, sie sehen nur ungleich aus. Sechs Stufen, jede mit
+     einer Aufgabe:
+       xs    Mono-Kleinschrift: Chips, Abzeichen, Achsen, Meta-Zeilen
+       sm    Sekundärtext
+       md    dichte Bedienoberfläche: Listen, Eingaben, Knöpfe
+       base  Fließtext und Beschriftungen
+       lg    Karten- und Abschnittstitel
+       xl    große Ziffern und Tag-Kürzel
+     Die kleinste Stufe ist 11px. Was vorher 9 und 9.5px hatte – die
+     Kategorie-Chips, das Abzeichen am fälligen Tag, die Beschriftung der
+     Pause –, war in Versalien und Monospace kaum lesbar. */
+  --text-xs:11px;
+  --text-sm:12.5px;
+  --text-md:13.5px;
+  --text-base:15px;
+  --text-lg:16px;
+  --text-xl:20px;
+
+  /* Höhenstufen. Bisher trug jede Karte nur einen Rahmen, und alles lag auf
+     derselben Ebene – die Karte mit der laufenden Übung genauso wie der
+     Dialog darüber. Stufe 1 für Flächen, Stufe 2 für das, was darüber
+     schwebt. */
+  --schatten-1:0 1px 2px rgba(24,28,32,.04),0 2px 6px rgba(24,28,32,.05);
+  --schatten-2:0 6px 20px rgba(24,28,32,.10),0 2px 6px rgba(24,28,32,.06);
 }
 html[data-theme="dark"]{
   --bg:#14161A;
@@ -116,13 +144,18 @@ html[data-theme="dark"]{
   --vol-core:#9A82D6;
   --vol-skill:#D468A8;
   --vol-mobility:#5BB3C0;
+  /* Ein Schatten, der für hellen Grund gemischt ist, zeigt auf dunklem
+     nichts. Dunkler und kräftiger, damit die Stufen auch hier
+     unterscheidbar bleiben. */
+  --schatten-1:0 1px 2px rgba(0,0,0,.35);
+  --schatten-2:0 8px 24px rgba(0,0,0,.5);
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{
   background:var(--bg);color:var(--ink);
-  font-family:var(--body);font-size:15px;line-height:1.5;
+  font-family:var(--body);font-size:var(--text-base);line-height:1.5;
   padding-bottom:96px;transition:background .2s,color .2s;
   -webkit-tap-highlight-color:transparent;
 }
@@ -132,7 +165,7 @@ button{font-family:inherit;color:inherit}
 /* ---------- Header ---------- */
 header{padding:24px 0 6px}
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.eyebrow{font-family:var(--mono);font-size:var(--text-xs);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
 h1{font-family:var(--display);font-size:clamp(26px,7vw,36px);line-height:1.05;text-transform:uppercase;margin:4px 0 2px}
 h1 .thin{color:var(--accent)}
 .head-btns{display:flex;gap:8px;flex:none}
@@ -141,40 +174,40 @@ h1 .thin{color:var(--accent)}
 .icon-btn{background:var(--card);border:1px solid var(--line);border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;flex:none;line-height:1;transition:border-color .15s}
 .icon-btn:hover{border-color:var(--accent)}
 .icon-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.phase-line{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:6px}
+.phase-line{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);margin-top:6px}
 .phase-line b{color:var(--ink)}
 
 /* ---------- Stats ---------- */
 .stats{display:flex;gap:10px;margin:16px 0}
-.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;min-width:0}
-.stat .num{font-family:var(--mono);font-weight:600;font-size:20px;white-space:nowrap}
-.stat .lbl{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--abstand-3);min-width:0;box-shadow:var(--schatten-1)}
+.stat .num{font-family:var(--mono);font-weight:600;font-size:var(--text-xl);white-space:nowrap}
+.stat .lbl{font-size:var(--text-xs);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
 
 /* ---------- Tabs ---------- */
-.tabs{display:flex;gap:4px;margin:4px 0 18px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto;scrollbar-width:none}
+.tabs{display:flex;gap:4px;margin:4px 0 18px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto;scrollbar-width:none;box-shadow:var(--schatten-1)}
 .tabs::-webkit-scrollbar{display:none}
-.tab{flex:1 0 auto;border:none;background:none;padding:9px 12px;border-radius:9px;font-weight:600;font-size:13.5px;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
+.tab{flex:1 0 auto;border:none;background:none;padding:9px 12px;border-radius:9px;font-weight:600;font-size:var(--text-md);color:var(--ink-soft);cursor:pointer;white-space:nowrap}
 .tab:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
 .tab.active{background:var(--accent);color:#fff}
 
 /* ---------- Banner ---------- */
-.banner{border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;font-size:13.5px}
+.banner{border-radius:var(--radius);padding:var(--abstand-3) var(--abstand-4);margin-bottom:var(--abstand-4);font-size:var(--text-md)}
 .banner.warn{background:var(--warn-soft);border:1px solid var(--warn)}
 .banner.warn b{color:var(--warn)}
 .banner.info{background:var(--accent-soft);border:1px solid var(--accent)}
-.banner button{margin-top:8px;background:var(--warn);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:600;font-size:13px;cursor:pointer}
+.banner button{margin-top:8px;background:var(--warn);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:600;font-size:var(--text-md);cursor:pointer}
 .banner.info button{background:var(--accent)}
 
 /* ---------- Eigene Dialoge (Ersatz für prompt/confirm) ---------- */
-.dlg-label{display:block;font-size:12.5px;color:var(--ink-soft);margin:14px 0 6px}
+.dlg-label{display:block;font-size:var(--text-sm);color:var(--ink-soft);margin:14px 0 6px}
 .dlg-input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
-  background:var(--bg);color:var(--ink);font:inherit;font-size:15px}
-.dlg-text{margin:14px 0 0;font-size:14px;line-height:1.5;color:var(--ink)}
+  background:var(--bg);color:var(--ink);font:inherit;font-size:var(--text-base)}
+.dlg-text{margin:14px 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink)}
 .dlg-area{width:100%;margin-top:14px;padding:10px;border:1px solid var(--line);border-radius:8px;
-  background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:12px;resize:vertical}
+  background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-sm);resize:vertical}
 .dlg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
 .dlg-actions button{min-height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--line);
-  background:var(--bg);color:var(--ink);font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+  background:var(--bg);color:var(--ink);font:inherit;font-weight:600;font-size:var(--text-base);cursor:pointer}
 .dlg-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .dlg-actions button.primary.danger{background:var(--warn);border-color:var(--warn)}
 .dlg-list{display:flex;flex-direction:column;gap:6px;margin-top:14px;max-height:50vh;overflow-y:auto}
@@ -182,31 +215,34 @@ h1 .thin{color:var(--accent)}
   min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
   background:var(--bg);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
 .dlg-choice:hover{border-color:var(--accent)}
-.dlg-choice-name{font-weight:600;font-size:14px}
-.dlg-choice-sub{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.dlg-choice-name{font-weight:600;font-size:var(--text-base)}
+.dlg-choice-sub{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 
 /* Dauerhafter Hinweis, solange Schreiben in den Speicher fehlschlaegt */
 .storage-warn{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
-  border-radius:var(--radius);padding:12px 14px;margin:14px 0;font-size:13.5px;line-height:1.45}
+  border-radius:var(--radius);padding:12px 14px;margin:14px 0;font-size:var(--text-md);line-height:1.45}
 .storage-warn[hidden]{display:none}
 
 /* ---------- Tagesauswahl ---------- */
 .day-select{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:6px 0 18px}
-.day-btn{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);padding:14px 12px;text-align:left;cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+.day-btn{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);padding:var(--abstand-4) var(--abstand-3);text-align:left;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s;position:relative;box-shadow:var(--schatten-1)}
+/* Die Tagesauswahl ist die erste Handlung jeder Einheit – unter dem Zeiger
+   hebt sie sich ab. */
+.day-btn:hover{box-shadow:var(--schatten-2)}
 .day-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.day-btn .tag{font-family:var(--display);font-size:19px;text-transform:uppercase;line-height:1.1}
-.day-btn .sub{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.day-btn .tag{font-family:var(--display);font-size:var(--text-xl);text-transform:uppercase;line-height:1.1}
+.day-btn .sub{font-size:var(--text-sm);color:var(--ink-soft);margin-top:3px}
 .day-btn.active{border-color:var(--accent);background:var(--accent-soft)}
 .day-btn.active .tag{color:var(--accent)}
-.day-btn .badge{position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:#fff;border-radius:20px;padding:2px 7px}
+.day-btn .badge{position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:#fff;border-radius:20px;padding:2px 7px}
 
 /* ---------- Aufklappbares ---------- */
-details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
-details.acc summary{padding:12px 14px;cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:var(--abstand-4);overflow:hidden;box-shadow:var(--schatten-1)}
+details.acc summary{padding:12px 14px;cursor:pointer;font-weight:600;font-size:var(--text-base);list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
 details.acc summary::-webkit-details-marker{display:none}
 details.acc summary::after{content:'+';font-family:var(--mono);color:var(--ink-soft)}
 details.acc[open] summary::after{content:'–'}
-details.acc ul{padding:0 14px 14px 30px;font-size:13.5px;color:var(--ink-soft)}
+details.acc ul{padding:0 14px 14px 30px;font-size:var(--text-md);color:var(--ink-soft)}
 details.acc li{margin-bottom:5px}
 .pflicht{color:var(--warn);font-weight:600}
 /* Der Haken gehört zum Text, der Löschknopf steht daneben – deshalb nur das
@@ -219,30 +255,30 @@ details.acc li{margin-bottom:5px}
 .cat-chip.stale{border-color:var(--line);color:var(--ink-soft)}
 
 /* ---------- Übungskarte ---------- */
-.ex{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 14px 14px;margin-bottom:14px}
+.ex{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
 .ex-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
-.rung-label{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
-.cat-chip{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
+.rung-label{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
+.cat-chip{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
 .cat-chip.warn{border-color:var(--warn);color:var(--warn)}
 .lvl-adjust{display:flex;gap:6px}
-.lvl-adjust button{width:27px;height:27px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:14px;cursor:pointer;line-height:1}
+.lvl-adjust button{width:27px;height:27px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:var(--text-base);cursor:pointer;line-height:1}
 .lvl-adjust button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.ex-name{font-weight:700;font-size:16px}
-.ex-target{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap}
-.ex-stage{font-size:13px;color:var(--ink-soft);margin-top:2px}
+.ex-name{font-weight:700;font-size:var(--text-lg)}
+.ex-target{font-family:var(--mono);font-size:var(--text-md);font-weight:600;color:var(--accent);white-space:nowrap}
+.ex-stage{font-size:var(--text-md);color:var(--ink-soft);margin-top:2px}
 .ex-stage b{color:var(--ink)}
-.last-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;font-style:italic}
-.pr-line{font-family:var(--mono);font-size:11.5px;color:var(--success);margin-top:4px}
+.last-note{font-size:var(--text-sm);color:var(--ink-soft);margin-top:6px;font-style:italic}
+.pr-line{font-family:var(--mono);font-size:var(--text-xs);color:var(--success);margin-top:4px}
 /* Was beim letzten Mal stand – bewusst neutral gefärbt, nicht wie die
    Bestleistung: die Zahl daneben ist ein Vergleichswert, kein Erfolg. */
-.last-reps{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+.last-reps{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);margin-top:4px}
 /* Fehlendes Gerät: ein Hinweis, keine Sperre – deshalb warn und nicht danger. */
-.equip-warn{font-size:12.5px;color:var(--warn);margin-top:5px}
+.equip-warn{font-size:var(--text-sm);color:var(--warn);margin-top:5px}
 /* Heute ausgelassen: die Karte bleibt stehen, damit man sie zurückholen kann –
    nur eben schmal und blass, statt die Liste zu füllen. */
 .ex--skipped{opacity:.55;padding:11px 14px}
-.ex--skipped .ex-name{font-weight:600;font-size:14.5px}
+.ex--skipped .ex-name{font-weight:600;font-size:var(--text-base)}
 /* Kalenderkopf mit Monatsnavigation */
 .cal-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cal-nav{display:flex;gap:4px;flex:none}
@@ -259,35 +295,35 @@ details.acc li{margin-bottom:5px}
 
 /* ---------- Sätze ---------- */
 .sets{display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap;align-items:center}
-.set-dot{width:48px;height:48px;border-radius:10px;border:2px solid var(--line);background:var(--card);font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .12s,border-color .12s}
+.set-dot{width:48px;height:48px;border-radius:10px;border:2px solid var(--line);background:var(--card);font-family:var(--mono);font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .12s,border-color .12s}
 .set-dot:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .set-dot.done{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .set-dot.running{background:var(--accent);border-color:var(--accent);color:#fff;animation:pulse 1s infinite alternate}
 @keyframes pulse{from{box-shadow:0 0 0 0 var(--accent-soft)}to{box-shadow:0 0 0 6px var(--accent-soft)}}
-.hold-hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+.hold-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 
 /* ---------- Rep Input ---------- */
-.rep-input{width:52px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:12px;text-align:center;padding:4px}
+.rep-input{width:52px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-sm);text-align:center;padding:4px}
 .rep-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
-.rep-input::placeholder{color:var(--ink-soft);font-size:10px}
+.rep-input::placeholder{color:var(--ink-soft);font-size:var(--text-xs)}
 
 /* ---------- Oberes Limit ---------- */
 .toplimit{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:10px;cursor:pointer;border:1px solid transparent}
 .toplimit input{width:18px;height:18px;accent-color:var(--success);flex:none;cursor:pointer}
-.toplimit span{font-size:13px;color:var(--ink-soft)}
+.toplimit span{font-size:var(--text-md);color:var(--ink-soft)}
 .toplimit.checked{background:var(--success-soft);border-color:var(--success)}
 .toplimit.checked span{color:var(--success);font-weight:600}
-.streak-hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:6px;display:block}
+.streak-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);margin-top:6px;display:block}
 .streak-hint.hot{color:var(--success);font-weight:600}
 
 /* ---------- Eingaben ---------- */
-.note-input{width:100%;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:13.5px;resize:vertical;min-height:38px}
+.note-input{width:100%;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:var(--text-md);resize:vertical;min-height:38px}
 .note-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
 .note-input::placeholder{color:var(--ink-soft)}
 /* Umbrechen statt überlaufen. Greift nur, wenn eine Zeile rechnerisch
    nicht passt – bei den Messwerten ist das der Fall, sonst nirgends. */
 .inline-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.inline-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13.5px}
+.inline-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-md)}
 .inline-row input:focus{outline:3px solid var(--accent);outline-offset:2px}
 .inline-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 15px;font-weight:600;cursor:pointer;flex:none}
 /* min-width:0 ist Pflicht, nicht Kosmetik: ein <select> ist als Flex-Kind
@@ -295,24 +331,27 @@ details.acc li{margin-bottom:5px}
    Option. Im Plan-Editor („Handgelenks-Routine (Ausrüstung fehlt)") hat
    das die Zeile über die Karte hinausgedrückt und den Hinzufügen-Knopf
    auf dem Handy aus dem Bild geschoben. */
-.inline-row select{flex:0 1 auto;min-width:0;max-width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:13.5px}
+.inline-row select{flex:0 1 auto;min-width:0;max-width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:var(--text-md)}
 .inline-row select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 /* ---------- Substitute & Per-Exercise Buttons ---------- */
-.sub-btn,.tip-btn{margin-top:10px;background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;margin-right:12px}
+.sub-btn,.tip-btn{margin-top:10px;background:none;border:none;color:var(--accent);font-size:var(--text-md);font-weight:600;cursor:pointer;padding:2px 0;margin-right:12px}
 .sub-btn:focus-visible,.tip-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.tips{display:none;margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;font-size:13.5px}
+.tips{display:none;margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;font-size:var(--text-md)}
 .tips.open{display:block}
 .tips li{margin-left:16px;margin-bottom:4px}
 
 /* ---------- Undo Button ---------- */
-.undo-btn{display:block;width:100%;padding:12px;margin-top:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);border-radius:var(--radius);font-weight:700;font-size:14px;cursor:pointer;text-align:center}
+.undo-btn{display:block;width:100%;padding:12px;margin-top:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);border-radius:var(--radius);font-weight:700;font-size:var(--text-base);cursor:pointer;text-align:center}
 .undo-btn:hover{background:var(--warn);color:#fff}
 
 /* ---------- Sektionen & Karten ---------- */
-.section-title{font-family:var(--display);font-size:16px;text-transform:uppercase;margin:22px 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
-.muted{font-size:13px;color:var(--ink-soft)}
+/* Mehr Luft darüber als darunter: der Titel gehört zu der Karte, die ihm
+   folgt, nicht zu der davor. Vorher lagen 22px über und 10px unter ihm –
+   die Zuordnung stimmte, aber zwei Abschnitte wirkten kaum getrennt. */
+.section-title{font-family:var(--display);font-size:var(--text-lg);text-transform:uppercase;margin:var(--abstand-6) 0 var(--abstand-3)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
+.muted{font-size:var(--text-md);color:var(--ink-soft)}
 
 /* ---------- Charts ---------- */
 /* overflow-x: bei „Alles" können es über hundert Spalten sein. Lieber
@@ -321,24 +360,24 @@ details.acc li{margin-bottom:5px}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;min-width:22px}
 .bar{width:100%;max-width:38px;background:var(--accent);border-radius:6px 6px 0 0;min-height:3px}
 .bar.goal-met{background:var(--success)}
-.bar-num{font-family:var(--mono);font-size:11px}
-.bar-lbl{font-family:var(--mono);font-size:10px;color:var(--ink-soft)}
+.bar-num{font-family:var(--mono);font-size:var(--text-xs)}
+.bar-lbl{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .spark{width:100%;height:70px;margin-top:10px}
-.weight-meta{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:6px}
+.weight-meta{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);margin-top:6px}
 .weight-meta b{color:var(--ink)}
-.vol-legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:8px}
+.vol-legend{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);margin-top:8px}
 
 /* ---------- Log ---------- */
-.log-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.log-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:var(--text-md)}
 .log-item:last-child{border-bottom:none}
-.log-date{font-family:var(--mono);font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.log-date{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);white-space:nowrap}
 .log-day{font-weight:700}
-.log-ups{color:var(--success);font-size:12px;white-space:nowrap}
+.log-ups{color:var(--success);font-size:var(--text-sm);white-space:nowrap}
 
 /* ---------- Calendar ---------- */
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px}
-.cal-header{text-align:center;font-family:var(--mono);font-size:10px;color:var(--ink-soft);padding:4px 0;font-weight:600}
-.cal-day{text-align:center;padding:6px 2px;border-radius:6px;font-size:13px;color:var(--ink-soft)}
+.cal-header{text-align:center;font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);padding:4px 0;font-weight:600}
+.cal-day{text-align:center;padding:6px 2px;border-radius:6px;font-size:var(--text-md);color:var(--ink-soft)}
 .cal-day.workout{background:var(--success-soft);color:var(--success);font-weight:700}
 .cal-day.today{border:2px solid var(--accent);font-weight:700}
 .cal-day.empty{background:none}
@@ -350,16 +389,16 @@ details.acc li{margin-bottom:5px}
 .ms-row:last-child{border-bottom:none}
 .ms{display:flex;align-items:center;gap:12px;padding:11px 0;flex:1;min-width:0;cursor:pointer}
 .ms:last-child{border-bottom:none}
-.ms-need{font-size:11px;color:var(--ink-soft)}
+.ms-need{font-size:var(--text-xs);color:var(--ink-soft)}
 .best-val{font-family:var(--mono);font-weight:700;margin-left:auto}
 .ms input{width:28px;height:28px;accent-color:var(--success);flex:none;cursor:pointer}
-.ms-name{font-weight:600;font-size:14px}
-.ms-date{font-family:var(--mono);font-size:11px;color:var(--success)}
+.ms-name{font-weight:600;font-size:var(--text-base)}
+.ms-date{font-family:var(--mono);font-size:var(--text-xs);color:var(--success)}
 .ms.done .ms-name{color:var(--ink-soft);text-decoration:line-through}
 
 /* ---------- Bibliothek ---------- */
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.chip{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 12px;font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);cursor:pointer}
 .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .chip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .lib-item{border-bottom:1px solid var(--line);padding:12px 0}
@@ -367,19 +406,19 @@ details.acc li{margin-bottom:5px}
 /* Als <button>: Browser-Vorgaben zuruecksetzen, Aussehen bleibt gleich */
 .lib-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;cursor:pointer;
   width:100%;padding:0;background:none;border:none;color:inherit;font:inherit;text-align:left}
-.lib-name{font-weight:700;font-size:14.5px}
-.lib-meta{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+.lib-name{font-weight:700;font-size:var(--text-base)}
+.lib-meta{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);white-space:nowrap}
 .lib-body{display:none;margin-top:10px}
 .lib-body.open{display:block}
 .lvl-list{margin:8px 0 0 0;list-style:none}
-.lvl-list li{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 8px;border-radius:8px;color:var(--ink-soft)}
+.lvl-list li{display:flex;justify-content:space-between;gap:10px;font-size:var(--text-md);padding:5px 8px;border-radius:8px;color:var(--ink-soft)}
 .lvl-list li.at{background:var(--accent-soft);color:var(--ink);font-weight:600}
 .lvl-list li.passed{color:var(--success)}
 /* Stufe, für die das Gerät fehlt. Zusätzlich zur Farbe eine schräge Schrift
    im Zusatz – der Grund steht als Text daneben, nicht nur im Farbwert. */
 .lvl-list li.gesperrt{opacity:.6}
 .lvl-list li.gesperrt small{font-style:italic;color:var(--warn)}
-.lvl-list .t{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.lvl-list .t{font-family:var(--mono);font-size:var(--text-xs);white-space:nowrap}
 
 /* Verteilung der Wiederholungen auf die Kategorien.
 
@@ -388,7 +427,7 @@ details.acc li{margin-bottom:5px}
    Text daneben; ohne den waere der Streifen reine Dekoration. */
 .vol-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:6px 0 8px;background:var(--line)}
 .vol-part{display:block;min-width:3px}
-.vol-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.vol-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .vol-keys span{display:inline-flex;align-items:center;gap:5px}
 .vol-keys i{width:9px;height:9px;border-radius:3px;flex:none}
 .vol-push{background:var(--accent)}
@@ -401,30 +440,30 @@ details.acc li{margin-bottom:5px}
 /* Vorschau im Plangenerator */
 .pb-preview{margin-top:12px;max-height:230px;overflow-y:auto}
 .pb-day{display:flex;flex-direction:column;gap:2px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
-.pb-day b{font-size:13px}
-.pb-day span{font-size:12px;color:var(--ink-soft);line-height:1.45}
+.pb-day b{font-size:var(--text-md)}
+.pb-day span{font-size:var(--text-sm);color:var(--ink-soft);line-height:1.45}
 
 /* ---------- Planer ---------- */
-.plan-day{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.plan-day{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
 .plan-day-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-.plan-day-title{font-weight:700;font-size:15px}
+.plan-day-title{font-weight:700;font-size:var(--text-base)}
 /* Wie oft der Tag dran war. Leise: eine Beobachtung, kein Vorwurf – nur der
    deutliche Rückstand bekommt Farbe. */
-.plan-day-count{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--ink-soft);margin-left:4px}
+.plan-day-count{font-family:var(--mono);font-size:var(--text-xs);font-weight:400;color:var(--ink-soft);margin-left:4px}
 .plan-day-count.warn{color:var(--warn)}
 /* Geplant, aber noch nicht gewesen: gepunkteter Rand statt Füllung, damit
    sich der Tag von einem trainierten unterscheidet. */
 .cal-day.geplant{border:1px dashed var(--accent);color:var(--ink-soft)}
-.plan-ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.plan-ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:var(--text-md)}
 .plan-ex:last-of-type{border-bottom:none}
 .plan-ex .nm{flex:1;min-width:0}
 .plan-ex[draggable="true"]{cursor:grab}
 .plan-ex[draggable="true"]:active{cursor:grabbing;opacity:.6}
-.drag-handle{color:var(--ink-soft);font-size:16px;cursor:grab;user-select:none;flex:none;width:20px;text-align:center}
+.drag-handle{color:var(--ink-soft);font-size:var(--text-lg);cursor:grab;user-select:none;flex:none;width:20px;text-align:center}
 /* Mindestens 32px: WCAG 2.5.8 fordert 24x24, empfohlen sind 44x44.
    Die Buttons waren 28x28 bzw. inline sogar nur 20x20. */
-.mini-btn{min-width:44px;min-height:44px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:13px;cursor:pointer;flex:none;line-height:1;padding:0 6px}
-.mini-btn--inline{margin-left:6px;font-size:11px}
+.mini-btn{min-width:44px;min-height:44px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:var(--text-md);cursor:pointer;flex:none;line-height:1;padding:0 6px}
+.mini-btn--inline{margin-left:6px;font-size:var(--text-xs)}
 .mini-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .mini-btn.danger{color:var(--warn)}
 
@@ -436,37 +475,37 @@ details.acc li{margin-bottom:5px}
    Schirm breiter als 660px war – es fiel nur nicht auf, weil nichts daneben
    stand. Mit der Schiene links war es plötzlich sichtbar. */
 .finish-bar .inner{max-width:calc(var(--inhalt-max) - 2 * var(--abstand-4));margin:0 auto;display:flex;gap:10px;align-items:center;padding-left:var(--schiene)}
-.finish-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:15px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+.finish-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:var(--text-base);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
 .finish-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:default}
 .finish-btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.finish-count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.finish-count{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);white-space:nowrap}
 
 /* ---------- Pausen-Chip ---------- */
 /* Behälter statt Schaltfläche: der Chip trägt jetzt zwei davon. Das Skript
    schaltet zwischen 'none' und 'flex' um (siehe pauseAnzeigen). */
-.rest-chip{position:fixed;bottom:100px;right:16px;background:var(--ink);color:var(--bg);border-radius:999px;font-family:var(--mono);font-weight:600;font-size:15px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:none;align-items:stretch;z-index:30;overflow:hidden}
+.rest-chip{position:fixed;bottom:100px;right:16px;background:var(--ink);color:var(--bg);border-radius:999px;font-family:var(--mono);font-weight:600;font-size:var(--text-base);box-shadow:var(--schatten-2);display:none;align-items:stretch;z-index:30;overflow:hidden}
 .rest-chip button{background:none;border:none;color:inherit;font:inherit;cursor:pointer}
 .rest-main{padding:12px 16px;text-align:left}
-.rest-main small{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.7;font-family:var(--body)}
+.rest-main small{display:block;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;opacity:.7;font-family:var(--body)}
 /* Eigene Trefferfläche, mindestens 44 px – wie die übrigen Bedienelemente. */
-.rest-plus{min-width:48px;min-height:48px;padding:0 14px;font-size:13px;border-left:1px solid rgba(127,127,127,.4)}
+.rest-plus{min-width:48px;min-height:48px;padding:0 14px;font-size:var(--text-md);border-left:1px solid rgba(127,127,127,.4)}
 .rest-plus:hover{background:rgba(127,127,127,.2)}
 
 /* ---------- Modal ---------- */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
 .overlay.open{display:flex}
-.modal{background:var(--card);border:1px solid var(--line);border-radius:18px;max-width:500px;width:100%;padding:18px 16px;max-height:86vh;overflow:auto}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:18px;max-width:500px;width:100%;padding:18px 16px;max-height:86vh;overflow:auto;box-shadow:var(--schatten-2)}
 /* Schmale Variante fuer den Uebungsverlauf – ersetzt ein Inline-Style. */
 .modal--narrow{max-width:400px;padding:16px}
-.modal-head{display:flex;justify-content:space-between;align-items:center;font-family:var(--display);text-transform:uppercase;font-size:16px;margin-bottom:8px}
-.modal-head button{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);line-height:1}
-.set-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
-.set-row .lbl2{font-size:14px;font-weight:600}
-.set-row .hint{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:400;margin-top:1px}
-.set-row select,.set-row input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;flex:none;max-width:175px;font-family:var(--body)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;font-family:var(--display);text-transform:uppercase;font-size:var(--text-lg);margin-bottom:8px}
+.modal-head button{background:none;border:none;font-size:var(--text-xl);cursor:pointer;color:var(--ink-soft);line-height:1}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:var(--abstand-3) 0;border-bottom:1px solid var(--line)}
+.set-row .lbl2{font-size:var(--text-base);font-weight:600}
+.set-row .hint{display:block;font-size:var(--text-xs);color:var(--ink-soft);font-weight:400;margin-top:1px}
+.set-row select,.set-row input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:var(--text-md);flex:none;max-width:175px;font-family:var(--body)}
 .set-row select:focus-visible,.set-row input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .set-row input[type=checkbox]{width:28px;height:28px;accent-color:var(--accent);flex:none;cursor:pointer}
-.modal .section-title{margin:16px 0 4px;font-size:13px}
+.modal .section-title{margin:16px 0 4px;font-size:var(--text-md)}
 .data-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 /* Messwerte: Eingabefeld und Speichern-Knopf ohne Inline-Styles. */
 /* Vier Zahlenfelder und ein Speichern-Knopf in einer Zeile: auf 375px blieben
@@ -478,7 +517,7 @@ details.acc li{margin-bottom:5px}
 .meas-col{flex:1 1 70px}
 .meas-input{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .meas-save{align-self:flex-end}
-.meas-meta{margin-top:10px;font-size:12px;color:var(--ink-soft)}
+.meas-meta{margin-top:10px;font-size:var(--text-sm);color:var(--ink-soft)}
 /* Tipps in der Bibliothek: ohne Inline-Style einen Abstand nach oben. */
 .tips--inline{margin-top:10px}
 /* Fahrplan-Eintrag: gleiche Struktur wie Bibliothekskoepfe, aber ohne
@@ -492,29 +531,29 @@ details.acc li{margin-bottom:5px}
    Buttons "Training nachtragen" und "Einstieg wiederholen" stehen aber
    ausserhalb davon und bekamen dadurch keinerlei Styling: heller
    Browser-Standard-Hintergrund mit heller Schrift im Dark Mode (unlesbar). */
-.btn{flex:1;min-width:135px;max-width:none;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;font-size:13.5px;text-align:center}
+.btn{flex:1;min-width:135px;max-width:none;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:var(--abstand-3);font-weight:600;cursor:pointer;font-size:var(--text-md);text-align:center}
 /* Alleinstehend (ausserhalb .data-btns): nicht ueber die ganze Zeile
    ziehen – flex:1 gilt nur innerhalb des Button-Verbunds. */
 .btn--standalone{flex:auto;max-width:280px}
 .btn.secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 .btn:focus-visible,.btn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
-.data-hint{font-size:12px;color:var(--ink-soft);margin-top:8px}
+.data-hint{font-size:var(--text-sm);color:var(--ink-soft);margin-top:8px}
 
 /* ---------- Toast ---------- */
-.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--toast-bg);color:var(--toast-fg);padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;transition:transform .3s ease;z-index:50;max-width:90vw;text-align:center}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--toast-bg);color:var(--toast-fg);padding:12px 18px;border-radius:12px;font-size:var(--text-base);font-weight:600;transition:transform .3s ease;z-index:50;max-width:90vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.levelup{background:var(--success);color:#fff}
 .toast-btn{margin-left:12px;min-height:32px;padding:6px 12px;border:0;border-radius:8px;background:var(--toast-fg);color:var(--toast-bg);font:inherit;font-weight:700;cursor:pointer}
 
 /* ---------- History Modal Table ---------- */
 .modal table{width:100%;border-collapse:collapse;margin-top:8px}
-.modal th,.modal td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}
-.modal th{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em}
+.modal th,.modal td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:var(--text-md)}
+.modal th{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em}
 
-footer{margin-top:28px;text-align:center;font-size:12px;color:var(--ink-soft);padding-bottom:8px}
+footer{margin-top:28px;text-align:center;font-size:var(--text-sm);color:var(--ink-soft);padding-bottom:8px}
 footer small{display:block;margin-top:4px;opacity:.6}
-.empty-hint{text-align:center;color:var(--ink-soft);font-size:14px;padding:30px 10px}
-.loading{text-align:center;padding:60px 0;color:var(--ink-soft);font-family:var(--mono);font-size:13px}
+.empty-hint{text-align:center;color:var(--ink-soft);font-size:var(--text-base);padding:30px 10px}
+.loading{text-align:center;padding:60px 0;color:var(--ink-soft);font-family:var(--mono);font-size:var(--text-md)}
 
 /* Nur fuer Screenreader: aus dem Fluss genommen, aber nicht display:none –
    sonst liest sie kein Screenreader vor. */
@@ -620,7 +659,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
      Einträge ausblendet. */
   #libList.raster{background:none;border:none;padding:0}
   .raster > .lib-item,.raster > .lib-item:last-child{background:var(--card);border:1px solid var(--line);
-    border-radius:var(--radius);padding:var(--abstand-3) var(--abstand-4)}
+    border-radius:var(--radius);padding:var(--abstand-3) var(--abstand-4);box-shadow:var(--schatten-1)}
 }
 
 /* Deckt keine per JavaScript ausgeloesten Bewegungen ab – window.scrollTo
@@ -663,11 +702,13 @@ footer small{display:block;margin-top:4px;opacity:.6}
 @media(max-width:420px){
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 5px)}
-  .rep-input{width:44px;height:32px;font-size:11px}
+  .rep-input{width:44px;height:32px;font-size:var(--text-xs)}
   /* Fünf Beschriftungen brauchten bei 375px 364 Pixel und hatten 341 – „Ziele"
      ragte über den Rand. Die Leiste ist zwar wischbar, aber der Scrollbalken
      ist ausgeblendet, es gibt also keinen Hinweis darauf. Weniger Innenabstand
      statt kürzerer Wörter oder abgeschnittener Namen. */
+  /* Bewusst außerhalb der Schriftskala: 13px ist hier keine Gestaltung,
+     sondern die Bedingung dafür, dass fünf Beschriftungen in 341px passen. */
   .tab{padding:9px 6px;font-size:13px}
   .tabs{gap:2px}
 }
