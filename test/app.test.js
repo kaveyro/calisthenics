@@ -2698,10 +2698,31 @@ describe('Tagesziel auf der Karte', () => {
   });
 
   /* Der Fall, um den es geht: nach einem Aufstieg stammen die Zahlen von der
-     leichteren Variante. Als Vorgabe fuer die neue waeren sie falscher Rat. */
-  it('gibt nach einem Stufenwechsel kein Tagesziel aus', async () => {
+     leichteren Variante. Als Vorgabe fuer die neue waeren sie falscher Rat -
+     statt "11 · 11 · 11 · 11" steht dort die Untergrenze der neuen Stufe. */
+  it('nennt nach einem Stufenwechsel die Untergrenze als Einstieg', async () => {
     await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 0 } }, { pushup: 1 });
-    expect(heute()).toBeNull();
+    /* Stufe 1 der Liegestuetze: 4 x 6-10. */
+    expect(heute().textContent).toContain('6 · 6 · 6 · 6');
+    expect(heute().textContent).toContain('Einstieg');
+  });
+
+  it('nennt den Einstieg auch fuer eine Uebung ohne Vorgeschichte', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    expect(karte().querySelector('.last-reps:not(.heute)')).toBeNull();
+    expect(heute().textContent).toContain('Einstieg');
+  });
+
+  /* 18 Stufen heissen wie ihre Nachbarin. Liegestuetze 3 und 4 sind beide
+     "Volle Liegestuetze", erst 5-10, dann 10-15. */
+  it('macht gleichnamige Stufen an Nummer und Ziel unterscheidbar', async () => {
+    await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 3 } }, { pushup: 4 });
+    const zeile = karte().querySelector('.last-reps').textContent;
+    expect(zeile).toContain('Stufe 4');
+    expect(zeile).toContain('5–10');
   });
 
   it('nennt dann die Stufe, von der die Zahlen stammen', async () => {

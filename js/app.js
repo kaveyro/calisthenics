@@ -6,7 +6,7 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
@@ -1069,18 +1069,33 @@ function toplimitHtml(ex){
    bekommen die Zeile wie bisher, aber kein Tagesziel: ob die Zahlen passen,
    laesst sich dann nicht sagen. */
 function letzteZeilen(ex, lvl, t, letzte){
-  if(!letzte) return '';
-  const reps = letzte.reps.join(' · '), date = fmtDate(letzte.d);
-  const bekannt = Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
+  const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
   const andere = bekannt && letzte.lvl !== lvl;
-  let html = '<div class="last-reps">' + esc(andere
-    ? __('lastRepsOtherStage', { stage: exStage(ex, letzte.lvl), reps, date })
-    : __('lastReps', { reps, date })) + '</div>';
+  let html = '';
+  if(letzte){
+    const reps = letzte.reps.join(' · '), date = fmtDate(letzte.d);
+    /* Mit Nummer und Ziel: 18 Stufen tragen denselben Namen wie ihre
+       Nachbarin ("Volle Liegestuetze", erst 5-10, dann 10-15). Nur mit dem
+       Namen nannte die Zeile dann die aktuelle Stufe als die andere. */
+    html += '<div class="last-reps">' + esc(andere
+      ? __('lastRepsOtherStage', {
+        n: letzte.lvl + 1, stage: exStage(ex, letzte.lvl),
+        target: zielText(ex.levels[letzte.lvl]), reps, date
+      })
+      : __('lastReps', { reps, date })) + '</div>';
+  }
   const heute = bekannt && !andere ? tagesziel(t, letzte.reps) : null;
   if(heute){
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
       : __('todayTarget', { reps: heute.reps.join(' · ') })) + '</div>';
+  } else if(!letzte || andere){
+    /* Neue Stufe oder noch nie mit Zahlen trainiert: unten anfangen. Ein
+       Eintrag, der seine Stufe nicht kennt, bekommt weiterhin gar keine
+       Vorgabe – ob er zur heutigen Stufe gehoert, laesst sich nicht sagen. */
+    const einstieg = einstiegsziel(t);
+    if(einstieg) html += '<div class="last-reps heute">' +
+      esc(__('todayEntry', { reps: einstieg.join(' · ') })) + '</div>';
   }
   return html;
 }

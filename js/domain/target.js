@@ -121,6 +121,17 @@ export function limitErreicht(ziel, repsJeSatz){
 
    Hatte die letzte Einheit weniger Sätze als heute, gilt für die
    zusätzlichen dasselbe wie für den letzten bekannten. */
+/* Die Vorgabe für die erste Einheit auf einer Stufe: die Untergrenze in
+   jedem Satz. Nach einem Aufstieg schweigt tagesziel() zu Recht – die Zahlen
+   der leichteren Variante taugen nicht als Vorgabe. Gerade dort ist „fang
+   unten an" aber der nützlichste Satz: wer nach dem Aufstieg gleich die
+   Obergrenze versucht, verreißt die Form in der Variante, die er gerade
+   erst lernt. Nicht für Halteübungen und nicht ohne Spanne. */
+export function einstiegsziel(ziel){
+  if(!ziel || ziel.isHold || !Number.isInteger(ziel.minReps) || !(ziel.sets > 0)) return null;
+  return Array.from({ length: ziel.sets }, () => ziel.minReps);
+}
+
 export function tagesziel(ziel, letzte){
   if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
   const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n >= 0);

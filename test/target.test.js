@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -244,5 +244,21 @@ describe('tagesziel', () => {
     expect(tagesziel(ziel, ['8', 7.5, -1])).toBeNull();
     expect(tagesziel(zielAuswerten({}), [8, 8])).toBeNull();
     expect(tagesziel(null, [8])).toBeNull();
+  });
+});
+
+describe('einstiegsziel', () => {
+  it('nennt die Untergrenze in jedem Satz', () => {
+    expect(einstiegsziel(zielAuswerten({ saetze: 4, wdh: [6, 10] }))).toEqual([6, 6, 6, 6]);
+  });
+
+  it('folgt dem Satz-Modus', () => {
+    expect(einstiegsziel(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'light'))).toEqual([6, 6, 6]);
+  });
+
+  it('schweigt bei Halteuebungen und ohne Ziel', () => {
+    expect(einstiegsziel(zielAuswerten({ saetze: 3, sek: [10, 20] }))).toBeNull();
+    expect(einstiegsziel(null)).toBeNull();
+    expect(einstiegsziel({ sets: 0, minReps: 5 })).toBeNull();
   });
 });
