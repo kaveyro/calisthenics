@@ -2553,3 +2553,113 @@ describe('Sprachwechsel waehrend einer Einheit', () => {
     expect(document.getElementById('rep-pushup-0').value).toBe('9');
   });
 });
+
+/* Der Aufstieg hing allein am Haekchen "Oberes Limit in allen Saetzen
+   geschafft", waehrend die Wiederholungen daneben standen und nur fuer
+   Bestleistungen und Volumen zaehlten. Jetzt entscheiden die Zahlen, wo sie
+   fuer jeden Satz vorliegen. */
+describe('Oberes Limit aus den Wiederholungen', () => {
+  async function einheit(){
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  /* Wie ein Mensch tippt: Feld fuellen, dann die Aktion des Feldes. */
+  function tippe(app, id, werte){
+    werte.forEach((w, s) => {
+      const f = document.getElementById('rep-' + id + '-' + s);
+      f.value = w == null ? '' : String(w);
+      app.actions['set:reps']({ key: id + '-' + s }, null, f);
+    });
+  }
+  const saetze = id => document.querySelectorAll('[data-exid="' + id + '"] .rep-input').length;
+  const oben = id => Number(document.getElementById('rep-' + id + '-0').placeholder.split('-')[1]);
+  const label = id => document.getElementById('top-' + id);
+  const alle = (id, n) => Array(saetze(id)).fill(n);
+
+  it('setzt das Haekchen selbst, wenn jeder Satz oben ist', async () => {
+    const app = await einheit();
+    tippe(app, 'pushup', alle('pushup', oben('pushup')));
+    expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
+    expect(label('pushup').classList.contains('checked')).toBe(true);
+    const box = label('pushup').querySelector('input');
+    expect(box.checked).toBe(true);
+    /* Eine Anzeige, keine Eingabe: gegen die Zahlen laesst es sich nicht
+       setzen oder wegnehmen. */
+    expect(box.disabled).toBe(true);
+    expect(label('pushup').querySelector('.toplimit-grund').textContent).toContain(String(oben('pushup')));
+  });
+
+  it('nimmt es zurueck, sobald ein Satz darunter bleibt', async () => {
+    const app = await einheit();
+    const werte = alle('pushup', oben('pushup'));
+    werte[werte.length - 1] = oben('pushup') - 1;
+    tippe(app, 'pushup', werte);
+    expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
+    expect(label('pushup').querySelector('input').checked).toBe(false);
+  });
+
+  it('bleibt Handeingabe, solange ein Satz ohne Zahl ist – und sagt es', async () => {
+    const app = await einheit();
+    const werte = alle('pushup', oben('pushup'));
+    werte[0] = null;
+    tippe(app, 'pushup', werte);
+    expect(label('pushup').classList.contains('abgeleitet')).toBe(false);
+    expect(label('pushup').querySelector('input').disabled).toBe(false);
+    expect(label('pushup').querySelector('.toplimit-grund')).not.toBeNull();
+  });
+
+  it('schweigt vor dem ersten eingetragenen Satz', async () => {
+    await einheit();
+    expect(label('pushup').querySelector('.toplimit-grund')).toBeNull();
+  });
+
+  it('laesst Halteuebungen bei der Handeingabe', async () => {
+    await einheit();
+    expect(label('support').classList.contains('abgeleitet')).toBe(false);
+    expect(label('support').querySelector('.toplimit-grund')).toBeNull();
+  });
+
+  it('zaehlt beim Abschluss ohne Haekchen, wenn die Zahlen stimmen', async () => {
+    const app = await einheit();
+    tippe(app, 'pushup', alle('pushup', oben('pushup')));
+    document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(gespeichert().streaks.pushup).toBe(1);
+  });
+
+  /* Der Fall, den das Haekchen frueher durchliess: als geschafft markiert,
+     die Zahlen aber zu niedrig. Die Zahlen gewinnen. */
+  it('laesst die Zahlen ueber ein gesetztes Haekchen entscheiden', async () => {
+    const app = await einheit();
+    app.actions['set:top']({ ex: 'pushup' }, null, { checked: true });
+    tippe(app, 'pushup', alle('pushup', 1));
+    document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(gespeichert().streaks.pushup).toBe(0);
+  });
+
+  /* Beim Wiederherstellen wurde das Haekchen blind aus session.top gesetzt.
+     Ein frueher gesetztes, von den Zahlen ueberholtes Haekchen stuende nach
+     dem Neuladen wieder da. */
+  it('rechnet nach dem Neuladen nach, statt das alte Haekchen zu zeigen', async () => {
+    let app = await einheit();
+    app.actions['set:top']({ ex: 'pushup' }, null, { checked: true });
+    tippe(app, 'pushup', alle('pushup', 1));
+    app.actions['set:tap']({ ex: 'pushup', set: '0' });
+    await ruhe();
+    await new Promise(r => setTimeout(r, 700));   /* entprelltes Sichern */
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    app = await starten();
+    await ruhe();
+    expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
+    expect(label('pushup').querySelector('input').checked).toBe(false);
+  });
+});

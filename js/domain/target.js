@@ -75,3 +75,30 @@ export function zielText(level, woerter = {}){
   const text = saetze + ' × ' + spanne(l.wdh);
   return l.art === 'versuche' ? text + ' ' + (woerter.versuche || 'Versuche') : text;
 }
+
+/* Ob das obere Limit in allen Sätzen erreicht ist – aus den eingetragenen
+   Zahlen statt aus einem Häkchen, das der Nutzer selbst setzt.
+
+   Bisher entschied allein dieses Häkchen („Oberes Limit in allen Sätzen
+   geschafft") über den Aufstieg, während die Wiederholungen daneben in
+   denselben Sätzen standen und für Bestleistungen und Volumen ausgewertet
+   wurden – nur für die Progression nie. Man konnte 4 × 12 in einer 6–10-
+   Spanne eintragen und stieg nicht auf, oder 4 × 4 eintragen, das Häkchen
+   setzen und stieg auf.
+
+   Drei Antworten, nicht zwei. true und false nur, wenn sich das aus den
+   Zahlen ergibt. null heißt „lässt sich nicht entscheiden": eine
+   Halteübung, deren gehaltene Sekunden die App nicht je Satz erfasst, oder
+   ein Satz ohne Zahl. Dann bleibt es bei der Handeingabe – die App soll
+   nichts behaupten, was sie nicht weiß.
+
+   ziel ist das Ergebnis von zielAuswerten(), also schon mit Satz-Modus und
+   Entlastungswoche: gezählt werden die Sätze, die heute wirklich anstehen. */
+export function limitErreicht(ziel, repsJeSatz){
+  if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
+  const reps = Array.isArray(repsJeSatz) ? repsJeSatz.slice(0, ziel.sets) : [];
+  /* 0 ist eine gültige Zahl – ein Satz, der nicht ging –, und kein
+     fehlender Eintrag. */
+  if(reps.length < ziel.sets || reps.some(n => !Number.isInteger(n) || n < 0)) return null;
+  return reps.every(n => n >= ziel.maxReps);
+}

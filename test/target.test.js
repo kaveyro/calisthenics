@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -134,5 +134,65 @@ describe('Zielangaben im Katalog', () => {
   it('führt kein altes Textfeld mehr', () => {
     const alt = alle.filter(({ l }) => 'target' in l).map(x => x.ort);
     expect(alt).toEqual([]);
+  });
+});
+
+describe('limitErreicht', () => {
+  const ziel = zielAuswerten({ saetze: 3, wdh: [6, 10] });
+
+  it('sagt ja, wenn jeder Satz die Obergrenze erreicht', () => {
+    expect(limitErreicht(ziel, [10, 10, 10])).toBe(true);
+    expect(limitErreicht(ziel, [12, 10, 11])).toBe(true);
+  });
+
+  it('sagt nein, sobald ein Satz darunter bleibt', () => {
+    expect(limitErreicht(ziel, [10, 10, 9])).toBe(false);
+    /* Der Fall, den das Haekchen frueher durchliess: niedrige Zahlen,
+       trotzdem als geschafft markiert. */
+    expect(limitErreicht(ziel, [4, 4, 4])).toBe(false);
+  });
+
+  it('zaehlt 0 als Zahl und nicht als fehlend', () => {
+    expect(limitErreicht(ziel, [10, 10, 0])).toBe(false);
+  });
+
+  /* Die dritte Antwort ist der Kern: nichts behaupten, was sich aus den
+     Zahlen nicht ergibt. */
+  it('laesst offen, wenn ein Satz ohne Zahl ist', () => {
+    expect(limitErreicht(ziel, [10, 10])).toBeNull();
+    expect(limitErreicht(ziel, [10, null, 10])).toBeNull();
+    expect(limitErreicht(ziel, [10, undefined, 10])).toBeNull();
+    expect(limitErreicht(ziel, [])).toBeNull();
+    expect(limitErreicht(ziel, undefined)).toBeNull();
+  });
+
+  it('nimmt nur ganze Zahlen, wie setRep() sie ablegt', () => {
+    expect(limitErreicht(ziel, [10, '10', 10])).toBeNull();
+    expect(limitErreicht(ziel, [10, 10.5, 10])).toBeNull();
+    expect(limitErreicht(ziel, [10, -1, 10])).toBeNull();
+  });
+
+  it('laesst Halteuebungen offen', () => {
+    expect(limitErreicht(zielAuswerten({ saetze: 3, sek: [10, 20] }), [20, 20, 20])).toBeNull();
+  });
+
+  it('laesst eine Stufe ohne Zielzahlen offen', () => {
+    expect(limitErreicht(zielAuswerten({}), [10, 10, 10])).toBeNull();
+    expect(limitErreicht(null, [10])).toBeNull();
+  });
+
+  /* Gezaehlt werden die Saetze, die heute anstehen. In der Entlastungswoche
+     sind es weniger, und Eintraege aus den gestrichenen Saetzen duerfen
+     nicht mitentscheiden. */
+  it('wertet nur so viele Saetze, wie das Ziel verlangt', () => {
+    const halb = { ...ziel, sets: 2 };
+    expect(limitErreicht(halb, [10, 10, 3])).toBe(true);
+    expect(limitErreicht(halb, [10, 10])).toBe(true);
+  });
+
+  it('behandelt Versuche wie Wiederholungen', () => {
+    const versuche = zielAuswerten({ saetze: 4, wdh: [5, 8], art: 'versuche' });
+    expect(limitErreicht(versuche, [8, 8, 8, 8])).toBe(true);
+    expect(limitErreicht(versuche, [8, 8, 8, 7])).toBe(false);
   });
 });

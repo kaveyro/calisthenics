@@ -6,7 +6,7 @@ import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure } from './domain/target.js';
+import { zielAuswerten, zielText as zielTextPure, limitErreicht } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { entryHasExercise, repsOf, lastRepsByExercise, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
@@ -326,6 +326,8 @@ function restoreActiveSession(){
 function setRep(key, value){
   const n = parseInt(value, 10);
   session.reps[key] = Number.isFinite(n) ? n : null;
+  /* Wer eine Zahl aendert, sieht sofort, ob das Limit damit steht. */
+  topLimitAktualisieren(key.slice(0, key.lastIndexOf('-')));
   /* Entprellt: hier feuert jeder Tastendruck. Satz-Tap, Top-Haekchen und
      Tagwechsel schreiben weiterhin sofort – dort ist ein Schreibvorgang pro
      Interaktion angemessen. */
@@ -1006,6 +1008,56 @@ function zielText(level){
   return zielTextPure(level, { sek: __('secShort'), versuche: __('attempts') });
 }
 
+/* Die eingetragenen Wiederholungen einer Uebung, Satz fuer Satz. */
+function repsDerEinheit(id, saetze){
+  return Array.from({ length: saetze }, (_, s) => session.reps[id + '-' + s]);
+}
+
+/* Ob das obere Limit einer Uebung in dieser Einheit erreicht ist.
+
+   Liegen fuer jeden Satz Zahlen vor, entscheiden die – das Haekchen ist dann
+   eine Anzeige und laesst sich nicht setzen. Bisher entschied allein das
+   Haekchen, und die Zahlen daneben zaehlten nur fuer Bestleistungen und
+   Volumen. Fehlt eine Zahl, oder ist es eine Halteuebung, bleibt es beim
+   Haekchen: dort weiss die App es nicht besser als der Nutzer.
+
+   abgeleitet ist true, false oder null (siehe limitErreicht()); erreicht ist
+   das, was am Ende zaehlt. */
+function limitStand(ex){
+  const t = zielVon(ex.levels[lvlOf(ex)]);
+  const reps = repsDerEinheit(ex.id, t.sets);
+  const abgeleitet = limitErreicht(t, reps);
+  return { t, reps, abgeleitet, erreicht: abgeleitet === null ? !!session.top[ex.id] : abgeleitet };
+}
+
+/* Das Haekchen samt Begruendung. Als eigene Funktion, weil es sich bei jeder
+   eingetippten Zahl aendern kann – neu gebaut wird dann nur dieses Label,
+   nicht die Karte, sonst verloere das Eingabefeld den Fokus. */
+function toplimitHtml(ex){
+  const { t, reps, abgeleitet, erreicht } = limitStand(ex);
+  let grund = '';
+  if(abgeleitet !== null){
+    grund = __('topLimitDerived', { reps: reps.join(' · '), max: t.maxReps });
+  } else if(!t.isHold && t.maxReps && reps.some(n => Number.isInteger(n))){
+    /* Nur, wenn schon etwas eingetragen ist: dann fehlt wirklich nur der
+       Rest. Vor dem ersten Satz waere der Hinweis Laerm, und bei
+       Halteuebungen gibt es nichts einzutragen. */
+    grund = __('topLimitMissing');
+  }
+  return '<label class="toplimit' + (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' abgeleitet' : '') +
+      '" id="top-' + ex.id + '">' +
+    '<input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"' +
+      (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' disabled' : '') + '>' +
+    '<span>' + __('topLimit') +
+      (grund ? '<small class="toplimit-grund">' + esc(grund) + '</small>' : '') + '</span></label>';
+}
+
+function topLimitAktualisieren(id){
+  const alt = document.getElementById('top-' + id);
+  const ex = EX_BY_ID[id];
+  if(alt && ex) alt.outerHTML = toplimitHtml(ex);
+}
+
 /* Wochentagskuerzel in der Sprache der Oberflaeche, Montag zuerst. */
 function wochentage(){
   const f = new Intl.DateTimeFormat(getLang(), { weekday: 'short' });
@@ -1138,7 +1190,7 @@ function renderWorkout(){
       '<span class="hold-hint">' +
         (t.isHold ? esc(__('holdHint', { sec: t.holdSecs })) + ' · ' : '') +
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
-      '<label class="toplimit" id="top-' + ex.id + '"><input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"><span>' + __('topLimit') + '</span></label>' +
+      toplimitHtml(ex) +
       hint +
       '<textarea class="note-input" id="note-' + ex.id + '" rows="1"' +
         ' data-action-input="note:set" data-ex="' + ex.id + '"' +
@@ -1171,12 +1223,10 @@ function restoreSession(reps){
       if(el){ el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); }
     }
   });
-  Object.keys(session.top).forEach(id => {
-    if(session.top[id]){
-      const l = document.getElementById('top-' + id);
-      if(l){ l.classList.add('checked'); l.querySelector('input').checked = true; }
-    }
-  });
+  /* Hier wurde das Haekchen blind aus session.top gesetzt. Seit die Zahlen
+     entscheiden, wo sie vollstaendig sind, kann ein frueher gesetztes
+     Haekchen falsch sein – das Label rechnet deshalb selbst nach. */
+  document.querySelectorAll('#content .toplimit').forEach(l => topLimitAktualisieren(l.id.slice(4)));
   /* Gegen null pruefen, nicht gegen Falsy: 0 Wiederholungen sind eine
      gueltige Eingabe, die setRep() bewusst speichert. Sie verschwand hier
      und beim Rendern des Feldes bei jedem Neuzeichnen. */
@@ -1680,14 +1730,18 @@ async function finishWorkout(){
        bereits geschrieben waren und bevor save() lief. */
     const lvl = lvlOf(ex);
     const maxed = lvl >= ex.levels.length - 1;
+    /* Aus den Zahlen, wo sie fuer jeden Satz vorliegen, sonst aus dem
+       Haekchen. Vor den Aenderungen an levels gerechnet, damit die Stufe
+       dieser Einheit zaehlt und nicht die naechste. */
+    const oben = limitStand(ex).erreicht;
     /* In der Entlastungswoche zaehlt das obere Limit nicht: es bezieht sich
        auf halbierte Saetze und ist damit nicht dasselbe wie sonst. Der Streak
        bleibt stehen statt zu wachsen oder genullt zu werden – die Woche soll
        die Progression weder beschleunigen noch bestrafen. Notizen und
        Bestleistungen weiter unten sind davon nicht betroffen. */
     if(deloadAktiv()){
-      if(session.top[id]) tops++;
-    } else if(session.top[id]){
+      if(oben) tops++;
+    } else if(oben){
       tops++;
       state.streaks[id] = (state.streaks[id] || 0) + 1;
       if(!maxed && state.streaks[id] >= need){
