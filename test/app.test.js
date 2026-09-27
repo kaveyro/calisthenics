@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isoDaysAgo } from '../js/domain/dates.js';
 
 /* Die ersten Tests fuer js/app.js.
 
@@ -45,6 +46,11 @@ async function starten(){
 }
 
 const gespeichert = () => JSON.parse(localStorage.getItem(SPEICHER) || 'null');
+
+/* Das Datum, das die App fuer heute haelt: lokal, nicht UTC. Mit
+   toISOString() allein rutschte es zwischen Mitternacht und dem UTC-Offset
+   auf den Vortag, und die Tests schlugen jede Nacht bis zwei Uhr fehl. */
+const heuteLokal = () => isoDaysAgo(0);
 
 /* Saetze der Uebungen mit Wiederholungsfeld – Halteuebungen starten beim
    Tippen einen Countdown statt sofort abzuhaken. */
@@ -308,7 +314,7 @@ describe('Abgleich zwischen zwei Fenstern', () => {
 
     const vorher = gespeichert();
     const fremdeEinheit = {
-      dayKey: 'A', d: new Date().toISOString().slice(0, 10), tab: 'anderes',
+      dayKey: 'A', d: heuteLokal(), tab: 'anderes',
       sets: {}, top: {}, reps: {}, notes: {}
     };
     melden(fremderStand({ activeSession: fremdeEinheit }));
@@ -777,8 +783,7 @@ describe('Dialoge und Hintergrund', () => {
 
 describe('Entlastungswoche', () => {
   const morgen = n => {
-    const d = new Date(); d.setDate(d.getDate() + n);
-    return d.toISOString().slice(0, 10);
+    return isoDaysAgo(-n);
   };
   const saetzeVon = id => document.querySelectorAll('.ex[data-exid="' + id + '"] .set-dot').length;
 
@@ -1327,7 +1332,7 @@ describe('Bibliothek: was liegen geblieben ist', () => {
   /* Ein Log mit genau zwei bekannten Uebungen: eine von heute, eine alte.
      Alles andere in der Bibliothek wurde nie trainiert. */
   async function mitLog(){
-    const heute = new Date().toISOString().slice(0, 10);
+    const heute = heuteLokal();
     localStorage.setItem(SPEICHER, JSON.stringify({
       v: 9, workouts: 2,
       log: [
@@ -2081,7 +2086,7 @@ describe('Wochenrhythmus', () => {
     const app = await mitPlan({ 0: 'A', 1: 'A', 2: 'A', 3: 'A', 4: 'A', 5: 'A', 6: 'A' });
     /* Der Kalender braucht mindestens einen Log-Eintrag, sonst bleibt er leer. */
     const s = gespeichert() || { v: 11, onboarded: true, wochenplan: {} };
-    s.log = [{ d: new Date().toISOString().slice(0, 10), day: 'A', ex: ['pushup'],
+    s.log = [{ d: heuteLokal(), day: 'A', ex: ['pushup'],
       sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 }];
     s.wochenplan = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 4: 'A', 5: 'A', 6: 'A' };
     localStorage.setItem(SPEICHER, JSON.stringify(s));
@@ -2152,7 +2157,7 @@ describe('Backup teilen', () => {
     expect(share).toHaveBeenCalled();
     const datei = share.mock.calls[0][0].files[0];
     expect(datei.name).toMatch(/^progression-backup-\d{4}-\d{2}-\d{2}\.json$/);
-    expect(gespeichert().lastBackup).toBe(new Date().toISOString().slice(0, 10));
+    expect(gespeichert().lastBackup).toBe(heuteLokal());
     expect(gespeichert().backupWorkouts).toBe(20);
   });
 
@@ -2300,7 +2305,7 @@ describe('Trainingserinnerung', () => {
     await ruhe();
     const nachDemErsten = gesendet.length;
     expect(nachDemErsten).toBeGreaterThan(0);
-    expect(gespeichert().erinnertAm).toBe(new Date().toISOString().slice(0, 10));
+    expect(gespeichert().erinnertAm).toBe(heuteLokal());
 
     /* Zweite Runde: App wieder oeffnen, wieder verlassen. */
     sichtbarkeit('visible');
@@ -3045,7 +3050,7 @@ describe('Gehaltene Sekunden', () => {
    Aufwaermen, das an jedem Drucktag dabei ist. */
 describe('Jahresrueckblick ohne Aufwaermen', () => {
   it('nennt keine Mobility als meistgeuebte Uebung und zaehlt die Haltezeit', async () => {
-    const jahr = new Date().toISOString().slice(0, 4);
+    const jahr = heuteLokal().slice(0, 4);
     const e = (tag, ex) => ({ d: jahr + '-01-0' + tag, day: 'A', sets: 4, ex,
       reps: { 'pushup-0': 10 }, sek: { 'support-0': 90, 'support-1': 90 } });
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, log: [
