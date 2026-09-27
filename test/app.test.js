@@ -881,6 +881,20 @@ describe('Plangenerator', () => {
     expect(document.querySelectorAll('#pb-vorschau .pb-day')).toHaveLength(5);
   });
 
+  it('fragt nach der Zeit pro Einheit und zeigt die geschaetzte Dauer', async () => {
+    await dialogOeffnen(['bar', 'rings', 'chair', 'parallettes', 'band']);
+    const minuten = document.getElementById('pb-minuten');
+    expect(minuten.value).toBe('45');
+    const zaehle = () => [...document.querySelectorAll('#pb-vorschau .pb-day span')]
+      .map(el => el.textContent.split(' · ').length);
+    const bei45 = zaehle();
+    expect(document.querySelector('#pb-vorschau .pb-min').textContent).toMatch(/\d+ Min/);
+    minuten.value = '30';
+    minuten.dispatchEvent(new Event('change'));
+    zaehle().forEach((n, i) => expect(n).toBeLessThanOrEqual(bei45[i]));
+    expect(zaehle().reduce((a, b) => a + b)).toBeLessThan(bei45.reduce((a, b) => a + b));
+  });
+
   it('uebernimmt genau das, was in der Vorschau stand', async () => {
     const { p } = await dialogOeffnen(['rings']);
     const gesehen = [...document.querySelectorAll('#pb-vorschau .pb-day')]

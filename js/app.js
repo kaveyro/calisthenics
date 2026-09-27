@@ -3046,11 +3046,12 @@ function dragDrop(di, ei){
 
 /* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
    Bezeichnungen hinein. Das Modul selbst bleibt damit ohne Sprachwissen. */
-function planAusAusruestung(tage, fokus){
+function planAusAusruestung(tage, fokus, minuten){
   return buildPlan({
     exercises: EXERCISES,
     equipment: state.equipment,
-    tage, fokus,
+    tage, fokus, minuten,
+    setsMode: cfg('setsMode'),
     texte: {
       name: __('customPlan'),
       desc: __('generatedPlanDesc'),
@@ -3474,10 +3475,15 @@ function askPlanBuilder(){
         '<select id="pb-fokus">' + FOKUS.map(f =>
           '<option value="' + f + '"' + (f === 'ausgewogen' ? ' selected' : '') + '>' + esc(__(FOKUS_KEYS[f])) + '</option>').join('') +
         '</select></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label></span>' +
+        '<select id="pb-minuten">' + [30, 45, 60].map(m =>
+          '<option value="' + m + '"' + (m === 45 ? ' selected' : '') + '>' + esc(__('minutesN', { n: m })) + '</option>').join('') +
+        '</select></div>' +
       '<div id="pb-vorschau" class="pb-preview"></div>' +
       dialogFuss(__('apply'));
 
     const tage = modal.querySelector('#pb-tage'), fokus = modal.querySelector('#pb-fokus');
+    const minuten = modal.querySelector('#pb-minuten');
     const vorschau = modal.querySelector('#pb-vorschau');
     /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
        genau dieser genommen – nicht ein zweites Mal gebaut. Die Funktion ist
@@ -3485,13 +3491,14 @@ function askPlanBuilder(){
        bekommen, was er gesehen hat. */
     let plan = null;
     const zeichnen = () => {
-      plan = planAusAusruestung(zahl(tage.value), fokus.value);
+      plan = planAusAusruestung(zahl(tage.value), fokus.value, zahl(minuten.value));
       vorschau.innerHTML = plan.days.map(d =>
-        '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) + '</b><span>' +
+        '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) +
+        ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
         esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') ||
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
-    tage.onchange = zeichnen; fokus.onchange = zeichnen;
+    tage.onchange = zeichnen; fokus.onchange = zeichnen; minuten.onchange = zeichnen;
     zeichnen();
 
     modal.querySelector('[data-dlg=ok]').onclick = () => finish(plan);

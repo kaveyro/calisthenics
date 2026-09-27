@@ -15,6 +15,7 @@
 
 import { exMoeglich, levelMoeglich } from './equipment.js';
 import { istSkill } from './skills.js';
+import { zielAuswerten } from './target.js';
 
 /* Tagesarten als Liste von Plaetzen, in der Reihenfolge ihrer Wichtigkeit.
    Jeder Platz ist ein Bewegungsmuster und wird mit der besten machbaren
@@ -54,6 +55,27 @@ export const AUFTEILUNG = {
   5: ['okA', 'ukA', 'push', 'pull', 'legs'],
   6: ['push', 'pull', 'legs', 'push', 'pull', 'legs']
 };
+/* Zeitbudget je Einheit. Geschaetzt wird aus Saetzen, Arbeitszeit und
+   Pause: je Satz die Obergrenze der Haltezeit oder drei Sekunden je
+   Wiederholung plus zehn fuer das Einrichten, dazwischen die Pause der
+   Uebung, dazu eine Minute fuer den Wechsel. Eine Schaetzung, keine
+   Stoppuhr – sie soll Tage mit 19 und 65 Minuten in derselben Woche
+   verhindern, nicht auf die Minute genau sein. */
+export const MINUTEN = [30, 45, 60];
+export function dauerSek(ex, setsMode = 'standard'){
+  const l = ex && ex.levels && ex.levels[0];
+  if(!l) return 0;
+  const z = zielAuswerten(l, setsMode);
+  const arbeit = z.isHold ? z.holdSecs : (z.maxReps || 8) * 3 + 10;
+  const pause = ex.rest || 90;
+  return z.sets * arbeit + Math.max(0, z.sets - 1) * pause + 60;
+}
+/* Die ersten Plaetze eines Tages sind Pflicht, das Budget kuerzt nur die
+   Ergaenzungen dahinter. Schon Liegestuetze, Klimmzuege und Kniebeugen
+   brauchen mit ihren Pausen rund eine halbe Stunde; ein strenges Budget
+   haette bei 30 Minuten die Beine aus dem Ganzkoerpertag geworfen. */
+const PFLICHT_PLAETZE = 3;
+
 const TITEL_VORGABE = {
   gk: 'Ganzkörper', ok: 'Oberkörper', uk: 'Unterkörper & Rumpf',
   push: 'Drücken', pull: 'Ziehen', legs: 'Beine & Rumpf'
@@ -153,7 +175,7 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
+export function buildPlan({ exercises, equipment, tage, fokus, minuten, setsMode, texte } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
@@ -162,6 +184,8 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
   const schwerpunkt = ['kraft', 'skill', 'ausgewogen'].includes(fokus) ? fokus : 'ausgewogen';
   const texts = texte || {};
   const titel = { ...TITEL_VORGABE, ...(texts.tage || {}) };
+  /* Ohne Angabe gilt kein Budget – dann entscheiden Plaetze und Grenzen. */
+  const budget = MINUTEN.includes(Number(minuten)) ? Number(minuten) * 60 : Infinity;
 
   const index = new Map(alle.map((e, i) => [e.id, i]));
   const machbare = alle.filter(e => exMoeglich(e, equipment)).sort(rang(equipment, index));
@@ -176,20 +200,23 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
     const tag = TAGESARTEN[art];
     const ids = [];
     const saetze = {};
-    const nimm = e => {
+    let zeit = 0, plaetze = 0;
+    const nimm = (e, pflicht = true) => {
       if(ids.includes(e.id) || ids.length >= MAX_PRO_TAG) return false;
       const n = kraftsaetze(e);
       if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
+      const d = dauerSek(e, setsMode);
+      if(!pflicht && zeit + d > budget) return false;
       saetze[e.cat] = (saetze[e.cat] || 0) + n;
+      zeit += d;
       ids.push(e.id);
       return true;
     };
 
     const beinTag = tag.titel === 'uk' || tag.titel === 'legs';
     const skill = schwerpunkt === 'skill' && !beinTag && skills.length ? skills[di % skills.length] : null;
-    if((skill || tag.plaetze.some(m => DRUECK_MUSTER.has(m))) && machbare.some(e => e.id === HANDGELENKE)) {
-      ids.push(HANDGELENKE);
-    }
+    const handgelenke = machbare.find(e => e.id === HANDGELENKE);
+    if((skill || tag.plaetze.some(m => DRUECK_MUSTER.has(m))) && handgelenke) nimm(handgelenke);
     /* Ein Skill vorn: im frischen Zustand geuebt wird er besser als am Ende. */
     if(skill) nimm(skill);
 
@@ -203,8 +230,9 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
       const besterRang = prioOf(kandidaten[0]);
       const pool = kandidaten.filter(e => prioOf(e) <= Math.max(besterRang, 2));
       const n = nutzung.get(muster) || 0;
+      const pflicht = plaetze < PFLICHT_PLAETZE;
       for(let k = 0; k < pool.length; k++){
-        if(nimm(pool[(n + k) % pool.length])){ nutzung.set(muster, n + 1); return; }
+        if(nimm(pool[(n + k) % pool.length], pflicht)){ nutzung.set(muster, n + 1); plaetze++; return; }
       }
     });
 
@@ -217,7 +245,10 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
       key: TAGE_KEYS[di],
       title: ersatz ? (texts.ganzkoerper || titel.gk) : titel[tag.titel],
       sub: texts.sub || '',
-      ex: ids
+      ex: ids,
+      /* Geschaetzte Dauer fuer die Vorschau. Beim Laden faellt das Feld weg
+         (migrateState kennt es nicht), gebraucht wird es nur dort. */
+      min: Math.round(zeit / 60)
     };
   });
 

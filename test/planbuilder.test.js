@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN } from '../js/domain/planbuilder.js';
 import { istSkill } from '../js/domain/skills.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
@@ -365,5 +365,47 @@ describe('Vorlagen fuer die eigene Ausruestung', () => {
     const tagB = vorlageAufloesen(VORLAGEN.skill, EXERCISES, []).days[1].ex;
     expect(tagB).not.toContain('front_lever');
     expect(tagB.filter(id => istSkill(EX_BY_ID[id]))).toEqual([]);
+  });
+});
+
+/* Tage mit 19 und 65 Minuten in derselben Woche soll es nicht mehr geben. */
+describe('Zeitbudget', () => {
+  it('schaetzt die Dauer aus Saetzen, Arbeit und Pause', () => {
+    /* Liegestuetze Stufe 0: 4 x 6-10, 90 s Pause: 4 x (10 x 3 + 10) + 3 x 90 + 60. */
+    expect(dauerSek(EX_BY_ID.pushup)).toBe(4 * 40 + 3 * 90 + 60);
+    /* Kompakt: zwei Saetze. */
+    expect(dauerSek(EX_BY_ID.pushup, 'kompakt')).toBe(2 * 40 + 90 + 60);
+    /* Halteuebung: die Obergrenze der Haltezeit je Satz. */
+    expect(dauerSek(EX_BY_ID.support)).toBe(4 * 20 + 3 * 60 + 60);
+  });
+
+  it('haelt das Budget bis auf die Pflichtplaetze', () => {
+    for(const minuten of MINUTEN){
+      for(const tage of [2, 3, 4, 5, 6]){
+        for(const equipment of [[], EQUIP_ALL]){
+          bauen({ tage, equipment, minuten }).days.forEach(d => {
+            /* Wer ueber dem Budget liegt, hat nur Pflichtplaetze: hoechstens
+               drei Uebungen ausser dem Handgelenk-Aufwaermen. */
+            const ohneAufwaermen = d.ex.filter(id => id !== 'wrist_prep').length;
+            if(d.min > minuten) expect(ohneAufwaermen, JSON.stringify({ minuten, tage, tag: d.key })).toBeLessThanOrEqual(3);
+          });
+        }
+      }
+    }
+  });
+
+  it('wirft bei wenig Zeit nicht die Beine aus dem Ganzkoerpertag', () => {
+    bauen({ tage: 3, minuten: 30 }).days.forEach(d =>
+      expect(d.ex.some(id => EX_BY_ID[id].cat === 'legs'), d.key + ' ' + d.ex.join(',')).toBe(true));
+  });
+
+  it('nimmt bei mehr Zeit nie weniger Uebungen', () => {
+    const laenge = m => bauen({ tage: 3, minuten: m }).days.map(d => d.ex.length);
+    const [a, b, c] = MINUTEN.map(laenge);
+    a.forEach((n, i) => { expect(b[i]).toBeGreaterThanOrEqual(n); expect(c[i]).toBeGreaterThanOrEqual(b[i]); });
+  });
+
+  it('gilt ohne Angabe nicht', () => {
+    expect(bauen({ tage: 3 }).days.map(d => d.ex)).toEqual(bauen({ tage: 3, minuten: 'viel' }).days.map(d => d.ex));
   });
 });
