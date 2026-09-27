@@ -248,6 +248,32 @@ describe('Kopfzeile auf schmalen Schirmen', () => {
    vier Saetzen stand "3" am Zeilenende und sein Feld darunter. */
 /* Symbole kommen aus einem Sprite in index.html (ikon() in app.js). Ein
    Tippfehler im Namen ergaebe ein leeres Kaestchen und keinen Fehler. */
+/* Die Kategorie-Farben tragen den 11-px-Text im Chip, also gilt 4,5:1
+   (WCAG 1.4.3) gegen die Kartenflaeche – in beiden Themen. */
+describe('Kategorie-Farben', () => {
+  const lum = hex => {
+    const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(x => x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const kontrast = (a, b) => { const [h, d] = [lum(a), lum(b)].sort((x, y) => y - x); return (h + 0.05) / (d + 0.05); };
+  const block = sel => css.slice(css.indexOf(sel), css.indexOf('}', css.indexOf(sel)));
+  const wert = (b, name) => (b.match(new RegExp('--' + name + ':(#[0-9A-Fa-f]{6})')) || [])[1];
+
+  for(const [thema, sel] of [['hell', ':root{'], ['dunkel', 'html[data-theme="dark"]{']]){
+    it('halten 4,5:1 gegen die Karte (' + thema + ')', () => {
+      const b = block(sel);
+      const karte = wert(b, 'card');
+      expect(karte).toBeTruthy();
+      for(const kat of ['push', 'pull', 'legs', 'core', 'skill', 'mobility']){
+        const farbe = wert(b, 'vol-' + kat);
+        expect(farbe, kat).toBeTruthy();
+        expect(kontrast(farbe, karte), thema + ' ' + kat).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+});
+
 describe('Symbolsatz', () => {
   const app = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
   const vorhanden = new Set([...html.matchAll(/<symbol id="i-([a-z]+)"/g)].map(m => m[1]));

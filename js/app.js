@@ -1335,9 +1335,9 @@ function renderWorkout(){
     const note = (state.notes || {})[ex.id];
     const pr = (state.prs || {})[ex.id];
 
-    html += '<div class="ex" data-exid="' + ex.id + '">' +
+    html += '<div class="ex" data-exid="' + ex.id + '" data-cat="' + ex.cat + '">' +
       '<div class="ex-top"><span class="rung-label">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length +
-        ' <span class="cat-chip">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span></span>' +
+        ' <span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span></span>' +
         '<span class="lvl-adjust"><button data-action="level:adjust" data-ex="' + ex.id +
         '" data-delta="-1" title="' + esc(__('levelDown')) + '" aria-label="' + esc(__('levelDown')) + '">−</button>' +
         '<button data-action="level:adjust" data-ex="' + ex.id +
@@ -2767,7 +2767,7 @@ function renderLibrary(){
        Wer die Ausruestung gerade erst eingetragen hat, soll nicht raten
        muessen, warum die Haelfte der Bibliothek fehlt. */
     const geht = machbar(ex);
-    return '<div class="lib-item" data-exid="' + ex.id + '" data-such="' + esc(suchtext) +
+    return '<div class="lib-item" data-exid="' + ex.id + '" data-cat="' + ex.cat + '" data-such="' + esc(suchtext) +
       '" data-eqok="' + (geht ? '1' : '0') + '">' +
       /* Echter Button statt eines klickbaren div: der Kopf ist die
          Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
@@ -2958,7 +2958,8 @@ function renderPlanTab(){
            Listener statt ueber die allgemeine Aktionstabelle: dragover feuert
            ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
            gehoert nicht durch einen Namens-Lookup am document. */
-        return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '">' +
+        return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '"' +
+          (ex ? ' data-cat="' + ex.cat + '"' : '') + '>' +
           '<span class="drag-handle">' + ikon('grip') + '</span>' +
           '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
           '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '" aria-label="' + __('moveUp') + '">' + ikon('up') + '</button>' +

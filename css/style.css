@@ -65,11 +65,17 @@
   --toast-bg:#181C20;
   --toast-fg:#FFFFFF;
   --bar-bg:rgba(243,244,241,.95);
-  /* Segmentfarben der Volumen-Verteilung – als Variablen, damit sie
-     konsistent bleiben und sich im Dark Theme feinjustieren lassen. */
+  /* Eine Farbe je Kategorie – für den Verteilungsbalken und für Karten,
+     Bibliothek und Plan-Editor. Drücken, Ziehen und Beine hatten im Balken
+     Akzent, Erfolg und Warnung; auf einer Karte hieße Orange bei den Beinen
+     dann „Warnung“. Jede Farbe hält 4,5:1 gegen --card, weil sie auch den
+     11-px-Text im Kategorie-Chip trägt (test/css.test.js rechnet nach). */
+  --vol-push:#BA4C25;
+  --vol-pull:#2B74B8;
+  --vol-legs:#2A8040;
   --vol-core:#7A5CC4;
   --vol-skill:#C4478F;
-  --vol-mobility:#3E9AA8;
+  --vol-mobility:#267F8C;
   --radius:14px;
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --display:'Archivo Black',system-ui,sans-serif;
@@ -141,6 +147,9 @@ html[data-theme="dark"]{
   --bar-bg:rgba(20,22,26,.92);
   /* Im Dark Theme etwas heller, damit die Segmente auf dem dunklen
      Grund ablesbar bleiben. */
+  --vol-push:#E8825C;
+  --vol-pull:#6AA8E6;
+  --vol-legs:#62BE78;
   --vol-core:#9A82D6;
   --vol-skill:#D468A8;
   --vol-mobility:#5BB3C0;
@@ -276,7 +285,24 @@ details.acc li{margin-bottom:5px}
 .cat-chip.stale{border-color:var(--line);color:var(--ink-soft)}
 
 /* ---------- Übungskarte ---------- */
-.ex{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
+.ex{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--kat,var(--line));border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
+
+/* ---------- Kategorie-Farbe ----------
+   data-cat an Karte, Bibliothekseintrag und Plan-Zeile setzt --kat. */
+[data-cat="push"]{--kat:var(--vol-push)}
+[data-cat="pull"]{--kat:var(--vol-pull)}
+[data-cat="legs"]{--kat:var(--vol-legs)}
+[data-cat="core"]{--kat:var(--vol-core)}
+[data-cat="skill"]{--kat:var(--vol-skill)}
+[data-cat="mobility"]{--kat:var(--vol-mobility)}
+.cat-chip.kat{color:var(--kat);border-color:var(--kat)}
+/* Die ganze Leiter in einer Farbe: erledigte Sprossen waren grün, die
+   aktuelle blau – auf einer farbigen Karte drei Farben nebeneinander. */
+.ex .rung.done{background:var(--kat,var(--success));border-color:var(--kat,var(--success))}
+.ex .rung-line.done{background:var(--kat,var(--success))}
+.ex .rung.current{border-color:var(--kat,var(--accent));background:var(--kat,var(--accent));box-shadow:0 0 0 4px color-mix(in srgb,var(--kat,var(--accent)) 22%,transparent)}
+.lib-item[data-cat]{border-left:3px solid var(--kat);padding-left:var(--abstand-3)}
+.plan-ex[data-cat] .nm::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--kat);margin-right:var(--abstand-2);vertical-align:1px}
 .ex-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
 .rung-label{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .cat-chip{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
@@ -480,9 +506,9 @@ details.acc li{margin-bottom:5px}
 .vol-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .vol-keys span{display:inline-flex;align-items:center;gap:5px}
 .vol-keys i{width:9px;height:9px;border-radius:3px;flex:none}
-.vol-push{background:var(--accent)}
-.vol-pull{background:var(--success)}
-.vol-legs{background:var(--warn)}
+.vol-push{background:var(--vol-push)}
+.vol-pull{background:var(--vol-pull)}
+.vol-legs{background:var(--vol-legs)}
 .vol-core{background:var(--vol-core)}
 .vol-skill{background:var(--vol-skill)}
 .vol-mobility{background:var(--vol-mobility)}
@@ -724,11 +750,13 @@ footer small{display:block;margin-top:4px;opacity:.6}
 @media (forced-colors:active){
   /* Stufenleiter: erledigt = gefüllt, aktuell = dicker Ring, offen = leer. */
   .rung{forced-color-adjust:none;background:Canvas;border-color:CanvasText}
-  .rung.done{background:CanvasText}
+  /* Mit .ex davor, weil die Kategorie-Farbe dort mit dieser Spezifität
+     setzt – sonst schlüge sie die Systemfarben. */
+  .rung.done,.ex .rung.done{background:CanvasText;border-color:CanvasText}
   .rung.done::after{background:Canvas}
-  .rung.current{background:Canvas;border-width:4px;box-shadow:none}
+  .rung.current,.ex .rung.current{background:Canvas;border-color:CanvasText;border-width:4px;box-shadow:none}
   .rung-line{forced-color-adjust:none;background:GrayText}
-  .rung-line.done{background:CanvasText}
+  .rung-line.done,.ex .rung-line.done{background:CanvasText}
 
   /* Satzpunkt: der Haken-Zustand steht sonst nur in der Füllung. */
   .set-dot[aria-pressed="true"]{outline:3px solid CanvasText;outline-offset:-6px}
