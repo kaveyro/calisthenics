@@ -452,6 +452,61 @@ export const EXERCISES = [
       'Schützt die hinteren Oberschenkel und Knie – oft vernachlässigt.'
     ]
   },
+  /* Die Hüftbeugung fehlte als Grundmuster ganz: die Beine bestanden aus
+     Kniebeuge, Ausfallschritt und Brücke. prio 1, damit ein generierter
+     Beintag sie enthält. */
+  {
+    id: 'sl_rdl', name: 'Einbeinige Hüftbeuge', cat: 'legs', equip: ['none'], prio: 1, rest: 60,
+    levels: [
+      { stage: 'Mit einer Hand an der Wand', saetze: 3, wdh: [8, 12] },
+      { stage: 'Frei', saetze: 3, wdh: [8, 12] },
+      { stage: 'Frei, 2 Sek Pause unten', saetze: 3, wdh: [8, 12] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Das Standbein ist leicht gebeugt, die Hüfte schiebt nach hinten.',
+      'Rücken bleibt lang, das hintere Bein bildet mit dem Oberkörper eine Linie.',
+      'Die Hüfte bleibt waagerecht – das hintere Becken dreht gern nach oben auf.'
+    ]
+  },
+  {
+    id: 'step_up', name: 'Step-ups', cat: 'legs', equip: ['chair'], rest: 60,
+    levels: [
+      { stage: 'Niedrige Stufe (Treppe)', saetze: 3, wdh: [10, 15] },
+      { stage: 'Stuhlhöhe', saetze: 3, wdh: [8, 12] },
+      { stage: 'Stuhlhöhe, mit Knieheben oben', saetze: 3, wdh: [8, 12] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Nur ein stabiler Stuhl, der nicht kippen oder rutschen kann.',
+      'Das obere Bein arbeitet – nicht vom unteren abstoßen.',
+      'Langsam wieder absteigen, die Bewegung nach unten zählt mit.'
+    ]
+  },
+  {
+    id: 'cossack', name: 'Cossack Squats', cat: 'legs', equip: ['none'], rest: 60,
+    levels: [
+      { stage: 'Mit Halt an einem Türrahmen', saetze: 3, wdh: [6, 10] },
+      { stage: 'Frei, so tief wie sauber', saetze: 3, wdh: [6, 10] },
+      { stage: 'Tief, Arme vorn gestreckt', saetze: 3, wdh: [8, 12] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Breiter Stand, ein Bein beugt, das andere bleibt gestreckt mit Zehen nach oben.',
+      'Die Ferse des gebeugten Beins bleibt am Boden.',
+      'Kraft und Beweglichkeit zugleich: Adduktoren und Hüfte.'
+    ]
+  },
+  {
+    id: 'shrimp_squat', name: 'Shrimp Squat', cat: 'legs', equip: ['none'], prio: 3, rest: 90,
+    levels: [
+      { stage: 'Mit Halt, Knie auf ein Kissen', saetze: 3, wdh: [5, 8] },
+      { stage: 'Frei, Knie auf ein Kissen', saetze: 3, wdh: [4, 8] },
+      { stage: 'Frei, bis das Knie den Boden berührt', saetze: 3, wdh: [3, 6] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Das hintere Bein hält man am Fuß fest, das Knie sinkt nach unten.',
+      'Eine Alternative zur Pistol Squat für alle, deren Sprunggelenk nicht tief genug beugt.',
+      'Oberkörper darf sich neigen, das vordere Knie folgt der Fußrichtung.'
+    ]
+  },
 
   /* ================= RUMPF ================= */
   {
@@ -520,6 +575,48 @@ export const EXERCISES = [
       'An etwas Festem hinter dem Kopf festhalten, nur Schulterblätter am Boden.',
       'Körper wie ein Brett langsam ablassen – kein Einknicken in der Hüfte.',
       'Sehr anspruchsvoll: erst wenn Hollow Hold 40 Sekunden sitzt.'
+    ]
+  },
+  /* Bis hierher arbeitete der Rumpf nur gegen die Streckung (Hollow, Plank)
+     und in der Beugung (Leg Raises). Es fehlten der Rückenstrecker als
+     Gegenspieler, ein leichter Einstieg und die Adduktoren. */
+  {
+    id: 'arch_hold', name: 'Arch Hold', cat: 'core', equip: ['none'], rest: 45,
+    levels: [
+      { stage: 'Superman, Knie am Boden', saetze: 3, sek: [15, 25] },
+      { stage: 'Arch Hold', saetze: 3, sek: [20, 40] },
+      { stage: 'Arch Rocks', saetze: 3, wdh: [12, 20] }
+    ],
+    tips: [
+      'Bauchlage, Arme und Beine gestreckt anheben, Po fest.',
+      'Der Gegenspieler zum Hollow Body – beide zusammen machen den Rumpf stabil.',
+      'Blick zum Boden, der Nacken bleibt lang.'
+    ]
+  },
+  {
+    id: 'dead_bug', name: 'Dead Bug', cat: 'core', equip: ['none'], rest: 45,
+    levels: [
+      { stage: 'Beine gebeugt', saetze: 3, wdh: [8, 12] },
+      { stage: 'Beine gestreckt', saetze: 3, wdh: [8, 12] },
+      { stage: 'Gestreckt, 3 Sek Halten', saetze: 3, wdh: [6, 10] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Unterer Rücken bleibt die ganze Zeit am Boden.',
+      'Gegengleich: rechter Arm und linkes Bein strecken, dann wechseln.',
+      'Der leichteste Einstieg in die Rumpfspannung, auf der Hollow aufbaut.'
+    ]
+  },
+  {
+    id: 'copenhagen', name: 'Copenhagen Plank', cat: 'core', equip: ['chair'], rest: 45,
+    levels: [
+      { stage: 'Knie auf dem Stuhl', saetze: 3, sek: [15, 25] },
+      { stage: 'Fuß auf dem Stuhl', saetze: 3, sek: [15, 30] },
+      { stage: 'Fuß auf dem Stuhl, unteres Bein angehoben', saetze: 3, sek: [15, 30] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Seitstütz, das obere Bein liegt auf dem Stuhl und trägt mit.',
+      'Stärkt die Adduktoren, die bei fast allen Beinübungen zu kurz kommen.',
+      'Hüfte oben halten, nicht nach hinten ausweichen.'
     ]
   },
 

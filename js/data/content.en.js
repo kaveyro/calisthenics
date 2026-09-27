@@ -235,6 +235,34 @@ export const CONTENT_EN = {
              'Lower forwards as slowly as possible, then catch yourself with the hands.',
              'Protects the hamstrings and knees – often neglected.']
     },
+    sl_rdl: {
+      name: 'Single-leg hip hinge',
+      levels: ['One hand on the wall', 'Free', 'Free, 2-second pause at the bottom'],
+      tips: ['Figures are per side. The standing leg is slightly bent, the hips push back.',
+             'The back stays long, the rear leg forms a line with the torso.',
+             'Keep the hips level – the rear side of the pelvis likes to rotate up.']
+    },
+    step_up: {
+      name: 'Step-ups',
+      levels: ['Low step (stairs)', 'Chair height', 'Chair height, with a knee drive at the top'],
+      tips: ['Figures are per side. Only a sturdy chair that cannot tip or slide.',
+             'The top leg does the work – do not push off with the bottom one.',
+             'Step down slowly, the way down counts too.']
+    },
+    cossack: {
+      name: 'Cossack squats',
+      levels: ['Holding a door frame', 'Free, as deep as stays clean', 'Deep, arms straight in front'],
+      tips: ['Figures are per side. Wide stance, one leg bends, the other stays straight with toes up.',
+             'The heel of the bent leg stays on the floor.',
+             'Strength and mobility at once: adductors and hips.']
+    },
+    shrimp_squat: {
+      name: 'Shrimp squat',
+      levels: ['Assisted, knee onto a cushion', 'Free, knee onto a cushion', 'Free, until the knee touches the floor'],
+      tips: ['Figures are per side. Hold the rear leg by the foot, the knee sinks down.',
+             'An alternative to the pistol squat for anyone whose ankle does not bend deep enough.',
+             'The torso may lean, the front knee tracks over the foot.']
+    },
     hollow: {
       name: 'Hollow body hold',
       levels: ['Knees bent', 'Legs straight', 'Arms overhead', 'Hollow rocks'],
@@ -269,6 +297,27 @@ export const CONTENT_EN = {
       tips: ['Hold something solid behind your head, only the shoulder blades on the floor.',
              'Lower the body slowly like a plank – no folding at the hips.',
              'Very demanding: only once a 40-second hollow hold is solid.']
+    },
+    arch_hold: {
+      name: 'Arch hold',
+      levels: ['Superman, knees on the floor', 'Arch hold', 'Arch rocks'],
+      tips: ['Lie face down, lift the straight arms and legs, glutes tight.',
+             'The counterpart to the hollow body – together they make the trunk stable.',
+             'Look at the floor, the neck stays long.']
+    },
+    dead_bug: {
+      name: 'Dead bug',
+      levels: ['Legs bent', 'Legs straight', 'Straight, 3-second hold'],
+      tips: ['Figures are per side. The lower back stays on the floor the whole time.',
+             'Opposite limbs: extend the right arm and left leg, then switch.',
+             'The easiest way into the trunk tension the hollow builds on.']
+    },
+    copenhagen: {
+      name: 'Copenhagen plank',
+      levels: ['Knee on the chair', 'Foot on the chair', 'Foot on the chair, bottom leg lifted'],
+      tips: ['Figures are per side. Side plank with the top leg resting on the chair and taking load.',
+             'Strengthens the adductors, which lose out in almost every leg exercise.',
+             'Keep the hips up, do not sink back.']
     },
     lsit: {
       name: 'L-sit',
