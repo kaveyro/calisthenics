@@ -92,7 +92,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(16);
+    expect(s.v).toBe(17);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -3364,5 +3364,79 @@ describe('Plan-Check nach Fortschritt', () => {
     document.querySelector('.day-btn').click();
     await ruhe();
     expect(banner()).toBeUndefined();
+  });
+});
+
+describe('Anstrengung erfassen', () => {
+  async function einheit(extra = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, ...extra }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const knopf = (id, v) => document.querySelector('.effort-btn[data-ex="' + id + '"][data-v="' + v + '"]');
+  function tippe(app, id, werte){
+    werte.forEach((w, s) => {
+      const f = document.getElementById('rep-' + id + '-' + s);
+      f.value = String(w);
+      app.actions['set:reps']({ key: id + '-' + s }, null, f);
+    });
+  }
+  const saetze = id => document.querySelectorAll('[data-exid="' + id + '"] .rep-input').length;
+  const oben = id => Number(document.querySelector('[data-exid="' + id + '"] .ex-target').textContent.split('–')[1]);
+
+  it('merkt sich die Angabe in der laufenden Einheit und nimmt sie beim zweiten Tipp zurueck', async () => {
+    const app = await einheit();
+    expect(knopf('pushup', 'l').getAttribute('aria-pressed')).toBe('false');
+    app.actions['effort:set']({ ex: 'pushup', v: 'l' });
+    await ruhe();
+    expect(knopf('pushup', 'l').getAttribute('aria-pressed')).toBe('true');
+    expect(gespeichert().activeSession.an).toEqual({ pushup: 'l' });
+    app.actions['effort:set']({ ex: 'pushup', v: 'l' });
+    await ruhe();
+    expect(gespeichert().activeSession.an).toEqual({});
+    /* Unbekannte Werte und Uebungen aendern nichts. */
+    app.actions['effort:set']({ ex: 'pushup', v: 'x' });
+    app.actions['effort:set']({ ex: 'gibtsnicht', v: 'l' });
+    expect(gespeichert().activeSession.an).toEqual({});
+  });
+
+  it('schreibt sie ins Log', async () => {
+    const app = await einheit();
+    tippe(app, 'pushup', Array(saetze('pushup')).fill(5));
+    app.actions['effort:set']({ ex: 'pushup', v: 'h' });
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(gespeichert().log[0].an).toEqual({ pushup: 'h' });
+  });
+
+  it('laesst die Vorgabe nach "leicht" doppelt steigen und sagt warum', async () => {
+    await einheit({
+      levels: { pushup: 3 },
+      log: [{ d: '2026-01-01', day: 'A', ex: ['pushup'], sets: 3, tops: 0, ups: [], reps: { 'pushup-0': 6, 'pushup-1': 6, 'pushup-2': 6 }, lv: { pushup: 3 }, an: { pushup: 'l' } }]
+    });
+    expect(document.getElementById('rep-pushup-0').placeholder).toBe('8');
+    expect(document.querySelector('[data-exid="pushup"] .heute').textContent).toMatch(/leicht/);
+  });
+
+  it('steigt oben und leicht sofort auf, ohne die zweite Einheit abzuwarten', async () => {
+    const app = await einheit();
+    const vorher = gespeichert() ? (gespeichert().levels || {}).pushup || 0 : 0;
+    tippe(app, 'pushup', Array(saetze('pushup')).fill(oben('pushup')));
+    app.actions['effort:set']({ ex: 'pushup', v: 'l' });
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(gespeichert().levels.pushup).toBe(vorher + 1);
+    expect(gespeichert().log[0].ups).toContain('pushup');
+  });
+
+  it('wartet oben ohne Angabe weiter auf die Serie', async () => {
+    const app = await einheit();
+    tippe(app, 'pushup', Array(saetze('pushup')).fill(oben('pushup')));
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(gespeichert().log[0].ups).not.toContain('pushup');
+    expect(gespeichert().streaks.pushup).toBe(1);
   });
 });

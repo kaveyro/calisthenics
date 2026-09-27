@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer } from '../js/domain/target.js';
+import { zielAuswerten, zielText, stufeGueltig, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer, ANSTRENGUNG } from '../js/domain/target.js';
 import { EXERCISES } from '../js/exercises.js';
 
 /* Bis zur Umstellung auf Daten prüfte diese Datei vor allem, ob der Parser
@@ -347,5 +347,36 @@ describe('halteziel', () => {
     expect(halteziel(H, [0, null])).toBeNull();
     expect(halteziel(zielAuswerten({ saetze: 3, wdh: [6, 10] }), [8, 8, 8])).toBeNull();
     expect(halteziel(null, [8])).toBeNull();
+  });
+});
+
+describe('Anstrengung', () => {
+  const ziel = zielAuswerten({ saetze: 3, wdh: [6, 10] });
+  const halte = zielAuswerten({ saetze: 2, sek: [10, 20] });
+
+  it('legt nach "leicht" zwei Wiederholungen drauf, gedeckelt', () => {
+    expect(tagesziel(ziel, [7, 7, 9], 'l').reps).toEqual([9, 9, 10]);
+  });
+
+  it('wiederholt nach "hart" die Zahlen', () => {
+    expect(tagesziel(ziel, [7, 7, 6], 'h').reps).toEqual([7, 7, 6]);
+  });
+
+  it('bleibt bei "passt" und ohne Angabe beim einen Schritt', () => {
+    expect(tagesziel(ziel, [7, 7, 6], 'p').reps).toEqual([8, 8, 7]);
+    expect(tagesziel(ziel, [7, 7, 6], null).reps).toEqual([8, 8, 7]);
+    expect(tagesziel(ziel, [7, 7, 6], 'quatsch').reps).toEqual([8, 8, 7]);
+  });
+
+  it('wirkt auch auf Haltezeiten', () => {
+    /* Spanne 10–20: ein Schritt sind zwei Sekunden. */
+    expect(halteziel(halte, [12, 12]).secs).toEqual([14, 14]);
+    expect(halteziel(halte, [12, 12], 'l').secs).toEqual([16, 16]);
+    expect(halteziel(halte, [12, 12], 'h').secs).toEqual([12, 12]);
+    expect(halteziel(halte, [19, 19], 'l').secs).toEqual([20, 20]);
+  });
+
+  it('kennt genau drei Werte', () => {
+    expect(ANSTRENGUNG).toEqual(['l', 'p', 'h']);
   });
 });

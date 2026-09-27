@@ -24,7 +24,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 17;
 /* Mehr abgelehnte Plan-Vorschlaege merkt sich die App nicht; die aeltesten
    fallen heraus. Der Katalog hat weniger als 60 Uebungen, das reicht. */
 const MAX_PLAN_HINWEISE = 100;
@@ -134,7 +134,8 @@ export const DEFAULT_STATE = () => ({
    besserePR(); fuer Altbestaende wird die Masseinheit aus dem Text
    erschlossen und die Stufe bleibt offen. v11 entfernt byDay (siehe oben)
    und ergaenzt wochenplan (feste Trainingstage je Wochentag, Vorgabe leer –
-   ein alter Stand rotiert damit weiter wie bisher). */
+   ein alter Stand rotiert damit weiter wie bisher). v17 ergaenzt log[].an
+   (wie sich eine Uebung angefuehlt hat; leer bei allem davor). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -240,6 +241,9 @@ export function migrateState(raw){
          reps, damit das Volumen, die CSV-Spalte "Wdh" und alles, was
          Wiederholungen zaehlt, keine Sekunden mitzaehlt. */
       sek: sekundenJeSatz(l.sek),
+      /* Seit v17: wie sich die Uebung angefuehlt hat, id -> 'l' (leicht),
+         'p' (passt) oder 'h' (hart). Nur, was angetippt wurde. */
+      an: anstrengungJeUebung(l.an),
       /* Seit v9: die Dauer in Sekunden. 0 heisst "nicht aufgezeichnet" und
          gilt fuer alle Eintraege davor, fuer CSV-Importe und fuer eine
          nachgetragene Einheit. Die Anzeige laesst die Angabe dann weg,
@@ -328,6 +332,16 @@ function sekundenJeSatz(v){
   Object.keys(v).slice(0, MAX_EX_PER_ENTRY * 10).forEach(k => {
     const n = v[k];
     if(/-[0-9]+$/.test(k) && Number.isInteger(n) && n > 0 && n <= MAX_HALTE_SEK) out[k] = n;
+  });
+  return out;
+}
+
+/* log[].an: id -> 'l' | 'p' | 'h'. */
+function anstrengungJeUebung(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(v).slice(0, MAX_EX_PER_ENTRY).forEach(id => {
+    if(id && ['l', 'p', 'h'].includes(v[id])) out[id] = v[id];
   });
   return out;
 }

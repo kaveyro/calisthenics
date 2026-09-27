@@ -104,8 +104,10 @@ export function lastRepsByExercise(log, exIds, dayOf = () => null, ausser = null
    Uebung mehr als einen Eintrag einsammelt – der Hinweis auf eine zu
    schwere Stufe braucht zwei Einheiten, nicht eine. */
 export function verlaufJeUebung(log, exIds, anzahl = 1, dayOf = () => null, ausser = null){
-  return sammle(log, exIds, anzahl, dayOf, ausser, (reps, sek, lvl, d) =>
-    (reps.length || sek.length) ? { d, reps, sek, lvl } : null);
+  /* an: wie sich die Uebung angefuehlt hat ('l', 'p', 'h'), seit v17;
+     null, wo nichts angetippt wurde. */
+  return sammle(log, exIds, anzahl, dayOf, ausser, (reps, sek, lvl, d, an) =>
+    (reps.length || sek.length) ? { d, reps, sek, lvl, an } : null);
 }
 
 /* nimm(reps, sek, lvl, d) entscheidet, ob ein Eintrag zaehlt, und baut ihn. */
@@ -125,7 +127,8 @@ function sammle(log, exIds, anzahl, dayOf, ausser, nimm){
       const lvl = l.lv && Number.isInteger(l.lv[id]) ? l.lv[id] : null;
       /* Eine Einheit, in der die Uebung nur abgehakt wurde, hilft nicht
          weiter – gesucht sind Zahlen zum Vergleichen. Also offen lassen. */
-      const treffer = nimm(repsOf(l, id), sekOf(l, id), lvl, l.d);
+      const an = l.an && typeof l.an[id] === 'string' ? l.an[id] : null;
+      const treffer = nimm(repsOf(l, id), sekOf(l, id), lvl, l.d, an);
       if(!treffer) continue;
       (out[id] = out[id] || []).push(treffer);
       if(out[id].length >= anzahl) offen.delete(id);

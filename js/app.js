@@ -44,6 +44,8 @@ const leereSession = () => ({
   subs: {}, skip: {},
   /* Abgehakte Aufwaermpunkte, nach Position in der Liste. */
   warm: {},
+  /* Wie sich jede Uebung angefuehlt hat: id -> 'l' | 'p' | 'h'. */
+  an: {},
   /* Zeitstempel des ERSTEN Hakens, nicht der Tagesauswahl: zwischen "Tag
      angetippt" und "erster Satz" liegen Umziehen und Aufwaermen, und beides
      ist keine Trainingszeit. null, solange nichts geschafft ist. */
@@ -273,7 +275,7 @@ function spiegleSession(){
       sets: { ...session.sets }, top: { ...session.top },
       reps: { ...session.reps }, sek: { ...session.sek }, notes: { ...session.notes },
       subs: { ...session.subs }, skip: { ...session.skip },
-      warm: { ...session.warm }, start: session.start || null,
+      warm: { ...session.warm }, an: { ...session.an }, start: session.start || null,
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
          uebersteht – eine Restdauer waere nach dem Laden wertlos. */
       restEnde: restEnde || null
@@ -333,6 +335,7 @@ function restoreActiveSession(){
     reps: a.reps || {}, sek: a.sek || {}, notes: a.notes || {},
     subs: a.subs || {}, skip: a.skip || {},
     warm: a.warm || {},
+    an: a.an && typeof a.an === 'object' ? a.an : {},
     /* Ein verbogener Zeitstempel wuerde eine absurde Dauer ergeben; die
        Plausibilitaet prueft dauerJetzt() beim Abschliessen. */
     start: Number.isFinite(Number(a.start)) ? Number(a.start) : null
@@ -1213,8 +1216,8 @@ const mitEinheit = (werte, sek) => werte.join(' · ') + (sek ? ' ' + __('secShor
 function heuteVorgabe(ex, lvl, t, letzte){
   const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
   if(bekannt && letzte.lvl === lvl){
-    const z = t.isHold ? halteziel(t, letzte.sek) : tagesziel(t, letzte.reps);
-    return z ? { werte: z.secs || z.reps, allesOben: z.allesOben, einstieg: false } : null;
+    const z = t.isHold ? halteziel(t, letzte.sek, letzte.an) : tagesziel(t, letzte.reps, letzte.an);
+    return z ? { werte: z.secs || z.reps, allesOben: z.allesOben, einstieg: false, an: letzte.an || null } : null;
   }
   if(letzte && !bekannt) return null;
   const e = einstiegsziel(t);
@@ -1252,8 +1255,32 @@ function letzteZeilen(ex, lvl, t, letzte){
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
       : __('todayEntry', { reps: mitEinheit(heute.werte, t.isHold) })) + '</div>';
+  } else if(heute && (heute.an === 'l' || heute.an === 'h')){
+    /* Warum die Vorgabe heute anders steigt als sonst. */
+    html += '<div class="last-reps heute">' + esc(__(heute.an === 'l' ? 'effortEasyNext' : 'effortHardNext')) + '</div>';
   }
   return html;
+}
+
+/* Wie war's? Drei Knoepfe, einer davon gedrueckt oder keiner. Freiwillig:
+   ohne Angabe steigt die Vorgabe wie bisher um einen Schritt. */
+const ANSTRENGUNG_TEXT = { l: 'effortEasy', p: 'effortOk', h: 'effortHard' };
+function anstrengungHtml(ex){
+  const jetzt = session.an[ex.id];
+  return '<div class="effort" role="group" aria-label="' + esc(__('effortAria', { ex: exName(ex) })) + '">' +
+    '<span class="effort-q">' + esc(__('effortQuestion')) + '</span>' +
+    Object.entries(ANSTRENGUNG_TEXT).map(([v, k]) =>
+      '<button type="button" class="effort-btn" data-action="effort:set" data-ex="' + ex.id + '" data-v="' + v + '"' +
+      ' aria-pressed="' + (jetzt === v ? 'true' : 'false') + '">' + esc(__(k)) + '</button>').join('') +
+    '</div>';
+}
+/* Noch einmal tippen nimmt die Angabe zurueck. */
+function setAnstrengung(id, v){
+  if(!EX_BY_ID[id] || !ANSTRENGUNG_TEXT[v] || !session.dayKey) return;
+  if(session.an[id] === v) delete session.an[id]; else session.an[id] = v;
+  persistSession();
+  document.querySelectorAll('.effort-btn[data-ex="' + id + '"]').forEach(b =>
+    b.setAttribute('aria-pressed', session.an[id] === b.dataset.v ? 'true' : 'false'));
 }
 
 /* Worauf der Countdown je Satz heute laeuft. Ohne Vorgabe – ein Eintrag
@@ -1438,6 +1465,7 @@ function renderWorkout(){
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
       toplimitHtml(ex) +
       hint +
+      anstrengungHtml(ex) +
       /* Alles, was man nicht in jedem Satz braucht, hinter "Mehr". Die Karte
          hatte 17 Zeilen und war auf dem Handy 528px hoch; bei sieben Uebungen
          lag die letzte ueber 3500px tief. Offen bleibt der Bereich, solange
@@ -2086,6 +2114,10 @@ async function finishWorkout(){
     } else if(oben){
       tops++;
       state.streaks[id] = (state.streaks[id] || 0) + 1;
+      /* Oben und leicht: kein zweites Mal abwarten. Die Serie soll zeigen,
+         dass die Obergrenze kein Zufall war – wer sie mit Reserven schafft,
+         hat das schon gezeigt. */
+      if(session.an[id] === 'l') state.streaks[id] = Math.max(state.streaks[id], need);
       if(!maxed && state.streaks[id] >= need){
         /* Die naechste Stufe kann ein Geraet verlangen, das nicht da ist –
            bei Dips wechselt sie von der Bank auf die Parallettes. Ein
@@ -2140,7 +2172,8 @@ async function finishWorkout(){
      gehoerten – nach einer Ersetzung oder einem Plan-Reset also falsch. */
   const entry = {
     d: now, day: session.dayKey, ex: [...exIds], sets, tops, ups,
-    reps: { ...session.reps }, sek: { ...session.sek }, lv, dl: deloadAktiv(), dauer: dauerJetzt()
+    reps: { ...session.reps }, sek: { ...session.sek }, lv, dl: deloadAktiv(), dauer: dauerJetzt(),
+    an: Object.fromEntries(exIds.filter(id => session.an[id]).map(id => [id, session.an[id]]))
   };
 
   lastWorkoutSnapshot.entry = entry;
@@ -4414,6 +4447,7 @@ export const actions = {
   'plan:reset':         () => resetPlan(),
   'plan:build':         () => generatePlan(),
   'planCheck:apply':     d => planCheckAnwenden(d.alt, d.neu),
+  'effort:set':          d => setAnstrengung(d.ex, d.v),
   'planCheck:dismiss':   d => planCheckAblehnen(d.alt, d.neu),
   'planDay:add':        () => addPlanDay(),
   'planDay:rename':     d => mitFokus(() => renameDay(zahl(d.day))),

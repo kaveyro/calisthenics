@@ -163,12 +163,12 @@ export function einstiegsziel(ziel){
    nirgends gelesen. Wie tagesziel() nur mit Zahlen; ob sie zur heutigen
    Stufe gehören, prüft der Aufrufer, und ohne Vorgeschichte gilt
    einstiegsziel(). */
-export function halteziel(ziel, letzte){
+export function halteziel(ziel, letzte, anstrengung = null){
   if(!ziel || !ziel.isHold || !(ziel.sets > 0) || !Number.isInteger(ziel.holdSecs)) return null;
   const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n > 0);
   if(!werte.length) return null;
   const oben = ziel.holdSecs;
-  const schritt = Math.max(1, Math.round((oben - ziel.minSecs) / 5));
+  const schritt = Math.max(1, Math.round((oben - ziel.minSecs) / 5)) * faktor(anstrengung);
   const vorher = s => werte[Math.min(s, werte.length - 1)];
   const allesOben = werte.length >= ziel.sets && werte.slice(0, ziel.sets).every(n => n >= oben);
   return {
@@ -198,7 +198,16 @@ export function zuSchwer(ziel, verlauf, lvl){
     e.reps.every(n => Number.isFinite(n) && n < ziel.minReps));
 }
 
-export function tagesziel(ziel, letzte){
+/* Wie die letzte Einheit sich anfuehlte, als Faktor fuer den Schritt:
+   'l' (leicht) doppelt, 'h' (hart) keiner – dieselben Zahlen noch einmal –,
+   'p' (passt) und keine Angabe der uebliche. Die Doppelprogression war
+   bisher blind fuer alles ausser den Zahlen: wer 8 Wiederholungen mit
+   Reserven schaffte, bekam dieselbe Vorgabe wie jemand, der sich die achte
+   abgerungen hatte. */
+export const ANSTRENGUNG = ['l', 'p', 'h'];
+const faktor = a => a === 'l' ? 2 : a === 'h' ? 0 : 1;
+
+export function tagesziel(ziel, letzte, anstrengung = null){
   if(!ziel || ziel.isHold || !Number.isInteger(ziel.maxReps) || !(ziel.sets > 0)) return null;
   const werte = (Array.isArray(letzte) ? letzte : []).filter(n => Number.isInteger(n) && n >= 0);
   if(!werte.length) return null;
@@ -206,7 +215,7 @@ export function tagesziel(ziel, letzte){
   const allesOben = werte.length >= ziel.sets &&
     werte.slice(0, ziel.sets).every(n => n >= ziel.maxReps);
   return {
-    reps: Array.from({ length: ziel.sets }, (_, s) => Math.min(ziel.maxReps, vorher(s) + 1)),
+    reps: Array.from({ length: ziel.sets }, (_, s) => Math.min(ziel.maxReps, vorher(s) + faktor(anstrengung))),
     allesOben
   };
 }

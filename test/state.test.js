@@ -71,8 +71,8 @@ describe('migrateState – Sammlungen normalisieren', () => {
       { d: '2026-01-02', day: 5, sets: '4', tops: '1', ups: ['a', 7], reps: null }
     ]});
     expect(out.log).toEqual([
-      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 },
-      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 }
+      { d: '2026-01-01', day: 'A', sets: 0, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, an: {}, dauer: 0 },
+      { d: '2026-01-02', day: 'A', sets: 4, tops: 1, ups: ['a'], ex: [], reps: {}, lv: {}, dl: false, sek: {}, an: {}, dauer: 0 }
     ]);
   });
 
@@ -449,7 +449,7 @@ describe('clampBackup + migrateState – der Importpfad', () => {
     expect(out.levels).toEqual({ pushup: 2 });
     expect(out.notes).toEqual({});
     expect(out.settings).toEqual({ sound: false });
-    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, dauer: 0 }]);
+    expect(out.log).toEqual([{ d: '2026-01-01', day: 'A', sets: 3, tops: 0, ups: [], ex: [], reps: {}, lv: {}, dl: false, sek: {}, an: {}, dauer: 0 }]);
     expect(out.unbekannt).toBeUndefined();
   });
 
@@ -619,6 +619,12 @@ describe('migrateState – eigene Ziele und weggeklickte Hinweise', () => {
       expect(migrateState({ deloadPlateauDismissed: wert }).deloadPlateauDismissed).toBe(false);
     });
     expect(migrateState({}).deloadPlateauDismissed).toBe(false);
+  });
+
+  it('behaelt die Anstrengung je Uebung, nur mit bekannten Werten', () => {
+    const out = migrateState({ log: [{ d: '2026-01-01', an: { pushup: 'l', squat: 'x', dips: 3, '': 'h', row: 'h' } }] });
+    expect(out.log[0].an).toEqual({ pushup: 'l', row: 'h' });
+    expect(migrateState({ log: [{ d: '2026-01-01', an: ['l'] }] }).log[0].an).toEqual({});
   });
 
   it('behaelt abgelehnte Plan-Vorschlaege, nur in der Form alt>neu und ohne Dopplung', () => {

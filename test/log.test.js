@@ -291,8 +291,8 @@ describe('verlaufJeUebung', () => {
   it('sammelt die letzten Einheiten neueste zuerst', () => {
     const log = [eintrag('2026-07-01', 5, 1), eintrag('2026-07-03', 6, 1), eintrag('2026-07-05', 7, 2)];
     expect(verlaufJeUebung(log, ['pushup'], 2).pushup).toEqual([
-      { d: '2026-07-05', reps: [7], sek: [], lvl: 2 },
-      { d: '2026-07-03', reps: [6], sek: [], lvl: 1 }
+      { d: '2026-07-05', reps: [7], sek: [], lvl: 2, an: null },
+      { d: '2026-07-03', reps: [6], sek: [], lvl: 1, an: null }
     ]);
   });
 
@@ -300,7 +300,7 @@ describe('verlaufJeUebung', () => {
     const ohne = { d: '2026-07-04', day: 'A', ex: ['pushup', 'dips'], reps: {} };
     const log = [eintrag('2026-07-01', 5, 1), ohne];
     expect(verlaufJeUebung(log, ['pushup', 'dips'], 2)).toEqual({
-      pushup: [{ d: '2026-07-01', reps: [5], sek: [], lvl: 1 }]
+      pushup: [{ d: '2026-07-01', reps: [5], sek: [], lvl: 1, an: null }]
     });
   });
 
@@ -322,7 +322,7 @@ describe('Haltezeiten im Log', () => {
   it('nimmt Haltezeiten in den Verlauf auf', () => {
     const log = [halt('2026-07-01', { 'lever-0': 12 }, 0)];
     expect(verlaufJeUebung(log, ['lever'], 1).lever).toEqual([
-      { d: '2026-07-01', reps: [], sek: [12], lvl: 0 }
+      { d: '2026-07-01', reps: [], sek: [12], lvl: 0, an: null }
     ]);
   });
 
@@ -331,5 +331,16 @@ describe('Haltezeiten im Log', () => {
        als Wiederholungen ausgeben. */
     const log = [halt('2026-07-01', { 'lever-0': 12 }, 0)];
     expect(lastRepsByExercise(log, ['lever'])).toEqual({});
+  });
+});
+
+describe('Anstrengung im Verlauf', () => {
+  it('reicht die Angabe je Uebung mit durch', () => {
+    const log = [
+      { d: '2026-07-01', day: 'A', ex: ['pushup', 'squat'], reps: { 'pushup-0': 8, 'squat-0': 12 }, lv: { pushup: 2 }, an: { pushup: 'l' } }
+    ];
+    const v = verlaufJeUebung(log, ['pushup', 'squat'], 1);
+    expect(v.pushup[0].an).toBe('l');
+    expect(v.squat[0].an).toBeNull();
   });
 });
