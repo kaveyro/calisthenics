@@ -29,15 +29,22 @@ import { zielAuswerten } from './target.js';
 
    Der Rumpf steht im Ganzkoerpertag vor dem zweiten Druck- und Zugplatz:
    am Ende fiel er der Hoechstzahl von sieben Uebungen fast immer zum Opfer.
+   Der zweite Zugplatz steht vor dem zweiten Druckplatz: faellt einer davon
+   dem Zeitbudget zum Opfer, dann besser ein Drucksatz – die Wochenbilanz
+   (bilanz.js) meldete sonst bei zwei und drei Tagen mit Stange deutlich
+   mehr Druecken als Ziehen. Aus demselben Grund stehen im Oberkoerpertag
+   beide Zugplaetze gleich nach dem ersten Druckplatz. Bei 30 Minuten
+   passen nur drei Uebungen und eine vierte kurze; das ist der Rumpf, nicht
+   die Hueftbeuge – die Vorschau im Dialog sagt dann, dass sie fehlt.
    Plaetze zu denselben Mustern stehen in den Varianten A/B/C an anderer
    Stelle, damit die Tage nicht dieselbe Liste bekommen, und die Uebung
    wechselt, wenn ein Muster in der Woche mehrfach vorkommt. */
 const TAGESARTEN = {
-  gkA:  { titel: 'gk',   plaetze: ['h_druecken', 'v_ziehen', 'kniebeuge', 'huefte', 'rumpf_vorn', 'dip', 'h_ziehen'] },
-  gkB:  { titel: 'gk',   plaetze: ['v_druecken', 'h_ziehen', 'kniebeuge', 'huefte', 'rumpf_seite', 'h_druecken', 'v_ziehen'] },
-  gkC:  { titel: 'gk',   plaetze: ['dip', 'v_ziehen', 'kniebeuge', 'huefte', 'rumpf_vorn', 'h_druecken', 'h_ziehen'] },
-  okA:  { titel: 'ok',   plaetze: ['h_druecken', 'v_ziehen', 'v_druecken', 'h_ziehen', 'dip', 'schulter'] },
-  okB:  { titel: 'ok',   plaetze: ['dip', 'h_ziehen', 'h_druecken', 'v_ziehen', 'v_druecken', 'schulter'] },
+  gkA:  { titel: 'gk',   plaetze: ['h_druecken', 'v_ziehen', 'kniebeuge', 'rumpf_vorn', 'huefte', 'h_ziehen', 'dip'] },
+  gkB:  { titel: 'gk',   plaetze: ['v_druecken', 'h_ziehen', 'kniebeuge', 'rumpf_seite', 'huefte', 'v_ziehen', 'h_druecken'] },
+  gkC:  { titel: 'gk',   plaetze: ['dip', 'v_ziehen', 'kniebeuge', 'rumpf_vorn', 'huefte', 'h_ziehen', 'h_druecken'] },
+  okA:  { titel: 'ok',   plaetze: ['h_druecken', 'v_ziehen', 'h_ziehen', 'v_druecken', 'dip', 'schulter'] },
+  okB:  { titel: 'ok',   plaetze: ['dip', 'h_ziehen', 'v_ziehen', 'h_druecken', 'v_druecken', 'schulter'] },
   ukA:  { titel: 'uk',   plaetze: ['kniebeuge', 'huefte', 'kniebeuge', 'rumpf_vorn', 'wade', 'rumpf_seite'] },
   ukB:  { titel: 'uk',   plaetze: ['huefte', 'kniebeuge', 'huefte', 'rumpf_seite', 'rumpf_vorn'] },
   push: { titel: 'push', plaetze: ['h_druecken', 'v_druecken', 'dip', 'h_druecken', 'rumpf_seite'] },
@@ -55,6 +62,21 @@ export const AUFTEILUNG = {
   5: ['okA', 'ukA', 'push', 'pull', 'legs'],
   6: ['push', 'pull', 'legs', 'push', 'pull', 'legs']
 };
+/* Findet ein Platz keine Uebung, weicht er auf ein verwandtes Muster
+   derselben Muskelgruppe aus. Ohne Stange gibt es kein senkrechtes Ziehen;
+   der Platz blieb leer, und der Ganzkoerpertag A hatte ohne Geraet gar keine
+   Zuguebung. Die Hueftbeuge weicht nicht aus: sie geht immer (Glute
+   Bridge), und eine zweite Kniebeuge ersetzt sie nicht. */
+const AUSWEICHMUSTER = {
+  v_ziehen: ['h_ziehen', 'schulter'],
+  h_ziehen: ['v_ziehen', 'schulter'],
+  v_druecken: ['h_druecken', 'dip'],
+  dip: ['h_druecken', 'v_druecken'],
+  h_druecken: ['dip', 'v_druecken'],
+  rumpf_vorn: ['rumpf_seite'],
+  rumpf_seite: ['rumpf_vorn']
+};
+
 /* Zeitbudget je Einheit. Geschaetzt wird aus Saetzen, Arbeitszeit und
    Pause: je Satz die Obergrenze der Haltezeit oder drei Sekunden je
    Wiederholung plus zehn fuer das Einrichten, dazwischen die Pause der
@@ -144,7 +166,10 @@ const DRUECK_MUSTER = new Set(['h_druecken', 'dip', 'v_druecken']);
 
 const TAGE_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-/* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht. */
+/* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht.
+   Die Handgelenks-Routine zaehlt nicht mit: sie ist Aufwaermen. Sonst
+   kostete sie an jedem Drucktag den letzten Platz, und das war im
+   Ganzkoerpertag der zweite Zugplatz. */
 const MAX_PRO_TAG = 7;
 
 /* Hoechstens so viele Kraftsaetze je Kategorie an einem Tag. Der
@@ -297,7 +322,7 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
     const saetze = {};
     let zeit = 0, plaetze = 0;
     const nimm = (e, pflicht = true) => {
-      if(ids.includes(e.id) || ids.length >= MAX_PRO_TAG) return false;
+      if(ids.includes(e.id) || ids.filter(id => id !== HANDGELENKE).length >= MAX_PRO_TAG) return false;
       const n = kraftsaetze(e);
       if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
       const d = dauerSek(e, setsMode);
@@ -318,9 +343,11 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
        erklaerte Ziel. */
     if(skill) nimm(skill);
 
-    tag.plaetze.forEach(muster => {
-      const kandidaten = machbare.filter(e => e.muster === muster && !ids.includes(e.id));
-      if(!kandidaten.length) return;
+    tag.plaetze.forEach(platz => {
+      const frei = m => machbare.filter(e => e.muster === m && !ids.includes(e.id));
+      const muster = [platz, ...(AUSWEICHMUSTER[platz] || [])].find(m => frei(m).length);
+      if(!muster) return;
+      const kandidaten = frei(muster);
       /* Gewechselt wird unter den Uebungen, fuer die man bereit ist; eine
          fortgeschrittene kommt erst, wenn ihre Vorstufe sitzt (VORSTUFEN).
          Gibt es fuer das Muster sonst nichts, auch eine andere. */

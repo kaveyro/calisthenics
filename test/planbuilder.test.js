@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit } from '../js/domain/planbuilder.js';
 import { istSkill } from '../js/domain/skills.js';
+import { wochenTage, wochenbilanz } from '../js/domain/bilanz.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
 /* Gegen die ECHTE Uebungsliste geprueft, nicht gegen einen Nachbau: der
@@ -492,5 +493,48 @@ describe('Stand beruecksichtigen', () => {
 
   it('aendert fuer Einsteiger nichts', () => {
     expect(bauen({ tage: 4, levels: {} })).toEqual(bauen({ tage: 4 }));
+  });
+});
+
+describe('Wochenbilanz des erzeugten Plans', () => {
+  const EQUIPS = { stuhl: ['chair'], stange: ['bar'], ringe: ['rings'], alles: EQUIP_ALL };
+  const warnungen = (tage, equipment, minuten) => {
+    const p = bauen({ tage, equipment, minuten });
+    return wochenbilanz(wochenTage(p.days, {}, tage), EX_BY_ID).warnungen.map(w => w.art + (w.gruppe ? ':' + w.gruppe : ''));
+  };
+
+  /* Die Bilanz im Plan-Tab soll einem frisch erzeugten Plan nichts
+     vorwerfen. Vor diesem Stand meldete sie bei zwei und drei Tagen mit
+     Stange deutlich mehr Druecken als Ziehen. Ohne jedes Geraet gibt der
+     Katalog ab vier Tagen nicht genug Zuguebungen her; das bleibt ehrlich
+     stehen. 30 Minuten sind ein Kompromiss und hier nicht verlangt. */
+  it('bleibt ab 45 Minuten ohne Warnung', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
+      for(const [name, equipment] of Object.entries(EQUIPS)){
+        for(const minuten of [45, 60, undefined]){
+          expect(warnungen(tage, equipment, minuten), tage + ' ' + name + ' ' + minuten).toEqual([]);
+        }
+      }
+    }
+    for(const tage of [2, 3]) expect(warnungen(tage, [], 45), 'ohne ' + tage).toEqual([]);
+  });
+
+  it('behaelt bei 30 Minuten den Rumpf und verliert nur die Hueftbeuge', () => {
+    for(const equipment of Object.values(EQUIPS)){
+      expect(warnungen(3, equipment, 30).filter(w => w.startsWith('fehlt'))).toEqual([]);
+    }
+  });
+
+  it('weicht ohne Stange auf eine Ruderuebung aus, statt den Zugplatz leer zu lassen', () => {
+    bauen({ tage: 3, equipment: [] }).days.forEach(d => {
+      expect(d.ex.some(id => ['v_ziehen', 'h_ziehen'].includes(EX_BY_ID[id].muster)), d.key + ' ' + d.ex.join(',')).toBe(true);
+    });
+  });
+
+  it('zaehlt die Handgelenks-Routine nicht zu den sieben Uebungen', () => {
+    bauen({ tage: 3 }).days.forEach(d => {
+      expect(d.ex.filter(id => id !== 'wrist_prep').length).toBeLessThanOrEqual(7);
+    });
+    expect(bauen({ tage: 3 }).days.some(d => d.ex.length === 8)).toBe(true);
   });
 });

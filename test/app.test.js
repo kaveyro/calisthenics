@@ -899,6 +899,19 @@ describe('Plangenerator', () => {
     expect(document.querySelector('#pb-vorschau .pb-day span').textContent).toContain('Wand-Handstand');
   });
 
+  it('sagt in der Vorschau, was bei 30 Minuten fehlt', async () => {
+    await dialogOeffnen(['bar']);
+    const warn = () => document.querySelector('#pb-vorschau .bil-warn');
+    const tage = document.getElementById('pb-tage');
+    tage.value = '3';
+    tage.dispatchEvent(new Event('change'));
+    expect(warn()).toBeNull();
+    const minuten = document.getElementById('pb-minuten');
+    minuten.value = '30';
+    minuten.dispatchEvent(new Event('change'));
+    expect(warn().textContent).toMatch(/Hüftbeuge/);
+  });
+
   it('fragt nach der Zeit pro Einheit und zeigt die geschaetzte Dauer', async () => {
     await dialogOeffnen(['bar', 'rings', 'chair', 'parallettes', 'band']);
     const minuten = document.getElementById('pb-minuten');

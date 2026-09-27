@@ -3015,23 +3015,29 @@ function renderBilanz(){
   if(!woche.length){ el.innerHTML = ''; el.hidden = true; return; }
   el.hidden = false;
   const b = wochenbilanz(woche, EX_BY_ID, state.levels, cfg('setsMode'));
-  const name = g => catName(BILANZ_KAT[g], CATS[BILANZ_KAT[g]].name);
   const auffaellig = new Set(b.warnungen.map(w => w.gruppe).filter(Boolean));
-  const text = w => {
-    if(w.art === 'huefte') return __('bilanzHuefte');
-    if(w.art === 'zugWenig') return __('bilanzZugWenig', { d: b.gruppen.druecken.saetze, z: b.gruppen.ziehen.saetze });
-    return __('bilanz_' + w.art, { g: name(w.gruppe), n: b.gruppen[w.gruppe].saetze });
-  };
   el.innerHTML =
     '<p class="bil-kopf">' + esc(__(rhythmusAktiv() ? 'bilanzRhythmus' : 'bilanzZiel', { n: b.einheiten })) + '</p>' +
     Object.entries(b.gruppen).map(([g, w]) =>
       '<div class="bil-row' + (auffaellig.has(g) ? ' warn' : '') + '">' +
-        '<span class="bil-name"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' + esc(name(g)) + '</span>' +
+        '<span class="bil-name"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' + esc(bilanzGruppe(g)) + '</span>' +
         '<span class="bil-wert">' + esc(w.saetze === 1 ? __('setsCountOne') : __('setsCountMany', { n: w.saetze })) +
           ' · ' + esc(__('dayCount', { n: w.tage })) + '</span></div>').join('') +
-    (b.warnungen.length
-      ? '<ul class="bil-warn">' + b.warnungen.map(w => '<li>' + esc(text(w)) + '</li>').join('') + '</ul>'
-      : '<p class="bil-ok">' + esc(__('bilanzOk')) + '</p>');
+    (bilanzWarnungen(b) || '<p class="bil-ok">' + esc(__('bilanzOk')) + '</p>');
+}
+const bilanzGruppe = g => catName(BILANZ_KAT[g], CATS[BILANZ_KAT[g]].name);
+/* Die Warnungen als Liste, leer ohne Warnung. Auch fuer die Vorschau im
+   Generator-Dialog: bei 30 Minuten passt keine Hueftbeuge mehr, und das
+   soll man sehen, bevor man den Plan uebernimmt. */
+function bilanzWarnungen(b){
+  const text = w => {
+    if(w.art === 'huefte') return __('bilanzHuefte');
+    if(w.art === 'zugWenig') return __('bilanzZugWenig', { d: b.gruppen.druecken.saetze, z: b.gruppen.ziehen.saetze });
+    return __('bilanz_' + w.art, { g: bilanzGruppe(w.gruppe), n: b.gruppen[w.gruppe].saetze });
+  };
+  return b.warnungen.length
+    ? '<ul class="bil-warn">' + b.warnungen.map(w => '<li>' + esc(text(w)) + '</li>').join('') + '</ul>'
+    : '';
 }
 
 /* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
@@ -3530,7 +3536,10 @@ function askPlanBuilder(){
       vorschau.innerHTML = plan.days.map(d =>
         '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) +
         ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
-        esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') ||
+        esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') +
+        /* Die Woche des neuen Plans: so viele Einheiten, wie Tage gewaehlt
+           sind – der alte Rhythmus gehoert zum alten Plan. */
+        bilanzWarnungen(wochenbilanz(wochenTage(plan.days, {}, plan.days.length), EX_BY_ID, state.levels, cfg('setsMode'))) ||
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
     tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
