@@ -57,6 +57,32 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/archivo-black-400.woff2">
 </head>
 <body>
+  <!-- Symbolsatz: eigene Strichzeichnungen auf 24er-Raster, Farbe aus
+       currentColor. Genutzt ueber use mit href auf "i-" plus Name, siehe ikon() in
+       js/app.js. Ersetzt Emoji und Unicode-Zeichen, die je nach System
+       anders aussahen und nicht zur Schrift passten. -->
+  <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M18.99 10.29L21.46 10.38L21.46 13.62L18.99 13.71L18.16 15.74L19.84 17.54L17.54 19.84L15.74 18.16L13.71 18.99L13.62 21.46L10.38 21.46L10.29 18.99L8.26 18.16L6.46 19.84L4.16 17.54L5.84 15.74L5.01 13.71L2.54 13.62L2.54 10.38L5.01 10.29L5.84 8.26L4.16 6.46L6.46 4.16L8.26 5.84L10.29 5.01L10.38 2.54L13.62 2.54L13.71 5.01L15.74 5.84L17.54 4.16L19.84 6.46L18.16 8.26z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M18.60 12.00L21.00 12.00M16.67 16.67L18.36 18.36M12.00 18.60L12.00 21.00M7.33 16.67L5.64 18.36M5.40 12.00L3.00 12.00M7.33 7.33L5.64 5.64M12.00 5.40L12.00 3.00M16.67 7.33L18.36 5.64"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4"/><path d="M20 16H6M10 12l-4 4 4 4"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M4 12h12M12 7l5 5-5 5"/><path d="M20 5v14"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-7M3 20h18"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+    <symbol id="i-levelup" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-train" viewBox="0 0 24 24"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 4 5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5z"/><path d="M12 6.5v14"/></symbol>
+    <symbol id="i-plan" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 3h6v3H9zM9 12l2 2 4-4M9 17.5h6"/></symbol>
+    <symbol id="i-goals" viewBox="0 0 24 24"><path d="M6 21V4"/><path d="M6 4.5h11l-2.5 4 2.5 4H6"/></symbol>
+  </svg>
+
 <div class="wrap">
 
   <header>
@@ -66,8 +92,8 @@
         <h1>Progres<span class="thin">sion</span></h1>
       </div>
       <div class="head-btns">
-        <button class="icon-btn" data-action="settings:open" data-i18n-aria-label="openSettings" data-i18n-title="settings" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button>
-        <button class="icon-btn" id="themeBtn" data-action="theme:toggle" data-i18n-aria-label="toggleTheme" data-i18n-title="lightDark" aria-label="Design wechseln" title="Hell / Dunkel">☾</button>
+        <button class="icon-btn" data-action="settings:open" data-i18n-aria-label="openSettings" data-i18n-title="settings" aria-label="Einstellungen öffnen" title="Einstellungen"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-gear"/></svg></button>
+        <button class="icon-btn" id="themeBtn" data-action="theme:toggle" data-i18n-aria-label="toggleTheme" data-i18n-title="lightDark" aria-label="Design wechseln" title="Hell / Dunkel"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-moon"/></svg></button>
       </div>
     </div>
     <div class="phase-line" id="phaseLine"></div>
@@ -86,11 +112,11 @@
   <div class="stats" id="stats"></div>
 
   <nav class="tabs" role="tablist" data-i18n-aria-label="sections" aria-label="Bereiche">
-    <button class="tab active" id="tab-train" data-action="tab:show" data-tab="train" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0" data-i18n="training">Training</button>
-    <button class="tab" id="tab-history" data-action="tab:show" data-tab="history" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1" data-i18n="history">Verlauf</button>
-    <button class="tab" id="tab-library" data-action="tab:show" data-tab="library" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1" data-i18n="exercises">Übungen</button>
-    <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1" data-i18n="plan">Plan</button>
-    <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1" data-i18n="milestones">Ziele</button>
+    <button class="tab active" id="tab-train" data-action="tab:show" data-tab="train" role="tab" aria-selected="true" aria-controls="view-train" tabindex="0"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-train"/></svg><span data-i18n="training">Training</span></button>
+    <button class="tab" id="tab-history" data-action="tab:show" data-tab="history" role="tab" aria-selected="false" aria-controls="view-history" tabindex="-1"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span data-i18n="history">Verlauf</span></button>
+    <button class="tab" id="tab-library" data-action="tab:show" data-tab="library" role="tab" aria-selected="false" aria-controls="view-library" tabindex="-1"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-library"/></svg><span data-i18n="exercises">Übungen</span></button>
+    <button class="tab" id="tab-plan" data-action="tab:show" data-tab="plan" role="tab" aria-selected="false" aria-controls="view-plan" tabindex="-1"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-plan"/></svg><span data-i18n="plan">Plan</span></button>
+    <button class="tab" id="tab-milestones" data-action="tab:show" data-tab="milestones" role="tab" aria-selected="false" aria-controls="view-milestones" tabindex="-1"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-goals"/></svg><span data-i18n="milestones">Ziele</span></button>
   </nav>
   </div>
 
@@ -308,7 +334,7 @@
 <!-- Einstellungen -->
 <div class="overlay" id="settingsOverlay" data-action="settings:closeOnBackdrop">
   <div class="modal" role="dialog" aria-modal="true" data-i18n-aria-label="settings" aria-label="Einstellungen">
-    <div class="modal-head"><span data-i18n="settings">Einstellungen</span><button data-action="settings:close" data-i18n-aria-label="close" aria-label="Schließen">✕</button></div>
+    <div class="modal-head"><span data-i18n="settings">Einstellungen</span><button data-action="settings:close" data-i18n-aria-label="close" aria-label="Schließen"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button></div>
 
     <!-- Ausruestung: eigene Aktion statt setting:update, weil der Pfad dort
          nur Skalare kennt. Die Werte stehen in js/domain/equipment.js. -->

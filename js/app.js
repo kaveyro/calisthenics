@@ -486,7 +486,12 @@ function applyLanguage(){
    festgelegt. Jetzt ein Dreierzyklus – und ein Listener, damit ein
    Systemwechsel bei geoeffneter App ankommt statt bis zum Neuladen zu warten. */
 const THEMES = [null, 'light', 'dark'];
-const THEME_ZEICHEN = { null: '◐', light: '☀', dark: '☾' };
+const THEME_ZEICHEN = { null: 'auto', light: 'sun', dark: 'moon' };
+
+/* Ein Symbol aus dem Sprite in index.html. Immer aria-hidden: die
+   Bedeutung traegt die Beschriftung daneben oder das aria-label des
+   Knopfs. */
+const ikon = name => '<svg class="i" aria-hidden="true" focusable="false"><use href="#i-' + name + '"/></svg>';
 const THEME_TEXT = { null: 'themeSystem', light: 'themeLight', dark: 'themeDark' };
 
 const systemDunkel = () =>
@@ -502,7 +507,7 @@ function applyTheme(){
     /* Das Zeichen benennt den AKTUELLEN Zustand, nicht den naechsten Schritt.
        Bei drei Moeglichkeiten waere "was passiert beim Tippen" nicht mehr
        aus einem Symbol ablesbar. */
-    btn.textContent = THEME_ZEICHEN[wunsch];
+    btn.innerHTML = ikon(THEME_ZEICHEN[wunsch]);
     btn.setAttribute('aria-label', __('themeCurrent', { mode: __(THEME_TEXT[wunsch]) }));
     btn.setAttribute('title', __(THEME_TEXT[wunsch]));
   }
@@ -791,7 +796,7 @@ function renderWarmup(){
       ' data-action-change="warmup:toggle" data-i="' + i + '">' +
       '<span>' + esc(w) + '</span></label>' +
     ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
-    ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">✕</button></li>'
+    ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">' + ikon('close') + '</button></li>'
   ).join('');
 }
 function toggleWarmupItem(i, on){
@@ -1259,7 +1264,7 @@ function renderWorkout(){
       html += '<div class="ex ex--skipped" data-exid="' + ex.id + '">' +
         '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div></div>' +
         '<div class="ex-stage">' + esc(__('skippedToday')) + '</div>' +
-        '<button class="tip-btn" data-action="exercise:unskip" data-ex="' + origId + '">↩ ' + __('undoSkip') + '</button>' +
+        '<button class="tip-btn" data-action="exercise:unskip" data-ex="' + origId + '">' + ikon('undo') + ' ' + __('undoSkip') + '</button>' +
         '</div>';
       return;
     }
@@ -1375,9 +1380,9 @@ function renderWorkout(){
       /* Ersetzen und Auslassen greifen auf die PLAN-Zeile zu, nicht auf die
          gerade angezeigte Uebung – sonst liesse sich eine Ersetzung nicht
          zurueckdrehen. */
-      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + origId + '">↻ ' + __('substitute') + '</button>' +
-      '<button class="sub-btn" data-action="exercise:skip" data-ex="' + origId + '">⤳ ' + __('skipToday') + '</button>' +
-      '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
+      '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + origId + '">' + ikon('swap') + ' ' + __('substitute') + '</button>' +
+      '<button class="sub-btn" data-action="exercise:skip" data-ex="' + origId + '">' + ikon('skip') + ' ' + __('skipToday') + '</button>' +
+      '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
       '</details>' +
       '</div>';
   });
@@ -1539,7 +1544,7 @@ function showExHistory(id){
   let html = '<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '">' +
     '<div class="modal-head">' +
     esc(__('exerciseHistory', { name: exName(ex) })) +
-    '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">✕</button></div>';
+    '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">' + ikon('close') + '</button></div>';
   if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
   else {
     html += topsatzKurve(logEntries, id);
@@ -1555,7 +1560,8 @@ function showExHistory(id){
       const sek = sekOf(l, id);
       html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + (lvl === null ? '–' : lvl + 1) + '</td><td>' +
         esc(sek.length ? mitEinheit(sek, true) : repsOf(l, id).join(' · ')) + '</td><td>' +
-        (Array.isArray(l.ups) && l.ups.includes(id) ? '▲' : '') + '</td></tr>';
+        (Array.isArray(l.ups) && l.ups.includes(id)
+          ? '<span class="aufstieg" title="' + esc(__('colLevelUp')) + '">' + ikon('levelup') + '</span>' : '') + '</td></tr>';
     });
     html += '</table>';
   }
@@ -2104,7 +2110,7 @@ async function finishWorkout(){
   clearTimeout(undoTimeout);
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
-  undoBtn.textContent = '↩ ' + __('undo');
+  undoBtn.innerHTML = ikon('undo') + ' ' + esc(__('undo'));
   undoBtn.dataset.action = 'workout:undo';
   document.getElementById('content').appendChild(undoBtn);
   /* Den Button zusammen mit dem Snapshot entfernen – sonst bleibt eine
@@ -2303,9 +2309,10 @@ function renderHistory(){
       '<span class="muted">' + esc(__(l.sets === 1 ? 'setsCountOne' : 'setsCountMany', { n: l.sets })) +
         ' · ' + l.tops + '× Top' +
         (l.dauer ? ' · ' + esc(dauerText(l.dauer)) : '') + '</span>' +
-      '<span class="log-ups">' + (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</span>' +
+      '<span class="log-ups">' + (l.ups && l.ups.length
+        ? '<span class="aufstieg" title="' + esc(__('colLevelUp')) + '">' + ikon('levelup') + l.ups.length + '</span>' : '') + '</span>' +
       '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
-      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">✕</button></div>';
+      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">' + ikon('close') + '</button></div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
   renderLogSummary(imZeitraum.length, log.length);
@@ -2798,7 +2805,7 @@ function renderLibrary(){
           '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
         (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
         '<ul class="tips open tips--inline">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
+        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
       '</div></div>';
   }).join('') : '';
   filterLibrary();
@@ -2943,8 +2950,8 @@ function renderPlanTab(){
             esc(__('dayCount', { n: proTag[d.key] || 0 })) + '</span>'
           : '') +
       '</span>' +
-        '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '">✎</button> ' +
-        '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '">✕</button></span></div>' +
+        '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '" aria-label="' + __('rename') + '">' + ikon('edit') + '</button> ' +
+        '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '" aria-label="' + __('remove') + '">' + ikon('close') + '</button></span></div>' +
       d.ex.map((id, ei) => {
         const ex = EX_BY_ID[id];
         /* Drag & Drop laeuft ueber einen eigenen, auf #planEditor begrenzten
@@ -2952,11 +2959,11 @@ function renderPlanTab(){
            ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
            gehoert nicht durch einen Namens-Lookup am document. */
         return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '">' +
-          '<span class="drag-handle">⠿</span>' +
+          '<span class="drag-handle">' + ikon('grip') + '</span>' +
           '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
-          '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '">↑</button>' +
-          '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '">↓</button>' +
-          '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '">✕</button></div>';
+          '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '" aria-label="' + __('moveUp') + '">' + ikon('up') + '</button>' +
+          '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '" aria-label="' + __('moveDown') + '">' + ikon('down') + '</button>' +
+          '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '" aria-label="' + __('remove') + '">' + ikon('close') + '</button></div>';
       }).join('') +
       /* Nicht machbare Uebungen werden gesperrt statt entfernt: ein verkuerztes
          Menue laesst offen, warum eine Uebung fehlt – ein ausgegrauter Eintrag
@@ -3175,7 +3182,7 @@ function renderMilestones(){
       (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') +
       '</span></label>' +
       '<button type="button" class="mini-btn danger" data-action="milestone:removeCustom" data-id="' +
-        m.id + '" title="' + esc(__('remove')) + '">✕</button>' +
+        m.id + '" title="' + esc(__('remove')) + '" aria-label="' + esc(__('remove')) + '">' + ikon('close') + '</button>' +
       '</div>';
   }).join('');
 
@@ -3367,7 +3374,7 @@ function askDialog(build){
 
 function dialogKopf(titel){
   return '<div class="modal-head"><span>' + esc(titel) + '</span>' +
-    '<button data-dlg="abbrechen" aria-label="' + esc(__('close')) + '">✕</button></div>';
+    '<button data-dlg="abbrechen" aria-label="' + esc(__('close')) + '">' + ikon('close') + '</button></div>';
 }
 function dialogFuss(okText, gefahr){
   return '<div class="dlg-actions">' +

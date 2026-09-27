@@ -162,6 +162,21 @@ body{
 .wrap{max-width:var(--inhalt-max);margin:0 auto;padding:0 var(--abstand-4)}
 button{font-family:inherit;color:inherit}
 
+/* ---------- Symbole ----------
+   Strichzeichnungen aus dem Sprite in index.html. Größe folgt der Schrift
+   des Elternteils, die Farbe seiner Textfarbe. */
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.i{width:1.2em;height:1.2em;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.22em}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center}
+.aufstieg{display:inline-flex;align-items:center;gap:1px;color:var(--success);font-weight:600}
+.aufstieg .i{width:1em;height:1em;stroke-width:2.25}
+.mini-btn .i{width:1em;height:1em}
+.drag-handle .i{width:1em;height:1em}
+/* In der waagerechten Tableiste des Handys ist kein Platz für Symbole:
+   fünf Beschriftungen füllen 341px schon allein. Zu sehen sind sie in der
+   Schiene ab 1040px. */
+@media(max-width:1039px){ .tab .i{display:none} }
+
 /* ---------- Header ---------- */
 header{padding:24px 0 6px}
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -639,6 +654,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
      hier unbedenklich, weil .stat nichts Fokussierbares enthält und sich die
      Fokusreihenfolge deshalb nicht von der Lesereihenfolge löst. */
   .tabs{order:-1;flex-direction:column;overflow:visible;gap:var(--abstand-1);margin:0}
+  .tab{display:flex;align-items:center;gap:var(--abstand-2)}
   .tab{flex:0 0 auto;text-align:left;padding:10px var(--abstand-3)}
   .stats{flex-direction:column;margin:0}
   .stat{min-width:0}

@@ -984,9 +984,10 @@ describe('Verlauf je Uebung', () => {
       { ...eintrag('2026-07-01', { 'pushup-0': 8 }), ups: ['dips', 'squat'] },
       { ...eintrag('2026-07-05', { 'pushup-0': 9 }), ups: ['pushup'] }
     ]);
-    const zeilen = [...overlay.querySelectorAll('table tr')].slice(1).map(z => z.textContent);
-    expect(zeilen[0]).toContain('▲');
-    expect(zeilen[1]).not.toContain('▲');
+    /* Das Zeichen ist seit dem Symbolsatz ein SVG, kein ▲ mehr im Text. */
+    const zeilen = [...overlay.querySelectorAll('table tr')].slice(1);
+    expect(zeilen[0].querySelector('.aufstieg use').getAttribute('href')).toBe('#i-levelup');
+    expect(zeilen[1].querySelector('.aufstieg')).toBeNull();
   });
 
   /* Nach einem Aufstieg ist die Zahl kleiner, weil die Variante schwerer

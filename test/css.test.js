@@ -246,6 +246,35 @@ describe('Kopfzeile auf schmalen Schirmen', () => {
 
 /* Punkte und Felder standen abwechselnd in einer umbrechenden Reihe; bei
    vier Saetzen stand "3" am Zeilenende und sein Feld darunter. */
+/* Symbole kommen aus einem Sprite in index.html (ikon() in app.js). Ein
+   Tippfehler im Namen ergaebe ein leeres Kaestchen und keinen Fehler. */
+describe('Symbolsatz', () => {
+  const app = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
+  const vorhanden = new Set([...html.matchAll(/<symbol id="i-([a-z]+)"/g)].map(m => m[1]));
+  const benutzt = new Set([
+    ...[...app.matchAll(/ikon\('([a-z]+)'\)/g)].map(m => m[1]),
+    ...[...html.matchAll(/href="#i-([a-z]+)"/g)].map(m => m[1]),
+    ...[...app.matchAll(/(?:null|light|dark): '([a-z]+)'/g)].map(m => m[1])
+  ]);
+
+  it('kennt jedes verwendete Symbol', () => {
+    expect(benutzt.size).toBeGreaterThan(15);
+    expect([...benutzt].filter(n => !vorhanden.has(n))).toEqual([]);
+  });
+
+  it('hat keine toten Symbole', () => {
+    expect([...vorhanden].filter(n => !benutzt.has(n))).toEqual([]);
+  });
+
+  /* Die Emoji und Unicode-Zeichen, die der Symbolsatz abgeloest hat. In
+     Knoepfen sahen sie je nach System anders aus. */
+  it('verwendet in Knoepfen keine Emoji oder Pfeilzeichen mehr', () => {
+    const knoepfe = [...(html + app).matchAll(/<button[^>]*>([^<]*)/g)].map(m => m[1]);
+    const alt = /[✕✎⠿↻⤳↩📊⚙☾☀◐▲]/u;
+    expect(knoepfe.filter(t => alt.test(t))).toEqual([]);
+  });
+});
+
 describe('Satzspalten', () => {
   it('stellt je Satz eine Spalte', () => {
     expect(css).toMatch(/\.sets\{display:grid;grid-template-columns:repeat\(var\(--saetze,4\),minmax\(0,1fr\)\)/);
