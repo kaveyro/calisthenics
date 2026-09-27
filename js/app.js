@@ -48,6 +48,17 @@ const leereSession = () => ({
 });
 let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
+
+/* Lebensdauer dieser Instanz. Jeder Listener an document und window haengt
+   an diesem Signal, damit stop() alle auf einmal abhaengen kann. Im Browser
+   gibt es genau eine Instanz, und stop() wird nie gerufen. Die Tests starten
+   die App aber je Test neu, und ohne Abraeumen hoerten die Instanzen
+   frueherer Tests weiter mit: ein Klick erreichte alle, ein entprelltes
+   Speichern schrieb 500 ms spaeter den alten Stand in den naechsten Test.
+   Das war der Fehler, der nur in CI auftrat. */
+const lauf = new AbortController();
+let gestoppt = false;
+const an = (ziel, typ, fn, opts = {}) => ziel.addEventListener(typ, fn, { ...opts, signal: lauf.signal });
 /* Beide Timer richten sich nach einem absoluten Zielzeitpunkt statt nach
    heruntergezaehlten Ticks. Browser drosseln setInterval im Hintergrund auf
    mindestens eine Sekunde und frieren ihn auf Mobilgeraeten ganz ein: eine
@@ -107,7 +118,7 @@ export async function start(){
     restoreActiveSession();
     registerSW();
     speicherSichern();
-    installDelegation(actions);
+    installDelegation(actions, document, lauf.signal);
     installPlanDragAndDrop();
     addKeyboardShortcuts();
     addTablistNavigation();
@@ -122,6 +133,17 @@ export async function start(){
       esc(String(err && err.message || err)) +
       '<br><br>' + esc(__('bootHint')) + '</div>';
   }
+}
+
+/* Raeumt diese Instanz ab: Listener, Timer, ausstehende Schreibvorgaenge.
+   Nur fuer die Tests, die die App je Test neu starten – siehe `lauf`. */
+export function stop(){
+  gestoppt = true;
+  lauf.abort();
+  clearTimeout(schreibTimer); schreibTimer = null;
+  if(holdTimer){ clearInterval(holdTimer.interval); holdTimer = null; }
+  if(restTimer){ clearInterval(restTimer); restTimer = null; }
+  [undoTimeout, erinnerungTimer, settingsUndoTimeout, toastTimer].forEach(t => clearTimeout(t));
 }
 
 /* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
@@ -197,6 +219,9 @@ async function appInstallieren(){
 }
 
 async function save(){
+  /* Eine abgeraeumte Instanz schreibt nichts mehr – auch kein Speichern,
+     das vor stop() angestossen wurde und erst danach dran ist. */
+  if(gestoppt) return;
   try{
     /* Vor dem Schreiben hochzaehlen: ein anderes Fenster erkennt am Zaehler,
        dass der Stand im Speicher neuer ist als sein eigener. */
@@ -861,9 +886,9 @@ function addTablistNavigation(){
   /* Wer das Fenster verkleinert, soll nicht mit einer Leiste dastehen, die
      sich noch fuer senkrecht haelt. */
   if(schienenAbfrage && schienenAbfrage.addEventListener){
-    schienenAbfrage.addEventListener('change', tablistAusrichten);
+    an(schienenAbfrage, 'change', tablistAusrichten);
   }
-  document.querySelector('.tabs').addEventListener('keydown', e => {
+  an(document.querySelector('.tabs'), 'keydown', e => {
     const keys = senkrechteLeiste()
       ? { ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last' }
       : { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
@@ -895,7 +920,7 @@ function fokusAufKarte(karte){
 }
 
 function addKeyboardShortcuts(){
-  document.addEventListener('keydown', e => {
+  an(document, 'keydown', e => {
     /* Was ein anderer Zuhoerer schon behandelt hat, hier nicht ein zweites
        Mal ausfuehren. Die Tableiste faengt die waagerechten Pfeile ab, und
        jede Taste, die dort verbraucht wurde, ist hier keine mehr. */
@@ -2958,7 +2983,7 @@ function installPlanDragAndDrop(){
   const editor = document.getElementById('planEditor');
   const zeile = ev => ev.target.closest('.plan-ex[data-day]');
 
-  editor.addEventListener('dragstart', ev => {
+  an(editor, 'dragstart', ev => {
     const el = zeile(ev); if(!el) return;
     dragSrcId = zahl(el.dataset.day); dragSrcIdx = zahl(el.dataset.i);
     ev.dataTransfer.effectAllowed = 'move';
@@ -2966,19 +2991,19 @@ function installPlanDragAndDrop(){
     ev.dataTransfer.setData('text/plain', dragSrcId + ':' + dragSrcIdx);
   });
 
-  editor.addEventListener('dragover', ev => {
+  an(editor, 'dragover', ev => {
     if(!zeile(ev) || dragSrcId === null) return;
     ev.preventDefault();                       /* macht die Zeile erst ablegbar */
     ev.dataTransfer.dropEffect = 'move';
   });
 
-  editor.addEventListener('drop', ev => {
+  an(editor, 'drop', ev => {
     const el = zeile(ev); if(!el) return;
     ev.preventDefault();
     dragDrop(zahl(el.dataset.day), zahl(el.dataset.i));
   });
 
-  editor.addEventListener('dragend', () => { dragSrcId = null; dragSrcIdx = null; });
+  an(editor, 'dragend', () => { dragSrcId = null; dragSrcIdx = null; });
 }
 
 function dragDrop(di, ei){
@@ -4049,7 +4074,7 @@ function installGlobalListeners(){
      Signal – beforeunload feuert dort beim App-Wechsel nicht. Beide sind
      registriert, weil visibilitychange beim reinen Schliessen am Desktop
      nicht garantiert ist. */
-  document.addEventListener('visibilitychange', () => {
+  an(document, 'visibilitychange', () => {
     if(document.visibilityState === 'hidden'){ flushSession(); erinnerungPlanen(); return; }
 
     erinnerungAbsagen();
@@ -4068,7 +4093,7 @@ function installGlobalListeners(){
   });
 
   /* Ungespeichertes Training beim Verlassen abfangen */
-  window.addEventListener('beforeunload', e => {
+  an(window, 'beforeunload', e => {
     flushSession();
     if(session.dayKey && Object.values(session.sets).some(Boolean)){
       e.preventDefault(); e.returnValue = '';
@@ -4080,12 +4105,12 @@ function installGlobalListeners(){
      Hinweisstreifen; das Ereignis wird aufgehoben und spaeter ueber die
      Schaltflaeche ausgeloest – prompt() ist ausserhalb einer Nutzergeste
      ohnehin nicht erlaubt. */
-  window.addEventListener('beforeinstallprompt', e => {
+  an(window, 'beforeinstallprompt', e => {
     e.preventDefault();
     installAngebot = e;
     zeigeInstallSchalter();
   });
-  window.addEventListener('appinstalled', () => {
+  an(window, 'appinstalled', () => {
     installAngebot = null;
     zeigeInstallSchalter();
     /* Eine installierte App bekommt die Dauerhaftigkeit haeufig erst jetzt. */
@@ -4096,7 +4121,7 @@ function installGlobalListeners(){
      schliessen. Dialoge bleiben bewusst aussen vor: sie ueber die History zu
      schliessen verwickelt openDialog/closeDialog mit ihrem Stapel in
      Rueckwaertsspruenge, die sie selbst ausloesen. Escape und ✕ tun es. */
-  window.addEventListener('popstate', e => {
+  an(window, 'popstate', e => {
     showTab((e.state && e.state.tab) || 'train', true);
   });
 
@@ -4112,7 +4137,7 @@ function installGlobalListeners(){
      uebernehmen und die hier laufende Einheit wieder anhaengen. Das einzige,
      was dieses Fenster exklusiv hat, ist session – alles andere ist laengst
      geschrieben. Damit geht in keiner Richtung etwas verloren. */
-  window.addEventListener('storage', e => {
+  an(window, 'storage', e => {
     if(e.key !== STORAGE_KEY || !e.newValue) return;
     let fremd;
     try{ fremd = migrateState(JSON.parse(e.newValue)); }
@@ -4150,7 +4175,7 @@ function installGlobalListeners(){
   /* Systemwechsel hell/dunkel – nur wirksam, solange dem System gefolgt wird. */
   const dunkelAbfrage = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
   if(dunkelAbfrage && dunkelAbfrage.addEventListener){
-    dunkelAbfrage.addEventListener('change', () => { if(!state.theme) applyTheme(); });
+    an(dunkelAbfrage, 'change', () => { if(!state.theme) applyTheme(); });
   }
 }
 

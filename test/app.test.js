@@ -31,8 +31,14 @@ const KOERPER = readFileSync(join(ROOT, 'index.html'), 'utf8')
    durchgelaufen sind. */
 const ruhe = () => new Promise(r => setTimeout(r, 0));
 
+/* Jede Instanz raeumt die vorige ab, bevor sie startet – wie ein Neuladen
+   der Seite. Ohne das hoerten die Instanzen frueherer Tests an document
+   weiter mit und schrieben in denselben Speicherschluessel. */
+let laufendeApp = null;
 async function starten(){
+  if(laufendeApp) laufendeApp.stop();
   const app = await import('../js/app.js');
+  laufendeApp = app;
   await app.start();
   await ruhe();
   return app;

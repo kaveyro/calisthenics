@@ -25,7 +25,9 @@ const TYPEN = {
 /* dataset-Schluessel -> Attributname: actionChange -> data-action-change */
 const attributName = key => 'data-' + key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
 
-export function installDelegation(registry, root = document){
+/* signal haengt die Listener wieder ab (AbortController), siehe stop() in
+   app.js. Ohne signal bleiben sie, solange die Seite lebt. */
+export function installDelegation(registry, root = document, signal){
   for(const [eventName, datasetKey] of Object.entries(TYPEN)){
     const selektor = '[' + attributName(datasetKey) + ']';
     root.addEventListener(eventName, ev => {
@@ -41,7 +43,7 @@ export function installDelegation(registry, root = document){
         return;
       }
       fn(el.dataset, ev, el);
-    });
+    }, signal ? { signal } : undefined);
   }
 }
 
