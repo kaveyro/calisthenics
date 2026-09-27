@@ -190,10 +190,7 @@ button{font-family:inherit;color:inherit}
 .aufstieg .i{width:1em;height:1em;stroke-width:2.25}
 .mini-btn .i{width:1em;height:1em}
 .drag-handle .i{width:1em;height:1em}
-/* In der waagerechten Tableiste des Handys ist kein Platz für Symbole:
-   fünf Beschriftungen füllen 341px schon allein. Zu sehen sind sie in der
-   Schiene ab 1040px. */
-@media(max-width:1039px){ .tab .i{display:none} }
+
 
 /* ---------- Header ---------- */
 header{padding:24px 0 6px}
@@ -798,14 +795,6 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 5px)}
   .rep-input,.sek-input{width:44px;height:32px;font-size:var(--text-xs)}
-  /* Fünf Beschriftungen brauchten bei 375px 364 Pixel und hatten 341 – „Ziele"
-     ragte über den Rand. Die Leiste ist zwar wischbar, aber der Scrollbalken
-     ist ausgeblendet, es gibt also keinen Hinweis darauf. Weniger Innenabstand
-     statt kürzerer Wörter oder abgeschnittener Namen. */
-  /* Bewusst außerhalb der Schriftskala: 13px ist hier keine Gestaltung,
-     sondern die Bedingung dafür, dass fünf Beschriftungen in 341px passen. */
-  .tab{padding:9px 6px;font-size:13px}
-  .tabs{gap:2px}
 }
 /* Unter 352px passte die Kopfzeile nicht: die Wortmarke ist bei ihren
    26px Mindestgröße 212px breit, neben den beiden Knöpfen (96px) und dem
@@ -815,6 +804,27 @@ footer small{display:block;margin-top:4px;opacity:.6}
 @media(max-width:351px){
   h1{font-size:6.5vw}
 }
+/* ---------- Navigation unten (Handy und Tablet) ----------
+   Unter 1040px steht die Tableiste als feste Leiste am unteren Rand, in der
+   Daumenzone, mit Symbol über der Beschriftung. Oben stand sie fern vom
+   Daumen, und fünf Beschriftungen passten dort nur mit 13px Schrift und
+   knappem Innenabstand in 341px. Die Abschlussleiste sitzt während einer
+   Einheit darauf, der Pausen-Chip darüber. --leiste-h hält die Höhe an
+   einer Stelle; die Leiste selbst trägt den Abstand zum iPhone-Balken.
+   Die Tabs bleiben eine waagerechte Tabliste mit ←/→. */
+@media(max-width:1039px){
+  :root{--leiste-h:calc(62px + env(safe-area-inset-bottom))}
+  html{scroll-padding-bottom:calc(var(--leiste-h) + 88px)}
+  body{padding-bottom:calc(var(--leiste-h) + 96px)}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:25;margin:0;gap:0;border:none;border-top:1px solid var(--line);border-radius:0;background:var(--bar-bg);backdrop-filter:blur(8px);padding:var(--abstand-1) var(--abstand-2) calc(var(--abstand-1) + env(safe-area-inset-bottom));overflow:visible;box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+  .tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:54px;padding:0 2px;border-radius:12px;font-size:var(--text-xs);letter-spacing:.01em}
+  .tab .i{width:22px;height:22px}
+  .tab.active{background:var(--accent-soft);color:var(--accent)}
+  .finish-bar{bottom:var(--leiste-h);padding-bottom:12px}
+  /* Die Abschlussleiste ist gemessen 94px hoch (bei 320 und 375px). */
+  .rest-chip{bottom:calc(var(--leiste-h) + 104px)}
+}
+
 @media print{
   .tabs,.finish-bar,.rest-chip,.head-btns,.tip-btn,.sub-btn,.undo-btn{display:none!important}
   body{padding-bottom:0}

@@ -289,6 +289,26 @@ describe('Kategorie-Farben', () => {
   }
 });
 
+/* Unter 1040px steht die Tableiste unten in der Daumenzone. */
+describe('Navigation unten', () => {
+  const block = css.match(/@media\(max-width:1039px\)\{([\s\S]*?)\n\}/);
+
+  it('heftet die Tableiste unter 1040px unten an', () => {
+    expect(block).not.toBeNull();
+    expect(block[1]).toMatch(/\.tabs\{position:fixed;[^}]*bottom:0/);
+    expect(block[1]).toMatch(/safe-area-inset-bottom/);
+  });
+
+  it('stellt Abschlussleiste und Pausen-Chip darueber', () => {
+    expect(block[1]).toMatch(/\.finish-bar\{bottom:var\(--leiste-h\)/);
+    expect(block[1]).toMatch(/\.rest-chip\{bottom:calc\(var\(--leiste-h\)/);
+  });
+
+  it('laesst die Schiene ab 1040px unberuehrt', () => {
+    expect(block[1]).not.toMatch(/schiene/);
+  });
+});
+
 describe('Symbolsatz', () => {
   const app = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
   const vorhanden = new Set([...html.matchAll(/<symbol id="i-([a-z]+)"/g)].map(m => m[1]));
@@ -341,9 +361,9 @@ describe('Gestaltungsstufen', () => {
     const roh = [...css.matchAll(/([^{};]*)\{[^}]*font-size:(\d+(?:\.\d+)?)px/g)]
       .map(m => m[1].trim().split('\n').pop().trim() + ' ' + m[2]);
     expect(roh.sort()).toEqual([
-      /* Die Handy-Tableiste: fuenf Beschriftungen muessen in 341px passen. */
-      '.tab 13',
-      /* Keine Schrift, sondern die Groesse eines Symbols im runden Knopf. */
+      /* Keine Schrift, sondern die Groesse eines Symbols im runden Knopf.
+         Die zweite Ausnahme – 13px fuer die Handy-Tableiste oben – ist mit
+         der Leiste unten entfallen. */
       '.icon-btn 18'
     ].sort());
   });
