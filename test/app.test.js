@@ -2866,9 +2866,14 @@ describe('Vorschlag bei einer zu schweren Stufe', () => {
     expect(hinweis().textContent).toContain('8');
   });
 
+  /* Der Knopf wird ueber seine Aktion ausgeloest, nicht per Klick – siehe
+     "Gehaltene Sekunden". Geprueft wird, dass er die richtige Aktion mit
+     den richtigen Daten traegt, und dass die das Richtige tut. */
   it('stuft ueber den Knopf eine Stufe ab', async () => {
-    await mitZweien([7, 6, 6, 5]);
-    hinweis().querySelector('button').click();
+    const app = await mitZweien([7, 6, 6, 5]);
+    const knopf = hinweis().querySelector('button');
+    expect(knopf.dataset).toMatchObject({ action: 'level:adjust', ex: 'pushup', delta: '-1' });
+    await app.actions[knopf.dataset.action](knopf.dataset);
     await ruhe();
     expect(gespeichert().levels.pushup).toBe(1);
   });
@@ -2895,25 +2900,33 @@ describe('Gehaltene Sekunden', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  /* Getippt wird ueber die Aktion, nicht ueber einen DOM-Klick. start()
+     haengt die Delegation an document, und die App-Instanzen frueherer Tests
+     hoeren dort weiter mit – mit ihrer eigenen Einheit, die keine Sekunden
+     kennt, und in denselben Speicherschluessel. Ein echter Klick erreichte
+     alle, und welche zuletzt schrieb, hing vom Timing ab: lokal gruen, in
+     CI rot. */
+  let app;
   async function einheit(stand = {}){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...stand }));
-    const app = await starten();
+    app = await starten();
     app.actions['day:select']({ key: 'A' });
     await ruhe();
     return app;
   }
+  const tippe = s => app.actions['set:tap']({ ex: 'support', set: String(s) });
   const punkt = s => document.getElementById('set-support-' + s);
   const feld = s => document.getElementById('sek-support-' + s);
   const halte = (s, sek) => {
-    punkt(s).click();
+    tippe(s);
     jetzt += sek * 1000;
-    punkt(s).click();
+    tippe(s);
   };
 
   it('beginnt eine Stufe an der Untergrenze', async () => {
     await einheit();
     expect(feld(0).placeholder).toBe('10');
-    punkt(0).click();
+    tippe(0);
     expect(punkt(0).textContent).toBe('10');
   });
 
@@ -2937,7 +2950,7 @@ describe('Gehaltene Sekunden', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     try{
       await einheit();
-      punkt(0).click();
+      tippe(0);
       jetzt += 10_500;
       vi.advanceTimersByTime(1000);
       expect(feld(0).value).toBe('10');
@@ -2948,7 +2961,7 @@ describe('Gehaltene Sekunden', () => {
   it('nimmt die Zeit mit, wenn der Satz zurueckgenommen wird', async () => {
     await einheit();
     halte(0, 7);
-    punkt(0).click();
+    tippe(0);
     expect(punkt(0).classList.contains('done')).toBe(false);
     expect(feld(0).value).toBe('');
   });
@@ -2964,7 +2977,7 @@ describe('Gehaltene Sekunden', () => {
   });
 
   it('leitet das obere Limit aus den Sekunden ab', async () => {
-    const app = await einheit();
+    await einheit();
     [0, 1, 2, 3].forEach(s => {
       feld(s).value = '20';
       app.actions['set:sek']({ key: 'support-' + s }, null, feld(s));
@@ -2975,7 +2988,7 @@ describe('Gehaltene Sekunden', () => {
   });
 
   it('schreibt die laengste gehaltene Zeit als Bestleistung, nicht die Zielzeit', async () => {
-    const app = await einheit();
+    await einheit();
     halte(0, 13);
     halte(1, 8);
     await app.actions['workout:finish']();
@@ -3011,15 +3024,18 @@ describe('Jahresrueckblick ohne Aufwaermen', () => {
    eintippen. Jetzt traegt er in einen leeren Satz die heutige Vorgabe ein. */
 describe('Tipp traegt die Vorgabe ein', () => {
   const reps = (...n) => Object.fromEntries(n.map((w, i) => ['pushup-' + i, w]));
+  /* Ueber die Aktion statt per Klick – siehe "Gehaltene Sekunden". */
+  let app;
   async function einheit(log = []){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, log }));
-    const app = await starten();
+    app = await starten();
     app.actions['day:select']({ key: 'A' });
     await ruhe();
     return app;
   }
   const feld = s => document.getElementById('rep-pushup-' + s);
   const punkt = s => document.getElementById('set-pushup-' + s);
+  const tippe = s => app.actions['set:tap']({ ex: 'pushup', set: String(s) });
   const letzte = (werte, lv) => [{ d: '2026-01-10', day: 'A', ex: ['pushup'], sets: 4, reps: reps(...werte), lv }];
 
   it('zeigt die Vorgabe als Platzhalter', async () => {
@@ -3029,7 +3045,7 @@ describe('Tipp traegt die Vorgabe ein', () => {
 
   it('traegt sie beim Abhaken eines leeren Satzes ein', async () => {
     await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
-    punkt(2).click();
+    tippe(2);
     await ruhe();
     expect(feld(2).value).toBe('8');
     expect(gespeichert().activeSession.reps['pushup-2']).toBe(8);
@@ -3037,29 +3053,29 @@ describe('Tipp traegt die Vorgabe ein', () => {
 
   it('nimmt ohne Vorgeschichte die Untergrenze', async () => {
     await einheit();
-    punkt(0).click();
+    tippe(0);
     /* Liegestuetze Stufe 0: 4 x 6-10. */
     expect(feld(0).value).toBe('6');
   });
 
   it('laesst eine eingetippte Zahl stehen', async () => {
-    const app = await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
+    await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
     feld(0).value = '12';
     app.actions['set:reps']({ key: 'pushup-0' }, null, feld(0));
-    punkt(0).click();
+    tippe(0);
     expect(feld(0).value).toBe('12');
   });
 
   it('traegt nichts ein, wenn die letzte Einheit ihre Stufe nicht kennt', async () => {
     await einheit(letzte([8, 8, 7, 7]));
-    punkt(0).click();
+    tippe(0);
     expect(feld(0).value).toBe('');
     expect(punkt(0).classList.contains('done')).toBe(true);
   });
 
   it('macht das obere Limit damit ableitbar', async () => {
     await einheit(letzte([10, 10, 10, 10], { pushup: 0 }));
-    [0, 1, 2, 3].forEach(s => punkt(s).click());
+    [0, 1, 2, 3].forEach(s => tippe(s));
     const label = document.getElementById('top-pushup');
     expect(label.classList.contains('abgeleitet')).toBe(true);
     expect(label.classList.contains('checked')).toBe(true);
