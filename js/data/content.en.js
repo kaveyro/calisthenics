@@ -470,8 +470,8 @@ export const CONTENT_EN = {
       name: 'A/B split · 4× per week',
       desc: 'The recommended start: Mon/Tue/Thu/Fri alternating A–B–A–B.',
       days: {
-        A: { title: 'Push & support', sub: 'Pushing · handstand basics' },
-        B: { title: 'Pull, legs & core', sub: 'Pulling · legs · L-sit' }
+        A: { title: 'Push & legs', sub: 'Pushing · handstand basics · squats' },
+        B: { title: 'Pull, legs & core', sub: 'Pulling · lunges · L-sit' }
       }
     },
     full3: {
@@ -484,8 +484,8 @@ export const CONTENT_EN = {
       }
     },
     ppl: {
-      name: 'Push / Pull / Legs',
-      desc: 'The classic three-way split, repeatable 3–6× per week.',
+      name: 'Push / Pull / Legs · 6× per week',
+      desc: 'The classic three-way split, each day twice a week. With only three days every muscle group comes up once – full body is the better choice then.',
       days: {
         P: { title: 'Push', sub: 'Pushing' },
         Z: { title: 'Pull', sub: 'Pulling' },
@@ -499,7 +499,7 @@ export const CONTENT_EN = {
         A: { title: 'Handstand & push', sub: 'Skill first' },
         B: { title: 'L-sit & pull', sub: 'Skill first' },
         C: { title: 'Planche & push', sub: 'Skill first' },
-        D: { title: 'Legs & mobility', sub: 'Balance work' }
+        D: { title: 'Legs, pull & mobility', sub: 'Balance work' }
       }
     }
   }

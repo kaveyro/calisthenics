@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { EXERCISES, EX_BY_ID, PLAN_TEMPLATES } from '../js/exercises.js';
 import { GRUPPEN, wochenTage, wochenbilanz, MIN_SAETZE_WOCHE } from '../js/domain/bilanz.js';
-import { MUSTER_NAMEN } from '../js/domain/planbuilder.js';
+import { MUSTER_NAMEN, vorlageAufloesen } from '../js/domain/planbuilder.js';
+import { EQUIP_ALL } from '../js/domain/equipment.js';
 
 const arten = b => b.warnungen.map(w => w.art + (w.gruppe ? ':' + w.gruppe : ''));
 const tag = (key, ex) => ({ key, title: key, sub: '', ex });
@@ -104,5 +105,26 @@ describe('wochenbilanz', () => {
     Object.values(PLAN_TEMPLATES).forEach(p => {
       expect(wochenbilanz(wochenTage(p.days, {}, 4), EX_BY_ID).einheiten).toBe(4);
     });
+  });
+});
+
+describe('Vorlagen', () => {
+  /* Die Haeufigkeit, fuer die jede Vorlage gedacht ist (siehe ihr Name). */
+  const PRO_WOCHE = { ab4: 4, full3: 3, ppl: 6, skill: 4 };
+
+  it('kennt fuer jede Vorlage ihre Haeufigkeit', () => {
+    expect(Object.keys(PRO_WOCHE).sort()).toEqual(Object.keys(PLAN_TEMPLATES).sort());
+  });
+
+  /* Ganz ohne Geraet gibt der Katalog nur zwei Zuguebungen her
+     (Tuerrahmen-Rudern, Y-T-W); dort bleibt die Warnung ehrlich stehen. */
+  it('bleiben mit Geraet ohne Warnung der Wochenbilanz', () => {
+    for(const [id, p] of Object.entries(PLAN_TEMPLATES)){
+      for(const equipment of [EQUIP_ALL, ['bar'], ['chair'], ['rings']]){
+        const days = vorlageAufloesen(p, EXERCISES, equipment).days;
+        const b = wochenbilanz(wochenTage(days, {}, PRO_WOCHE[id]), EX_BY_ID);
+        expect(arten(b), id + ' ' + equipment.join(',')).toEqual([]);
+      }
+    }
   });
 });

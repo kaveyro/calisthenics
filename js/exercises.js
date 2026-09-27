@@ -845,15 +845,21 @@ export const EXERCISES = [
    PLAN-VORLAGEN
    Jede Vorlage besteht aus Trainingstagen mit Übungs-IDs.
    ========================================================= */
+/* Die Vorlagen sind an ihrer Wochenbilanz gemessen (js/domain/bilanz.js,
+   test/bilanz.test.js): jede Muskelgruppe mindestens zweimal pro Woche,
+   Beine mit Hüftbeuge, nicht deutlich mehr Drücken als Ziehen – bei der
+   Häufigkeit, die im Namen steht. Vorher kam der A/B-Split auf acht Sätze
+   Beine pro Woche ohne Hüftbeuge, Ganzkörper C hatte keine Kraftübung zum
+   Drücken, und der Skill-Fokus zog nur an einem von vier Tagen. */
 export const PLAN_TEMPLATES = {
   ab4: {
     name: 'A/B Split · 4× pro Woche',
     desc: 'Der empfohlene Einstieg: Mo/Di/Do/Fr im Wechsel A–B–A–B.',
     days: [
-      { key: 'A', title: 'Push & Stütz', sub: 'Drücken · Handstand-Basics',
-        ex: ['wrist_prep', 'pushup', 'pike', 'wall_hs', 'planche_lean', 'dips'] },
-      { key: 'B', title: 'Pull, Beine & Core', sub: 'Ziehen · Beine · L-Sit',
-        ex: ['hang', 'pullup', 'row', 'squat', 'lsit', 'hollow', 'knee_raise'] }
+      { key: 'A', title: 'Push & Beine', sub: 'Drücken · Handstand-Basics · Kniebeuge',
+        ex: ['wrist_prep', 'pushup', 'pike', 'wall_hs', 'dips', 'squat', 'glute_bridge'] },
+      { key: 'B', title: 'Pull, Beine & Core', sub: 'Ziehen · Ausfallschritt · L-Sit',
+        ex: ['hang', 'pullup', 'row', 'lunge', 'lsit', 'hollow', 'knee_raise'] }
     ]
   },
   full3: {
@@ -865,17 +871,17 @@ export const PLAN_TEMPLATES = {
       { key: '2', title: 'Ganzkörper B', sub: 'Zug- & Skill-Fokus',
         ex: ['wrist_prep', 'hang', 'pullup', 'dips', 'lunge', 'lsit', 'knee_raise'] },
       { key: '3', title: 'Ganzkörper C', sub: 'Skills & Mobility',
-        ex: ['wrist_prep', 'shoulder_mob', 'wall_hs', 'planche_lean', 'scap', 'glute_bridge', 'plank', 'pike_stretch'] }
+        ex: ['wrist_prep', 'wall_hs', 'planche_lean', 'pike', 'scap', 'glute_bridge', 'plank', 'pike_stretch'] }
     ]
   },
   ppl: {
-    name: 'Push / Pull / Legs',
-    desc: 'Klassischer 3er-Split, 3–6× pro Woche wiederholbar.',
+    name: 'Push / Pull / Legs · 6× pro Woche',
+    desc: 'Klassischer 3er-Split, jeder Tag zweimal pro Woche. Bei nur drei Tagen kommt jede Muskelgruppe einmal dran – dann lieber Ganzkörper.',
     days: [
       { key: 'P', title: 'Push', sub: 'Drücken',
         ex: ['wrist_prep', 'pushup', 'dips', 'pike', 'planche_lean'] },
       { key: 'Z', title: 'Pull', sub: 'Ziehen',
-        ex: ['hang', 'pullup', 'row', 'knee_raise'] },
+        ex: ['pullup', 'row', 'prone_ytw', 'knee_raise'] },
       { key: 'L', title: 'Legs & Core', sub: 'Beine & Rumpf',
         ex: ['squat', 'lunge', 'nordic', 'hollow', 'side_plank'] }
     ]
@@ -885,13 +891,13 @@ export const PLAN_TEMPLATES = {
     desc: 'Für später: Skills zuerst im frischen Zustand, dann Kraft.',
     days: [
       { key: 'A', title: 'Handstand & Push', sub: 'Skill zuerst',
-        ex: ['wrist_prep', 'handstand', 'wall_hs', 'hspu', 'pushup', 'dips', 'plank'] },
+        ex: ['wrist_prep', 'handstand', 'hspu', 'pushup', 'dips', 'plank'] },
       { key: 'B', title: 'L-Sit & Pull', sub: 'Skill zuerst',
-        ex: ['hang', 'lsit', 'front_lever', 'pullup', 'row', 'knee_raise'] },
+        ex: ['hang', 'lsit', 'front_lever', 'pullup', 'row', 'sl_rdl'] },
       { key: 'C', title: 'Planche & Push', sub: 'Skill zuerst',
         ex: ['wrist_prep', 'planche', 'planche_lean', 'support', 'pushup', 'pike', 'hollow'] },
-      { key: 'D', title: 'Beine & Mobility', sub: 'Ausgleich',
-        ex: ['squat', 'pistol', 'nordic', 'pike_stretch', 'pancake', 'shoulder_mob'] }
+      { key: 'D', title: 'Beine, Zug & Mobility', sub: 'Ausgleich',
+        ex: ['squat', 'pistol', 'nordic', 'chinup', 'side_plank', 'pike_stretch', 'pancake'] }
     ]
   }
 };
