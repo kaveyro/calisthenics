@@ -1732,6 +1732,10 @@ function markDone(key, el, s, ex){
   zeitNehmen();
   session.sets[key] = true;
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
+  /* Die kurze Bestaetigung nur hier, nicht in restoreSession(): sonst
+     huepften nach jedem Neuzeichnen alle erledigten Saetze. */
+  el.classList.add('eben');
+  el.addEventListener('animationend', () => el.classList.remove('eben'), { once: true });
   /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
      Schreibvorgang mitgeht statt einen zweiten zu erzwingen. */
   if(cfg('autoRest')) startRest(restFor(ex));

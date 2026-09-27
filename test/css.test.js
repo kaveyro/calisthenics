@@ -260,6 +260,21 @@ describe('Kategorie-Farben', () => {
   const block = sel => css.slice(css.indexOf(sel), css.indexOf('}', css.indexOf(sel)));
   const wert = (b, name) => (b.match(new RegExp('--' + name + ':(#[0-9A-Fa-f]{6})')) || [])[1];
 
+  /* Text auf Akzent- und Warnflaechen. Im Dunkeln stand dort Weiss auf
+     dem hellen Akzent #8FA3FF – 2,4:1. */
+  for(const [thema, sel] of [['hell', ':root{'], ['dunkel', 'html[data-theme="dark"]{']]){
+    it('Text auf Akzent und Warnung haelt 4,5:1 (' + thema + ')', () => {
+      const b = block(sel);
+      for(const flaeche of ['accent', 'warn']){
+        expect(kontrast(wert(b, 'on-accent'), wert(b, flaeche)), thema + ' ' + flaeche).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+
+  it('setzt keinen festen weissen Text mehr auf farbige Flaechen', () => {
+    expect(css).not.toMatch(/color:#fff(?![0-9a-f])/i);
+  });
+
   for(const [thema, sel] of [['hell', ':root{'], ['dunkel', 'html[data-theme="dark"]{']]){
     it('halten 4,5:1 gegen die Karte (' + thema + ')', () => {
       const b = block(sel);

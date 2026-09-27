@@ -57,6 +57,10 @@
   --ink-soft:#4A5058;
   --line:#DDDFD9;
   --accent:#2547D0;
+  /* Text auf Akzent-, Warn- und Erfolgsflächen. Im Dunkeln sind diese
+     Flächen hell, dort stand bisher trotzdem Weiß darauf (2,4:1 auf dem
+     Akzent). */
+  --on-accent:#FFFFFF;
   --accent-soft:#E4E9FB;
   --success:#1E8F5C;
   --success-soft:#E1F2E9;
@@ -76,7 +80,11 @@
   --vol-core:#7A5CC4;
   --vol-skill:#C4478F;
   --vol-mobility:#267F8C;
-  --radius:14px;
+  --radius:18px;
+  /* Leichter Verlauf für Primärknöpfe: oben etwas heller, damit die Fläche
+     nicht wie ausgestanzt wirkt. Liegt über background:var(--accent), das
+     ohne color-mix() allein stehen bleibt. */
+  --verlauf-akzent:linear-gradient(180deg,color-mix(in srgb,var(--accent) 84%,#fff) 0%,var(--accent) 100%);
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --display:'Archivo Black',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -137,6 +145,7 @@ html[data-theme="dark"]{
   --ink-soft:#9AA0A8;
   --line:#31353C;
   --accent:#8FA3FF;
+  --on-accent:#14161A;
   --accent-soft:#242C4A;
   --success:#3FC98A;
   --success-soft:#17301F;
@@ -212,7 +221,7 @@ h1 .thin{color:var(--accent)}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:1 0 auto;border:none;background:none;padding:9px 12px;border-radius:9px;font-weight:600;font-size:var(--text-md);color:var(--ink-soft);cursor:pointer;white-space:nowrap}
 .tab:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
-.tab.active{background:var(--accent);color:#fff}
+.tab.active{background:var(--accent);color:var(--on-accent)}
 
 /* ---------- Banner ---------- */
 /* Hinweise: die Farbe trägt ein Randstreifen, nicht die ganze Fläche.
@@ -224,8 +233,8 @@ h1 .thin{color:var(--accent)}
 .banner-body{color:var(--ink-soft)}
 .banner-actions{display:flex;flex-wrap:wrap;gap:var(--abstand-2)}
 .banner button{background:none;color:var(--accent);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-weight:600;font-size:var(--text-sm);cursor:pointer;min-height:36px}
-.banner button.haupt{background:var(--accent);border-color:var(--accent);color:#fff}
-.banner.warn button.haupt{background:var(--warn);border-color:var(--warn)}
+.banner button.haupt{background:var(--accent);background-image:var(--verlauf-akzent);border-color:var(--accent);color:var(--on-accent)}
+.banner.warn button.haupt{background:var(--warn);background-image:none;border-color:var(--warn)}
 .banner button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 /* ---------- Eigene Dialoge (Ersatz für prompt/confirm) ---------- */
@@ -238,8 +247,8 @@ h1 .thin{color:var(--accent)}
 .dlg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
 .dlg-actions button{min-height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink);font:inherit;font-weight:600;font-size:var(--text-base);cursor:pointer}
-.dlg-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.dlg-actions button.primary.danger{background:var(--warn);border-color:var(--warn)}
+.dlg-actions button.primary{background:var(--accent);background-image:var(--verlauf-akzent);border-color:var(--accent);color:var(--on-accent)}
+.dlg-actions button.primary.danger{background:var(--warn);background-image:none;border-color:var(--warn)}
 .dlg-list{display:flex;flex-direction:column;gap:6px;margin-top:14px;max-height:50vh;overflow-y:auto}
 .dlg-choice{display:flex;flex-direction:column;gap:2px;align-items:flex-start;width:100%;
   min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
@@ -264,7 +273,7 @@ h1 .thin{color:var(--accent)}
 .day-btn .sub{font-size:var(--text-sm);color:var(--ink-soft);margin-top:3px}
 .day-btn.active{border-color:var(--accent);background:var(--accent-soft)}
 .day-btn.active .tag{color:var(--accent)}
-.day-btn .badge{position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:#fff;border-radius:20px;padding:2px 7px}
+.day-btn .badge{position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:var(--on-accent);border-radius:20px;padding:2px 7px}
 
 /* ---------- Aufklappbares ---------- */
 details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:var(--abstand-4);overflow:hidden;box-shadow:var(--schatten-1)}
@@ -285,7 +294,7 @@ details.acc li{margin-bottom:5px}
 .cat-chip.stale{border-color:var(--line);color:var(--ink-soft)}
 
 /* ---------- Übungskarte ---------- */
-.ex{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--kat,var(--line));border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-4);box-shadow:var(--schatten-1)}
+.ex{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--kat,var(--line));border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-5);box-shadow:var(--schatten-1)}
 
 /* ---------- Kategorie-Farbe ----------
    data-cat an Karte, Bibliothekseintrag und Plan-Zeile setzt --kat. */
@@ -343,7 +352,7 @@ details.acc li{margin-bottom:5px}
 .rungs{display:flex;align-items:center;margin:0 0 4px}
 .rung{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:var(--card);flex:none;position:relative}
 .rung.done{background:var(--success);border-color:var(--success)}
-.rung.done::after{content:'';position:absolute;inset:3px;border-radius:50%;background:#fff;opacity:.9;clip-path:polygon(14% 52%,40% 78%,86% 26%,74% 14%,40% 54%,26% 40%)}
+.rung.done::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--on-accent);opacity:.9;clip-path:polygon(14% 52%,40% 78%,86% 26%,74% 14%,40% 54%,26% 40%)}
 .rung.current{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
 .rung-line{height:2px;flex:1;background:var(--line);min-width:6px;max-width:34px}
 .rung-line.done{background:var(--success)}
@@ -362,7 +371,14 @@ details.acc li{margin-bottom:5px}
 .set-dot{width:48px;height:48px;border-radius:10px;border:2px solid var(--line);background:var(--card);font-family:var(--mono);font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .12s,border-color .12s}
 .set-dot:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .set-dot.done{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.set-dot.running{background:var(--accent);border-color:var(--accent);color:#fff;animation:pulse 1s infinite alternate}
+/* Auf der Übungskarte in der Kategorie-Farbe. Die Zahl steht in der
+   Kartenfarbe darauf: die Kategorie-Farben halten 4,5:1 gegen --card. */
+.ex .set-dot.done{background:var(--kat,var(--ink));border-color:var(--kat,var(--ink));color:var(--card)}
+/* Nur beim Abhaken selbst, nicht bei jedem Neuzeichnen – die Klasse setzt
+   markDone() und nimmt sie nach der Animation wieder weg. */
+.set-dot.eben{animation:satz-fertig .3s ease-out}
+@keyframes satz-fertig{0%{transform:scale(.88)}60%{transform:scale(1.07)}100%{transform:scale(1)}}
+.set-dot.running{background:var(--accent);border-color:var(--accent);color:var(--on-accent);animation:pulse 1s infinite alternate}
 @keyframes pulse{from{box-shadow:0 0 0 0 var(--accent-soft)}to{box-shadow:0 0 0 6px var(--accent-soft)}}
 .hold-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 
@@ -395,7 +411,7 @@ details.acc li{margin-bottom:5px}
 .inline-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .inline-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-md)}
 .inline-row input:focus{outline:3px solid var(--accent);outline-offset:2px}
-.inline-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 15px;font-weight:600;cursor:pointer;flex:none}
+.inline-row button{background:var(--accent);color:var(--on-accent);border:none;border-radius:10px;padding:0 15px;font-weight:600;cursor:pointer;flex:none}
 /* min-width:0 ist Pflicht, nicht Kosmetik: ein <select> ist als Flex-Kind
    standardmäßig min-width:auto breit, also so breit wie seine längste
    Option. Im Plan-Editor („Handgelenks-Routine (Ausrüstung fehlt)") hat
@@ -418,7 +434,7 @@ details.acc li{margin-bottom:5px}
 
 /* ---------- Undo Button ---------- */
 .undo-btn{display:block;width:100%;padding:12px;margin-top:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);border-radius:var(--radius);font-weight:700;font-size:var(--text-base);cursor:pointer;text-align:center}
-.undo-btn:hover{background:var(--warn);color:#fff}
+.undo-btn:hover{background:var(--warn);color:var(--on-accent)}
 
 /* ---------- Sektionen & Karten ---------- */
 /* Mehr Luft darüber als darunter: der Titel gehört zu der Karte, die ihm
@@ -475,7 +491,7 @@ details.acc li{margin-bottom:5px}
 /* ---------- Bibliothek ---------- */
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .chip{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:6px 12px;font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);cursor:pointer}
-.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .chip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .lib-item{border-bottom:1px solid var(--line);padding:12px 0}
 .lib-item:last-child{border-bottom:none}
@@ -551,8 +567,8 @@ details.acc li{margin-bottom:5px}
    Schirm breiter als 660px war – es fiel nur nicht auf, weil nichts daneben
    stand. Mit der Schiene links war es plötzlich sichtbar. */
 .finish-bar .inner{max-width:calc(var(--inhalt-max) - 2 * var(--abstand-4));margin:0 auto;display:flex;gap:10px;align-items:center;padding-left:var(--schiene)}
-.finish-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:var(--text-base);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
-.finish-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:default}
+.finish-btn{flex:1;background:var(--accent);background-image:var(--verlauf-akzent);color:var(--on-accent);border:none;border-radius:12px;padding:14px;font-family:var(--display);font-size:var(--text-base);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+.finish-btn:disabled{background:var(--line);background-image:none;color:var(--ink-soft);cursor:default}
 .finish-btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .finish-count{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);white-space:nowrap}
 
@@ -607,7 +623,7 @@ details.acc li{margin-bottom:5px}
    Buttons "Training nachtragen" und "Einstieg wiederholen" stehen aber
    ausserhalb davon und bekamen dadurch keinerlei Styling: heller
    Browser-Standard-Hintergrund mit heller Schrift im Dark Mode (unlesbar). */
-.btn{flex:1;min-width:135px;max-width:none;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:var(--abstand-3);font-weight:600;cursor:pointer;font-size:var(--text-md);text-align:center}
+.btn{flex:1;min-width:135px;max-width:none;background:var(--accent);background-image:var(--verlauf-akzent);color:var(--on-accent);border:none;border-radius:10px;padding:var(--abstand-3);font-weight:600;cursor:pointer;font-size:var(--text-md);text-align:center}
 /* Alleinstehend (ausserhalb .data-btns): nicht ueber die ganze Zeile
    ziehen – flex:1 gilt nur innerhalb des Button-Verbunds. */
 .btn--standalone{flex:auto;max-width:280px}
@@ -618,7 +634,7 @@ details.acc li{margin-bottom:5px}
 /* ---------- Toast ---------- */
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:var(--toast-bg);color:var(--toast-fg);padding:12px 18px;border-radius:12px;font-size:var(--text-base);font-weight:600;transition:transform .3s ease;z-index:50;max-width:90vw;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
-.toast.levelup{background:var(--success);color:#fff}
+.toast.levelup{background:var(--success);color:var(--on-accent)}
 .toast-btn{margin-left:12px;min-height:32px;padding:6px 12px;border:0;border-radius:8px;background:var(--toast-fg);color:var(--toast-bg);font:inherit;font-weight:700;cursor:pointer}
 
 /* ---------- History Modal Table ---------- */
