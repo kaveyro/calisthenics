@@ -3270,3 +3270,57 @@ describe('Wochenbilanz im Plan-Tab', () => {
     expect(document.querySelector('#planBilanz .bil-kopf').textContent).toMatch(/1× Training.*Wochenrhythmus/);
   });
 });
+
+describe('Plan-Check nach Fortschritt', () => {
+  let OBEN = 0;
+  beforeEach(async () => {
+    const { EX_BY_ID } = await import('../js/exercises.js');
+    OBEN = EX_BY_ID.pushup.levels.length - 1;
+  });
+  const banner = () => [...document.querySelectorAll('#banners .banner')].find(b => /Plan-Vorschlag/.test(b.textContent));
+  async function mitStand(extra = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, planId: 'ab4', levels: { pushup: OBEN }, ...extra }));
+    return starten();
+  }
+
+  it('bietet fuer ausgereizte Liegestuetze die Archer-Liegestuetze an', async () => {
+    await mitStand();
+    expect(banner().textContent).toMatch(/Ausgereizt: Liegestütze.*Nächste Stufe: Archer/);
+  });
+
+  it('ersetzt die Uebung im Plan und macht daraus einen eigenen', async () => {
+    const app = await mitStand();
+    await app.actions['planCheck:apply']({ alt: 'pushup', neu: 'archer_push' });
+    await ruhe();
+    const s = gespeichert();
+    expect(s.customPlan.days[0].ex).toContain('archer_push');
+    expect(s.customPlan.days[0].ex).not.toContain('pushup');
+    expect(banner()?.textContent || '').not.toMatch(/Archer/);
+  });
+
+  it('merkt sich ein Beibehalten ueber das Neuladen hinaus', async () => {
+    const app = await mitStand();
+    await app.actions['planCheck:dismiss']({ alt: 'pushup', neu: 'archer_push' });
+    await ruhe();
+    expect(gespeichert().planHinweiseAus).toEqual(['pushup>archer_push']);
+    expect(gespeichert().customPlan).toBeFalsy();
+    await starten();
+    expect(banner()?.textContent || '').not.toMatch(/Archer/);
+  });
+
+  it('nimmt keinen Tausch an, den der Check nicht vorschlaegt', async () => {
+    const app = await mitStand();
+    await app.actions['planCheck:apply']({ alt: 'pushup', neu: 'planche' });
+    await app.actions['planCheck:dismiss']({ alt: 'gibtsnicht', neu: 'archer_push' });
+    await ruhe();
+    expect(gespeichert().customPlan).toBeFalsy();
+    expect(gespeichert().planHinweiseAus || []).toEqual([]);
+  });
+
+  it('schweigt waehrend einer laufenden Einheit', async () => {
+    await mitStand();
+    document.querySelector('.day-btn').click();
+    await ruhe();
+    expect(banner()).toBeUndefined();
+  });
+});

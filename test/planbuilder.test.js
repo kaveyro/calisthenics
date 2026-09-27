@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit, planPruefen, uebungErsetzen } from '../js/domain/planbuilder.js';
 import { istSkill } from '../js/domain/skills.js';
 import { wochenTage, wochenbilanz } from '../js/domain/bilanz.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
@@ -536,5 +536,68 @@ describe('Wochenbilanz des erzeugten Plans', () => {
       expect(d.ex.filter(id => id !== 'wrist_prep').length).toBeLessThanOrEqual(7);
     });
     expect(bauen({ tage: 3 }).days.some(d => d.ex.length === 8)).toBe(true);
+  });
+});
+
+describe('Plan-Check nach Fortschritt', () => {
+  const oben = id => EX_BY_ID[id].levels.length - 1;
+  const tag = (key, ex) => ({ key, title: key, sub: '', ex });
+  const pruefen = (ex, levels, equipment = EQUIP_ALL) => planPruefen([tag('A', ex)], EXERCISES, equipment, levels);
+
+  it('schlaegt nichts vor, solange nichts ausgereizt ist', () => {
+    expect(pruefen(['pushup', 'squat', 'pullup'], {})).toEqual([]);
+    expect(pruefen(['pushup'], { pushup: oben('pushup') - 1 })).toEqual([]);
+  });
+
+  it('schlaegt fuer eine ausgereizte Uebung ihre Fortsetzung vor', () => {
+    expect(pruefen(['pushup'], { pushup: oben('pushup') })).toEqual([{ alt: 'pushup', neu: 'archer_push', grund: 'ausgereizt' }]);
+    expect(pruefen(['pike'], { pike: oben('pike') })[0].neu).toBe('hspu');
+    expect(pruefen(['wall_hs'], { wall_hs: oben('wall_hs') })[0].neu).toBe('handstand');
+  });
+
+  /* Der Front Lever braucht Klimmzuege, ist aber ein anderes Ziel. */
+  it('fuehrt nicht zu einem anderen Ziel', () => {
+    expect(pruefen(['pullup'], { pullup: oben('pullup') })).toEqual([]);
+  });
+
+  it('nimmt eine Fortsetzung, die noch nicht im Plan steht', () => {
+    const v = planPruefen([tag('A', ['squat']), tag('B', ['pistol'])], EXERCISES, EQUIP_ALL, { squat: oben('squat') });
+    expect(v).toEqual([{ alt: 'squat', neu: 'shrimp_squat', grund: 'ausgereizt' }]);
+  });
+
+  it('nimmt nur, was mit der Ausruestung geht', () => {
+    /* Der L-Sit geht auf Stuehlen, die Fortsetzung am Handstand braucht
+       Parallettes. */
+    expect(pruefen(['lsit'], { lsit: oben('lsit') }, ['chair'])).toEqual([]);
+    expect(pruefen(['lsit'], { lsit: oben('lsit') }, ['chair', 'parallettes'])[0].neu).toBe('lsit_hs');
+  });
+
+  it('ersetzt eine Hilfsuebung, sobald sie nicht mehr gebraucht wird', () => {
+    expect(pruefen(['band_pullup'], { pullup: NUR_BIS.band_pullup[1] }))
+      .toEqual([{ alt: 'band_pullup', neu: 'pullup', grund: 'hilfeFertig' }]);
+    expect(pruefen(['band_pullup'], { pullup: NUR_BIS.band_pullup[1] - 1 })).toEqual([]);
+    /* Stehen echte Klimmzuege schon im Plan, bleibt es beim Band. */
+    expect(pruefen(['band_pullup', 'pullup'], { pullup: NUR_BIS.band_pullup[1] })).toEqual([]);
+  });
+
+  it('schlaegt dieselbe Fortsetzung nicht zweimal vor', () => {
+    const v = pruefen(['squat', 'lunge'], { squat: oben('squat'), lunge: oben('lunge') });
+    expect(new Set(v.map(x => x.neu)).size).toBe(v.length);
+  });
+
+  it('haelt unbekannte Uebungen und leere Eingaben aus', () => {
+    expect(pruefen(['gibtsnicht'], {})).toEqual([]);
+    expect(planPruefen(null, EXERCISES, EQUIP_ALL, null)).toEqual([]);
+  });
+
+  it('ersetzt in jedem Tag an derselben Stelle', () => {
+    const days = [tag('A', ['a', 'pushup', 'b']), tag('B', ['pushup']), tag('C', ['c'])];
+    const neu = uebungErsetzen(days, 'pushup', 'archer_push');
+    expect(neu.map(d => d.ex)).toEqual([['a', 'archer_push', 'b'], ['archer_push'], ['c']]);
+    expect(neu[2]).toBe(days[2]);
+    expect(days[0].ex).toEqual(['a', 'pushup', 'b']);
+    /* Steht die neue schon im Tag, faellt die alte nur weg. */
+    expect(uebungErsetzen([tag('A', ['pushup', 'archer_push'])], 'pushup', 'archer_push')[0].ex).toEqual(['archer_push']);
+    expect(uebungErsetzen(null, 'a', 'b')).toEqual([]);
   });
 });

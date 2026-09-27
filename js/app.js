@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -760,6 +760,17 @@ function renderBanners(){
         knopf('deload:start', __('deloadStart'), true) + knopf('deload:plateauDismiss', __('understood')));
     }
   }
+  /* Plan-Check: nur zwischen den Einheiten – mitten im Training den Plan
+     umzubauen, waere eine Stoerung. Immer nur ein Vorschlag, der naechste
+     kommt nach der Antwort. */
+  const vorschlag = session.dayKey ? null : planVorschlag();
+  if(vorschlag){
+    const alt = EX_BY_ID[vorschlag.alt], neu = EX_BY_ID[vorschlag.neu];
+    html += hinweis('info', __('planCheckTitle'),
+      esc(__(vorschlag.grund === 'hilfeFertig' ? 'planCheckHelper' : 'planCheckMaxed', { alt: exName(alt), neu: exName(neu) })),
+      knopf('planCheck:apply', __('planCheckApply'), true, ' data-alt="' + vorschlag.alt + '" data-neu="' + vorschlag.neu + '"') +
+      knopf('planCheck:dismiss', __('planCheckKeep'), false, ' data-alt="' + vorschlag.alt + '" data-neu="' + vorschlag.neu + '"'));
+  }
   /* Der Verlauf liegt nur in diesem Browser. Exportieren konnte man ihn
      immer, aber nichts hielt fest, wann das zuletzt geschah, und nichts
      erinnerte daran. */
@@ -789,6 +800,26 @@ function hinweis(art, titel, text, knoepfe){
 function knopf(aktion, beschriftung, haupt = false, extra = ''){
   return '<button data-action="' + aktion + '"' + extra + (haupt ? ' class="haupt"' : '') + '>' +
     esc(beschriftung) + '</button>';
+}
+function planVorschlag(){
+  const aus = new Set(state.planHinweiseAus || []);
+  return planPruefen(getDays(), EXERCISES, state.equipment, state.levels)
+    .find(v => !aus.has(v.alt + '>' + v.neu)) || null;
+}
+function planCheckAnwenden(alt, neu){
+  /* Nur einen Vorschlag, den der Check auch macht – nicht, was im
+     data-Attribut steht. */
+  if(!planPruefen(getDays(), EXERCISES, state.equipment, state.levels).some(v => v.alt === alt && v.neu === neu)) return;
+  const p = ensureCustom();
+  p.days = uebungErsetzen(p.days, alt, neu);
+  save();
+  renderBanners(); renderDaySelect(); renderPlanTab();
+  toast(__('planCheckDone', { neu: exName(EX_BY_ID[neu]) }), true);
+}
+function planCheckAblehnen(alt, neu){
+  if(!EX_BY_ID[alt] || !EX_BY_ID[neu]) return;
+  state.planHinweiseAus = [...(state.planHinweiseAus || []), alt + '>' + neu];
+  save(); renderBanners();
 }
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
 function backupSpaeter(){ state.backupDismissed = state.workouts || 0; save(); renderBanners(); }
@@ -1252,6 +1283,8 @@ function selectDay(key){
   /* Neue Einheit, neues Aufwaermen: die Haken der vorigen duerfen nicht
      stehen bleiben. */
   renderWarmup();
+  /* Auch die Hinweise: der Plan-Check schweigt waehrend der Einheit. */
+  renderBanners();
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
 
@@ -4349,6 +4382,8 @@ export const actions = {
   'weekplan:set':       (d, ev, el) => mitFokus(() => setWeekPlan(d.wd, el.value)),
   'plan:reset':         () => resetPlan(),
   'plan:build':         () => generatePlan(),
+  'planCheck:apply':     d => planCheckAnwenden(d.alt, d.neu),
+  'planCheck:dismiss':   d => planCheckAblehnen(d.alt, d.neu),
   'planDay:add':        () => addPlanDay(),
   'planDay:rename':     d => mitFokus(() => renameDay(zahl(d.day))),
   'planDay:remove':     d => removeDay(zahl(d.day)),

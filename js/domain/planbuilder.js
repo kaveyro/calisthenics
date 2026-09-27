@@ -380,3 +380,70 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
 
   return { name: texts.name || '', desc: texts.desc || '', days };
 }
+
+/* Plan-Check nach Fortschritt.
+
+   Der Generator beruecksichtigt den eigenen Stand nur beim Erstellen. Danach
+   blieb der Plan stehen, waehrend man besser wurde: wer echte Klimmzuege
+   schaffte, hatte weiter die Klimmzuege mit Band im Plan, und wer die
+   Liegestuetze ausgereizt hatte, trainierte sie auf der letzten Stufe
+   weiter, statt zu den Archer-Liegestuetzen zu wechseln. Die Regeln dafuer
+   stehen schon oben (VORSTUFEN, NUR_BIS) – hier werden sie auf einen
+   bestehenden Plan angewendet.
+
+   Zurueck kommen Vorschlaege { alt, neu, grund }, je Uebung hoechstens
+   einer, in der Reihenfolge des Plans:
+     hilfeFertig  eine Hilfsuebung wird nicht mehr gebraucht (NUR_BIS) –
+                  ersetzt durch die Uebung, auf die sie hinfuehrt
+     ausgereizt   die Uebung steht auf ihrer hoechsten Stufe – ersetzt durch
+                  ihre Fortsetzung, die beste machbare, die noch nicht im
+                  Plan steht
+   Fortsetzung heisst: dieselbe Bewegung, schwerer. Ausgereizte Klimmzuege
+   fuehren nicht zum Front Lever – der braucht sie als Voraussetzung, ist
+   aber ein anderes Ziel. Deshalb nur Nachfolger mit demselben Muster, und
+   der Handstand-Liegestuetz als Fortsetzung der Pike Push-ups. */
+const FORTSETZUNG_MUSTER = { v_druecken: 'handstand' };
+export function planPruefen(days, exercises, equipment, levels = {}){
+  const alle = Array.isArray(exercises) ? exercises : [];
+  const stand = levels && typeof levels === 'object' ? levels : {};
+  const byId = new Map(alle.map(e => [e.id, e]));
+  const index = new Map(alle.map((e, i) => [e.id, i]));
+  const imPlan = new Set((Array.isArray(days) ? days : []).flatMap(d => Array.isArray(d && d.ex) ? d.ex : []));
+  const frei = e => e && !imPlan.has(e.id) && exMoeglich(e, equipment);
+  const out = [];
+  const schonNeu = new Set();
+
+  for(const id of imPlan){
+    const ex = byId.get(id);
+    if(!ex || !Array.isArray(ex.levels) || !ex.levels.length) continue;
+    let neu = null, grund = null;
+
+    const bis = NUR_BIS[id];
+    if(bis && (stand[bis[0]] || 0) >= bis[1] && frei(byId.get(bis[0]))){
+      neu = byId.get(bis[0]); grund = 'hilfeFertig';
+    } else if((stand[id] || 0) >= ex.levels.length - 1){
+      const nachfolger = alle.filter(e => VORSTUFEN[e.id] && VORSTUFEN[e.id][0] === id && frei(e) &&
+        (e.muster === ex.muster || FORTSETZUNG_MUSTER[ex.muster] === e.muster))
+        .sort(rang(equipment, index, stand, byId));
+      if(nachfolger.length){ neu = nachfolger[0]; grund = 'ausgereizt'; }
+    }
+    /* Zwei Uebungen, die zur selben Fortsetzung fuehren, bekommen sie nur
+       einmal vorgeschlagen. */
+    if(neu && !schonNeu.has(neu.id)){
+      schonNeu.add(neu.id);
+      out.push({ alt: id, neu: neu.id, grund });
+    }
+  }
+  return out;
+}
+
+/* Einen Vorschlag anwenden: in jedem Tag mit der alten Uebung steht an ihrer
+   Stelle die neue; steht die neue dort schon, faellt die alte nur weg. Gibt
+   neue Tage zurueck, die alten bleiben unveraendert. */
+export function uebungErsetzen(days, alt, neu){
+  return (Array.isArray(days) ? days : []).map(d => {
+    const ex = Array.isArray(d.ex) ? d.ex : [];
+    if(!ex.includes(alt)) return d;
+    return { ...d, ex: ex.includes(neu) ? ex.filter(id => id !== alt) : ex.map(id => id === alt ? neu : id) };
+  });
+}

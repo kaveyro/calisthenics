@@ -621,6 +621,17 @@ describe('migrateState – eigene Ziele und weggeklickte Hinweise', () => {
     expect(migrateState({}).deloadPlateauDismissed).toBe(false);
   });
 
+  it('behaelt abgelehnte Plan-Vorschlaege, nur in der Form alt>neu und ohne Dopplung', () => {
+    expect(migrateState({}).planHinweiseAus).toEqual([]);
+    expect(migrateState({ planHinweiseAus: ['pushup>archer_push', 'pushup>archer_push', 'kaputt', 3, '<b>>x'] }).planHinweiseAus)
+      .toEqual(['pushup>archer_push']);
+    expect(migrateState({ planHinweiseAus: 'pushup>archer_push' }).planHinweiseAus).toEqual([]);
+    const viele = Array.from({ length: 150 }, (_, i) => 'a' + i + '>b');
+    const out = migrateState({ planHinweiseAus: viele }).planHinweiseAus;
+    expect(out).toHaveLength(100);
+    expect(out[99]).toBe('a149>b');
+  });
+
   it('kuerzt einen ueberlangen Namen beim Import', () => {
     const lang = 'x'.repeat(200);
     const out = clampBackup({ customMilestones: [{ id: 'custom-1', name: lang }] }, EX);

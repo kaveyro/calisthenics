@@ -25,6 +25,9 @@ export const SETTINGS_DEFAULTS = {
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
 export const STATE_VERSION = 16;
+/* Mehr abgelehnte Plan-Vorschlaege merkt sich die App nicht; die aeltesten
+   fallen heraus. Der Katalog hat weniger als 60 Uebungen, das reicht. */
+const MAX_PLAN_HINWEISE = 100;
 
 /* Obergrenzen der wachsenden Sammlungen. Frueher 500 bzw. 200 – bei
    4 Einheiten pro Woche war das Trainingslog nach gut zwei Jahren still
@@ -86,6 +89,10 @@ export const DEFAULT_STATE = () => ({
   /* "Nicht jetzt" auf dem Plateau-Hinweis. Dasselbe Versehen: das Banner kam
      nach jedem Neuladen zurueck. */
   deloadPlateauDismissed: false,
+  /* Abgelehnte Vorschlaege des Plan-Checks als 'alt>neu'. Ein "Nicht jetzt"
+     gilt fuer genau diesen Tausch; ein spaeterer anderer Vorschlag fuer
+     dieselbe Uebung kommt trotzdem. */
+  planHinweiseAus: [],
   /* Datum der letzten Trainingserinnerung. Verhindert, dass dieselbe
      Erinnerung mehrmals am Tag kommt – auch ueber einen Neustart hinweg. */
   erinnertAm: null
@@ -189,6 +196,8 @@ export function migrateState(raw){
      (out.workouts > 0 || out.log.length > 0 || Object.keys(out.levels).length > 0)) out.onboarded = true;
 
   out.deloadPlateauDismissed = out.deloadPlateauDismissed === true;
+  out.planHinweiseAus = [...new Set(out.planHinweiseAus.filter(x => typeof x === 'string' && /^[\w-]+>[\w-]+$/.test(x)))]
+    .slice(-MAX_PLAN_HINWEISE);
   /* Eigene Meilensteine brauchen beides: eine Kennung, unter der das
      Abhaken in `milestones` steht, und einen Namen zum Anzeigen. Ein
      Eintrag ohne eines von beiden waere eine leere Zeile in der Liste. */
