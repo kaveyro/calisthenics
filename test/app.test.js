@@ -3065,3 +3065,49 @@ describe('Tipp traegt die Vorgabe ein', () => {
     expect(label.classList.contains('checked')).toBe(true);
   });
 });
+
+/* Die Karte hatte 17 Zeilen. Was man nicht in jedem Satz braucht, steht
+   jetzt hinter "Mehr". */
+describe('Bereich Mehr auf der Karte', () => {
+  async function einheit(stand = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...stand }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const mehr = () => document.querySelector('[data-exid="pushup"] details.ex-mehr');
+
+  it('ist zu und enthaelt Notiz, Tipps, Ersetzen, Auslassen und Verlauf', async () => {
+    await einheit();
+    expect(mehr().open).toBe(false);
+    for(const sel of ['.note-input', '[data-action="tips:toggle"]', '[data-action="exercise:substitute"]',
+      '[data-action="exercise:skip"]', '[data-action="exercise:history"]']){
+      expect(mehr().querySelector(sel), sel).not.toBeNull();
+    }
+  });
+
+  it('laesst die Saetze und das obere Limit draussen', async () => {
+    await einheit();
+    expect(mehr().querySelector('.sets, .toplimit')).toBeNull();
+  });
+
+  it('steht offen, solange eine Notiz darin steht', async () => {
+    const app = await einheit();
+    const feld = document.getElementById('note-pushup');
+    feld.value = 'Ellbogen enger';
+    app.actions['note:set']({ ex: 'pushup' }, null, feld);
+    app.actions['level:adjust']({ ex: 'pushup', delta: '1' });
+    await ruhe();
+    expect(mehr().open).toBe(true);
+  });
+
+  it('bleibt nach einem Neuzeichnen offen, wenn man ihn geoeffnet hat', async () => {
+    const app = await einheit();
+    mehr().open = true;
+    mehr().dispatchEvent(new window.Event('toggle'));
+    app.actions['level:adjust']({ ex: 'pushup', delta: '1' });
+    await ruhe();
+    expect(mehr().open).toBe(true);
+  });
+});

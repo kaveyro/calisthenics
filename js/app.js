@@ -1313,7 +1313,6 @@ function renderWorkout(){
       (fehlt(ex, lvl).length
         ? '<div class="equip-warn">' + esc(__('needsEquip', { list: equipListe(fehlt(ex, lvl)) })) + '</div>'
         : '') +
-      (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       letzteZeilen(ex, lvl, t, letzte[ex.id]) +
       zuSchwerHtml(ex, lvl, t, verlauf[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
@@ -1323,6 +1322,15 @@ function renderWorkout(){
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
       toplimitHtml(ex) +
       hint +
+      /* Alles, was man nicht in jedem Satz braucht, hinter "Mehr". Die Karte
+         hatte 17 Zeilen und war auf dem Handy 528px hoch; bei sieben Uebungen
+         lag die letzte ueber 3500px tief. Offen bleibt der Bereich, solange
+         eine Notiz darin steht oder man ihn geoeffnet hat – ein Neuzeichnen
+         nach jeder Stufenaenderung klappte ihn sonst jedes Mal zu. */
+      '<details class="ex-mehr" data-ex="' + ex.id + '"' +
+        (offeneMehr.has(ex.id) || session.notes[ex.id] ? ' open' : '') + '>' +
+      '<summary>' + esc(__('moreOnCard')) + '</summary>' +
+      (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
       '<textarea class="note-input" id="note-' + ex.id + '" rows="1"' +
         ' data-action-input="note:set" data-ex="' + ex.id + '"' +
         ' placeholder="' + esc(__('notePlaceholder')) + '">' +
@@ -1335,10 +1343,17 @@ function renderWorkout(){
       '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + origId + '">↻ ' + __('substitute') + '</button>' +
       '<button class="sub-btn" data-action="exercise:skip" data-ex="' + origId + '">⤳ ' + __('skipToday') + '</button>' +
       '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">📊 ' + __('perExercise') + '</button>' +
+      '</details>' +
       '</div>';
   });
 
-  document.getElementById('content').innerHTML = html;
+  const content = document.getElementById('content');
+  content.innerHTML = html;
+  /* toggle steigt nicht auf, deshalb je Element. Die Elemente sind nach
+     jedem Rendern neu, es haeufen sich also keine Listener an. */
+  content.querySelectorAll('details.ex-mehr').forEach(d => d.addEventListener('toggle', () => {
+    if(d.open) offeneMehr.add(d.dataset.ex); else offeneMehr.delete(d.dataset.ex);
+  }));
   document.getElementById('finishBar').style.display = 'block';
   updateFinish();
 }
@@ -1702,6 +1717,10 @@ function toggleTop(id, on){
   document.getElementById('top-' + id).classList.toggle('checked', on);
   persistSession();
 }
+/* Welche Karten ihren Bereich "Mehr" offen haben – nur zur Laufzeit, eine
+   Einheit spaeter ist er wieder zu. */
+const offeneMehr = new Set();
+
 function toggleTips(id){ document.getElementById('tips-' + id).classList.toggle('open'); }
 
 /* Die Uebungen der laufenden Einheit. Faellt auf die Session selbst zurueck,

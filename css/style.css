@@ -360,6 +360,11 @@ details.acc li{margin-bottom:5px}
 /* ---------- Substitute & Per-Exercise Buttons ---------- */
 .sub-btn,.tip-btn{margin-top:10px;background:none;border:none;color:var(--accent);font-size:var(--text-md);font-weight:600;cursor:pointer;padding:2px 0;margin-right:12px}
 .sub-btn:focus-visible,.tip-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+/* Der Bereich „Mehr" auf der Übungskarte: zu, bis man ihn braucht. */
+.ex-mehr{margin-top:var(--abstand-3);border-top:1px solid var(--line);padding-top:var(--abstand-2)}
+.ex-mehr > summary{cursor:pointer;color:var(--accent);font-size:var(--text-md);font-weight:600;padding:var(--abstand-1) 0;list-style-position:inside}
+.ex-mehr > summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.ex-mehr .pr-line{margin-top:var(--abstand-2)}
 .tips{display:none;margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;font-size:var(--text-md)}
 .tips.open{display:block}
 .tips li{margin-left:16px;margin-bottom:4px}
