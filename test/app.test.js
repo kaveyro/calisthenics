@@ -2618,7 +2618,9 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     });
   }
   const saetze = id => document.querySelectorAll('[data-exid="' + id + '"] .rep-input').length;
-  const oben = id => Number(document.getElementById('rep-' + id + '-0').placeholder.split('-')[1]);
+  /* Die Obergrenze aus dem Ziel der Karte ('4 × 6–10'); der Platzhalter
+     nennt seit dem Tagesziel die Vorgabe des Satzes, nicht mehr die Spanne. */
+  const oben = id => Number(document.querySelector('[data-exid="' + id + '"] .ex-target').textContent.split('–')[1]);
   const label = id => document.getElementById('top-' + id);
   const alle = (id, n) => Array(saetze(id)).fill(n);
 
@@ -2990,5 +2992,64 @@ describe('Jahresrueckblick ohne Aufwaermen', () => {
     expect(text).not.toContain('Handgelenk');
     /* 3 × 180 Sekunden = 9 Minuten. */
     expect(text).toContain('9 Min');
+  });
+});
+
+/* Ein Tipp hiess bisher nur "erledigt"; die Zahl musste man zusaetzlich
+   eintippen. Jetzt traegt er in einen leeren Satz die heutige Vorgabe ein. */
+describe('Tipp traegt die Vorgabe ein', () => {
+  const reps = (...n) => Object.fromEntries(n.map((w, i) => ['pushup-' + i, w]));
+  async function einheit(log = []){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, log }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const feld = s => document.getElementById('rep-pushup-' + s);
+  const punkt = s => document.getElementById('set-pushup-' + s);
+  const letzte = (werte, lv) => [{ d: '2026-01-10', day: 'A', ex: ['pushup'], sets: 4, reps: reps(...werte), lv }];
+
+  it('zeigt die Vorgabe als Platzhalter', async () => {
+    await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
+    expect([0, 1, 2, 3].map(s => feld(s).placeholder)).toEqual(['9', '9', '8', '8']);
+  });
+
+  it('traegt sie beim Abhaken eines leeren Satzes ein', async () => {
+    await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
+    punkt(2).click();
+    await ruhe();
+    expect(feld(2).value).toBe('8');
+    expect(gespeichert().activeSession.reps['pushup-2']).toBe(8);
+  });
+
+  it('nimmt ohne Vorgeschichte die Untergrenze', async () => {
+    await einheit();
+    punkt(0).click();
+    /* Liegestuetze Stufe 0: 4 x 6-10. */
+    expect(feld(0).value).toBe('6');
+  });
+
+  it('laesst eine eingetippte Zahl stehen', async () => {
+    const app = await einheit(letzte([8, 8, 7, 7], { pushup: 0 }));
+    feld(0).value = '12';
+    app.actions['set:reps']({ key: 'pushup-0' }, null, feld(0));
+    punkt(0).click();
+    expect(feld(0).value).toBe('12');
+  });
+
+  it('traegt nichts ein, wenn die letzte Einheit ihre Stufe nicht kennt', async () => {
+    await einheit(letzte([8, 8, 7, 7]));
+    punkt(0).click();
+    expect(feld(0).value).toBe('');
+    expect(punkt(0).classList.contains('done')).toBe(true);
+  });
+
+  it('macht das obere Limit damit ableitbar', async () => {
+    await einheit(letzte([10, 10, 10, 10], { pushup: 0 }));
+    [0, 1, 2, 3].forEach(s => punkt(s).click());
+    const label = document.getElementById('top-pushup');
+    expect(label.classList.contains('abgeleitet')).toBe(true);
+    expect(label.classList.contains('checked')).toBe(true);
   });
 });

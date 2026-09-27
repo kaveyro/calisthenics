@@ -1088,6 +1088,31 @@ function toplimitHtml(ex){
    Wiederholungen nichts – so war die Zeile schon vorher. */
 const mitEinheit = (werte, sek) => werte.join(' · ') + (sek ? ' ' + __('secShort') : '');
 
+/* Die heutige Vorgabe je Satz: { werte, allesOben, einstieg } oder null.
+
+   Aus der letzten Einheit derselben Stufe (tagesziel/halteziel), nach einem
+   Stufenwechsel oder ohne Vorgeschichte die Untergrenze (einstiegsziel).
+   Ein Eintrag, der seine Stufe nicht kennt, ergibt keine Vorgabe – ob er
+   zur heutigen Stufe gehoert, laesst sich nicht sagen. Eine Stelle fuer die
+   Zeile "Heute", die Platzhalter, den Countdown und das Eintragen per Tipp,
+   damit die vier nie etwas Verschiedenes sagen. */
+function heuteVorgabe(ex, lvl, t, letzte){
+  const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
+  if(bekannt && letzte.lvl === lvl){
+    const z = t.isHold ? halteziel(t, letzte.sek) : tagesziel(t, letzte.reps);
+    return z ? { werte: z.secs || z.reps, allesOben: z.allesOben, einstieg: false } : null;
+  }
+  if(letzte && !bekannt) return null;
+  const e = einstiegsziel(t);
+  return e ? { werte: e, allesOben: false, einstieg: true } : null;
+}
+/* Dasselbe fuer eine einzelne Uebung ausserhalb von renderWorkout(). */
+function vorgabeFuer(ex){
+  const lvl = lvlOf(ex), t = zielVon(ex.levels[lvl]);
+  const v = verlaufJeUebung(state.log, [ex.id], 1, getDay)[ex.id];
+  return heuteVorgabe(ex, lvl, t, v && v[0]);
+}
+
 function letzteZeilen(ex, lvl, t, letzte){
   const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
   const andere = bekannt && letzte.lvl !== lvl;
@@ -1105,36 +1130,21 @@ function letzteZeilen(ex, lvl, t, letzte){
       })
       : __('lastReps', { reps, date })) + '</div>';
   }
-  const heute = bekannt && !andere
-    ? (t.isHold ? halteziel(t, letzte.sek) : tagesziel(t, letzte.reps))
-    : null;
+  const heute = heuteVorgabe(ex, lvl, t, letzte);
   if(heute){
+    const werte = mitEinheit(heute.werte, t.isHold);
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
-      : __('todayTarget', { reps: mitEinheit(heute.secs || heute.reps, t.isHold) })) + '</div>';
-  } else if(!letzte || andere){
-    /* Neue Stufe oder noch nie mit Zahlen trainiert: unten anfangen. Ein
-       Eintrag, der seine Stufe nicht kennt, bekommt weiterhin gar keine
-       Vorgabe – ob er zur heutigen Stufe gehoert, laesst sich nicht sagen. */
-    const einstieg = einstiegsziel(t);
-    if(einstieg) html += '<div class="last-reps heute">' +
-      esc(__('todayEntry', { reps: mitEinheit(einstieg, t.isHold) })) + '</div>';
+      : heute.einstieg ? __('todayEntry', { reps: werte }) : __('todayTarget', { reps: werte })) + '</div>';
   }
   return html;
 }
 
-/* Worauf der Countdown je Satz heute laeuft. Dieselbe Rechnung wie in der
-   Zeile "Heute:" darueber – aus der letzten Einheit derselben Stufe, sonst
-   die Untergrenze. Ein Eintrag ohne bekannte Stufe zaehlt wie keiner. */
-function halteVorgabe(ex, lvl, t, letzte){
-  const gleich = letzte && letzte.lvl === lvl && letzte.sek && letzte.sek.length;
-  const z = gleich ? halteziel(t, letzte.sek) : null;
-  return (z && z.secs) || einstiegsziel(t) || Array.from({ length: t.sets }, () => t.holdSecs);
-}
-function halteVorgabeFuer(ex){
-  const lvl = lvlOf(ex), t = zielVon(ex.levels[lvl]);
-  const v = verlaufJeUebung(state.log, [ex.id], 1, getDay)[ex.id];
-  return halteVorgabe(ex, lvl, t, v && v[0]);
+/* Worauf der Countdown je Satz heute laeuft. Ohne Vorgabe – ein Eintrag
+   ohne bekannte Stufe – die Untergrenze, und ohne die die Obergrenze wie
+   frueher: ein Countdown braucht eine Zahl. */
+function halteSekunden(ex, t, vorgabe){
+  return (vorgabe && vorgabe.werte) || einstiegsziel(t) || Array.from({ length: t.sets }, () => t.holdSecs);
 }
 
 /* Der Vorschlag, eine Stufe zurueckzugehen – mit dem Knopf, den die Karte
@@ -1227,7 +1237,8 @@ function renderWorkout(){
       rungs += '<div class="rung' + (i < lvl ? ' done' : (i === lvl ? ' current' : '')) + '" title="' + esc(exStage(ex, i)) + '" aria-hidden="true"></div>';
     });
 
-    const vorgabe = t.isHold ? halteVorgabe(ex, lvl, t, letzte[ex.id]) : null;
+    const heute = heuteVorgabe(ex, lvl, t, letzte[ex.id]);
+    const vorgabe = t.isHold ? halteSekunden(ex, t, heute) : (heute && heute.werte);
     let dots = '';
     for(let s = 0; s < t.sets; s++){
       const repKey = ex.id + '-' + s;
@@ -1244,7 +1255,9 @@ function renderWorkout(){
         ' aria-label="' + esc(__('setAria', { ex: exName(ex), n: s + 1, total: t.sets })) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
         dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
-          ' placeholder="' + (t.minReps + '-' + t.maxReps) + '"' +
+          /* Die heutige Vorgabe statt der Spanne: die Spanne steht oben
+             auf der Karte, die Vorgabe ist die Zahl fuer DIESEN Satz. */
+          ' placeholder="' + (vorgabe ? vorgabe[s] : t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
           ' value="' + (session.reps[repKey] ?? '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       } else if(t.isHold){
@@ -1574,13 +1587,28 @@ function tapSet(id, s){
     cancelHold();
     zeitNehmen();
     el.classList.add('running');
-    const secs = halteVorgabeFuer(ex)[s] || t.holdSecs;
+    const secs = halteSekunden(ex, t, vorgabeFuer(ex))[s] || t.holdSecs;
     const start = Date.now();
     holdTimer = { key, el, id, s, ex, secs, start, ende: start + secs * 1000, interval: null };
     haltenAnzeigen();
     holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
     melde(__('holdStarted', { sec: secs }));
   } else {
+    /* Ein leerer Satz bekommt beim Abhaken die heutige Vorgabe eingetragen.
+       Bisher hiess ein Tipp nur "erledigt", und die Zahl musste man
+       zusaetzlich eintippen – wer es liess, hatte keine Zahlen, und das obere
+       Limit blieb eine Handeingabe. So reicht ein Tipp je Satz, und nur eine
+       Abweichung wird getippt. Eine schon eingetragene Zahl bleibt stehen. */
+    if(session.reps[key] == null && t.maxReps){
+      const v = vorgabeFuer(ex);
+      const n = v && v.werte[s];
+      if(Number.isInteger(n)){
+        session.reps[key] = n;
+        const feld = document.getElementById('rep-' + key);
+        if(feld) feld.value = n;
+        topLimitAktualisieren(id);
+      }
+    }
     markDone(key, el, s, ex);
   }
 }
