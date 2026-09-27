@@ -12,7 +12,16 @@
    sich nur ueber die Zielangabe schaetzen, und eine geschaetzte Zahl neben
    gezaehlten waere irrefuehrend. Sie zaehlen deshalb weiter ueber `saetze`
    mit und bleiben aus `reps` heraus. Ein reiner Skill-Tag sieht im
-   Wiederholungsdiagramm also mager aus – das ist er auch. */
+   Wiederholungsdiagramm also mager aus – das ist er auch.
+
+   jeKat zaehlt dagegen SAETZE je Kategorie, und zwar Wiederholungs- wie
+   Haltesaetze (seit v16 stehen deren Sekunden in entry.sek). Bis hierher
+   zaehlte es Wiederholungen: "Druecken 48, Ziehen 138" las sich wie ein
+   Ungleichgewicht, lag aber daran, dass der Drucktag vor allem aus
+   Halteuebungen besteht, die dort nicht vorkamen. Fuer die Frage "trainiere
+   ich beide Seiten gleich viel" ist der Satz die ehrliche Einheit – ein Satz
+   Front Lever und ein Satz Rudern sind vergleichbarer als 20 Sekunden und
+   12 Wiederholungen. */
 
 import { isoWeek } from './dates.js';
 
@@ -42,17 +51,21 @@ export function volumenJeGruppe(log, exById = {}, gruppe = isoWeek){
     const eintrag = out[w] || (out[w] = { reps: 0, saetze: 0, jeKat: {} });
     eintrag.saetze += zahl(l.sets);
 
+    /* Der Schluessel ist "uebung-satznummer"; die Uebung steht vor dem
+       LETZTEN Bindestrich, damit IDs mit Bindestrich heil bleiben. */
+    const satzZaehlen = key => {
+      const ex = exById[key.slice(0, key.lastIndexOf('-'))];
+      if(ex && ex.cat) eintrag.jeKat[ex.cat] = (eintrag.jeKat[ex.cat] || 0) + 1;
+    };
     const reps = (l.reps && typeof l.reps === 'object') ? l.reps : {};
     Object.keys(reps).forEach(key => {
       const n = zahl(reps[key]);
       if(!n) return;
       eintrag.reps += n;
-      /* Der Schluessel ist "uebung-satznummer"; die Uebung steht vor dem
-         LETZTEN Bindestrich, damit IDs mit Bindestrich heil bleiben. */
-      const ex = exById[key.slice(0, key.lastIndexOf('-'))];
-      if(!ex || !ex.cat) return;
-      eintrag.jeKat[ex.cat] = (eintrag.jeKat[ex.cat] || 0) + n;
+      satzZaehlen(key);
     });
+    const sek = (l.sek && typeof l.sek === 'object') ? l.sek : {};
+    Object.keys(sek).forEach(key => { if(zahl(sek[key])) satzZaehlen(key); });
   });
   return out;
 }

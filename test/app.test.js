@@ -2971,3 +2971,24 @@ describe('Gehaltene Sekunden', () => {
     expect(s.log[0].sek).toEqual({ 'support-0': 13, 'support-1': 8 });
   });
 });
+
+/* Als meistgeuebte Uebung stand dort die Handgelenks-Routine – das
+   Aufwaermen, das an jedem Drucktag dabei ist. */
+describe('Jahresrueckblick ohne Aufwaermen', () => {
+  it('nennt keine Mobility als meistgeuebte Uebung und zaehlt die Haltezeit', async () => {
+    const jahr = new Date().toISOString().slice(0, 4);
+    const e = (tag, ex) => ({ d: jahr + '-01-0' + tag, day: 'A', sets: 4, ex,
+      reps: { 'pushup-0': 10 }, sek: { 'support-0': 90, 'support-1': 90 } });
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, log: [
+      e(1, ['wrist_prep', 'pushup']), e(2, ['wrist_prep', 'pushup']), e(3, ['wrist_prep', 'support'])
+    ]}));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    const text = document.getElementById('yearReview').textContent;
+    expect(text).toContain('Liegestütze');
+    expect(text).not.toContain('Handgelenk');
+    /* 3 × 180 Sekunden = 9 Minuten. */
+    expect(text).toContain('9 Min');
+  });
+});

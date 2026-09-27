@@ -2054,7 +2054,8 @@ function undoWorkout(){
   toast(__('undoWorkout'));
 }
 
-/* Wie sich die Wiederholungen der letzten Woche auf die Kategorien verteilen.
+/* Wie sich die Saetze der letzten Woche auf die Kategorien verteilen –
+   Saetze, nicht Wiederholungen, siehe js/domain/volume.js.
 
    Ein Streifen mit Zahlen daneben, kein reines Farbdiagramm: die Aufteilung
    ist die eigentliche Aussage ("zu viel Drücken, zu wenig Ziehen") und muss
@@ -2255,14 +2256,22 @@ function renderYearReview(){
   const alleMs = state.milestones || {};
   const ms = Object.keys(alleMs)
     .filter(id => typeof alleMs[id] === 'string' && alleMs[id].slice(0, 4) === jahr).length;
-  /* Wiederholungen: nur die, die wirklich trainiert wurden. */
-  let reps = 0;
+  /* Wiederholungen: nur die, die wirklich trainiert wurden. Daneben die
+     gehaltene Zeit, seit v16 erfasst – ein Jahr mit viel Handstand sah
+     hier sonst nach wenig Arbeit aus. */
+  let reps = 0, gehalten = 0;
   log.forEach(l => {
     Object.values(l.reps || {}).forEach(v => { if(v > 0) reps += v; });
+    Object.values(l.sek || {}).forEach(v => { if(v > 0) gehalten += v; });
   });
-  /* Meistgeuebte Uebung: aus den Log-Eintraegen, nicht aus dem Plan. */
+  /* Meistgeuebte Uebung: aus den Log-Eintraegen, nicht aus dem Plan. Ohne
+     Mobility – dort stand sonst die Handgelenks-Routine, also das
+     Aufwaermen, das an jedem Drucktag dabei ist. */
   const zaehler = {};
-  log.forEach(l => (l.ex || []).forEach(id => { zaehler[id] = (zaehler[id] || 0) + 1; }));
+  log.forEach(l => (l.ex || []).forEach(id => {
+    const ex = EX_BY_ID[id];
+    if(ex && ex.cat !== 'mobility') zaehler[id] = (zaehler[id] || 0) + 1;
+  }));
   const topId = Object.keys(zaehler).sort((a, b) => zaehler[b] - zaehler[a])[0];
   const top = topId && EX_BY_ID[topId] ? exName(EX_BY_ID[topId]) : null;
 
@@ -2272,6 +2281,7 @@ function renderYearReview(){
     __('yearReviewMilestones', { n: ms }),
     __('yearReviewReps', { n: reps })
   ];
+  if(gehalten) teile.push(__('yearReviewHold', { min: Math.round(gehalten / 60) }));
   if(top) teile.push(__('yearReviewTop', { name: top }));
   /* Die Ueberschrift steht schon im Markup – zwei gestapelte Titel waren
      einer zu viel, und der Inline-Stil, der den Abstand dazwischen

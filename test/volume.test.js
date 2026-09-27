@@ -34,18 +34,30 @@ describe('volumenJeWoche', () => {
     expect(schwer[w].reps).toBe(30);
   });
 
-  it('teilt nach Kategorie auf', () => {
+  /* Saetze, nicht Wiederholungen: 4 Klimmzuege und 8 Rows sind zwei Saetze
+     Ziehen, 10 Liegestuetze einer Druecken. */
+  it('zaehlt die Saetze je Kategorie', () => {
     const out = volumenJeWoche([
       eintrag('2026-08-03', { 'pushup-0': 10, 'pullup-0': 4, 'ring_row-0': 8 })
     ], EX);
     const w = Object.keys(out)[0];
-    expect(out[w].jeKat).toEqual({ push: 10, pull: 12 });
+    expect(out[w].jeKat).toEqual({ push: 1, pull: 2 });
+  });
+
+  /* Der Anlass: ein Drucktag aus Halteuebungen tauchte in der Verteilung
+     kaum auf, weil Haltesaetze keine Wiederholungen haben. */
+  it('zaehlt Haltesaetze mit, aber nicht ins Wiederholungsvolumen', () => {
+    const l = { ...eintrag('2026-08-03', { 'pullup-0': 5 }), sek: { 'pushup-0': 20, 'pushup-1': 18, 'pushup-2': 0 } };
+    const out = volumenJeWoche([l], EX);
+    const w = Object.keys(out)[0];
+    expect(out[w].jeKat).toEqual({ pull: 1, push: 2 });
+    expect(out[w].reps).toBe(5);
   });
 
   /* Die ID kann selbst Bindestriche haben – getrennt wird am letzten. */
   it('liest die Uebung vor dem letzten Bindestrich', () => {
     const out = volumenJeWoche([eintrag('2026-08-03', { 'ring_row-2': 9 })], EX);
-    expect(Object.values(out)[0].jeKat).toEqual({ pull: 9 });
+    expect(Object.values(out)[0].jeKat).toEqual({ pull: 1 });
   });
 
   it('zaehlt die Saetze weiter mit', () => {
@@ -67,7 +79,7 @@ describe('volumenJeWoche', () => {
     const out = volumenJeWoche([eintrag('2026-08-03', { 'gibtsnicht-0': 6, 'pushup-0': 4 })], EX);
     const w = Object.keys(out)[0];
     expect(out[w].reps).toBe(10);
-    expect(out[w].jeKat).toEqual({ push: 4 });
+    expect(out[w].jeKat).toEqual({ push: 1 });
   });
 
   it('vertraegt kaputte Eingaben', () => {

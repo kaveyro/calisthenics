@@ -142,7 +142,7 @@ export const LANG = {
     histRange12m: '12 Monate', histRangeAll: 'Alles',
     lastMonthSingular: 'letzter Monat', lastMonthsPlural: 'letzte {n} Monate',
     monthLegend: 'Grün = Monatsziel von {n} Trainings erreicht.',
-    volumeSplitMonth: 'Verteilung im letzten Monat',
+    volumeSplitMonth: 'Sätze je Bereich im letzten Monat',
     logShowing: 'Zeigt die letzten {n} von {gesamt} Einheiten im Zeitraum.',
     chartWorkouts: 'Trainings pro Woche',
     chartWorkoutsAria: 'Trainings pro Woche, {range}: {data}',
@@ -152,8 +152,8 @@ export const LANG = {
     chartVolume: 'Wiederholungen pro Woche',
     chartVolumeAria: 'Wiederholungen pro Woche: {data}',
     volumeLegend: 'Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft. Halteübungen zählen hier nicht mit.',
-    volumeSplit: 'Verteilung in der letzten Woche',
-    volumeSplitAria: 'Wiederholungen nach Kategorie: {data}',
+    volumeSplit: 'Sätze je Bereich in der letzten Woche',
+    volumeSplitAria: 'Sätze nach Kategorie: {data}',
     durationMin: '{n} Min', durationHours: '{h} Std {m} Min',
     /* Ohne Plural formuliert: "aus 1 gemessenen Einheiten" liest sich falsch,
        und eine Pluralregel je Sprache waere fuer eine Zeile zu viel. */
@@ -384,6 +384,7 @@ export const LANG = {
     yearReviewLevelUps: 'Level-Ups: {n}',
     yearReviewMilestones: 'Meilensteine: {n}',
     yearReviewReps: 'Wiederholungen: {n}',
+    yearReviewHold: 'Gehalten: {min} Min',
     yearReviewTop: 'Meistgeübte Übung: {name}',
 
     /* Eigene Meilensteine */
@@ -524,7 +525,7 @@ export const LANG = {
     histRange12m: '12 months', histRangeAll: 'All',
     lastMonthSingular: 'last month', lastMonthsPlural: 'last {n} months',
     monthLegend: 'Green = monthly goal of {n} workouts met.',
-    volumeSplitMonth: 'Split over the last month',
+    volumeSplitMonth: 'Sets per area over the last month',
     logShowing: 'Showing the last {n} of {gesamt} sessions in this range.',
     chartWorkouts: 'Workouts per week',
     chartWorkoutsAria: 'Workouts per week, {range}: {data}',
@@ -534,8 +535,8 @@ export const LANG = {
     chartVolume: 'Reps per week',
     chartVolumeAria: 'Reps per week: {data}',
     volumeLegend: 'Total volume – should rise gently over the weeks, not in jumps. Holds are not counted here.',
-    volumeSplit: 'Split over the last week',
-    volumeSplitAria: 'Reps by category: {data}',
+    volumeSplit: 'Sets per area over the last week',
+    volumeSplitAria: 'Sets by category: {data}',
     durationMin: '{n} min', durationHours: '{h} h {m} min',
     avgDuration: 'avg {v} per session ({n} timed).',
     noHistory: 'No workouts yet',
@@ -755,6 +756,7 @@ export const LANG = {
     yearReviewLevelUps: 'Level-ups: {n}',
     yearReviewMilestones: 'Milestones: {n}',
     yearReviewReps: 'Reps: {n}',
+    yearReviewHold: 'Held: {min} min',
     yearReviewTop: 'Most trained exercise: {name}',
 
     /* Custom milestones */
