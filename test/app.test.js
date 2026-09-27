@@ -958,6 +958,46 @@ describe('Verlauf je Uebung', () => {
     expect(overlay.querySelector('table').textContent).toContain('12');
   });
 
+  it('zeigt die gehaltenen Sekunden einer Halteuebung', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, log: [
+      { d: '2026-07-01', day: 'A', sets: 4, ex: ['support'], lv: { support: 1 },
+        sek: { 'support-0': 24, 'support-1': 22 } }
+    ]}));
+    const app = await starten();
+    app.actions['exercise:history']({ ex: 'support' });
+    await ruhe();
+    const zeile = document.querySelector('#exHistoryOverlay table tr:nth-child(2)').textContent;
+    expect(zeile).toContain('24 · 22');
+    /* Stufe 1 gespeichert, also die zweite Stufe. */
+    expect(zeile).toContain('2');
+  });
+
+  /* Die Spalte zaehlte die Aufstiege der ganzen Einheit. */
+  it('markiert nur den Aufstieg dieser Uebung', async () => {
+    const overlay = await oeffnen([
+      { ...eintrag('2026-07-01', { 'pushup-0': 8 }), ups: ['dips', 'squat'] },
+      { ...eintrag('2026-07-05', { 'pushup-0': 9 }), ups: ['pushup'] }
+    ]);
+    const zeilen = [...overlay.querySelectorAll('table tr')].slice(1).map(z => z.textContent);
+    expect(zeilen[0]).toContain('▲');
+    expect(zeilen[1]).not.toContain('▲');
+  });
+
+  /* Nach einem Aufstieg ist die Zahl kleiner, weil die Variante schwerer
+     ist. Ueber den Wechsel gezogen saehe die Kurve nach Rueckschritt aus. */
+  it('zieht die Kurve nur seit dem letzten Stufenwechsel', async () => {
+    const mitStufe = (d, n, lvl) => ({ ...eintrag(d, { 'pushup-0': n }), lv: { pushup: lvl } });
+    const overlay = await oeffnen([
+      mitStufe('2026-07-01', 12, 0),
+      mitStufe('2026-07-03', 6, 1),
+      mitStufe('2026-07-05', 7, 1),
+      mitStufe('2026-07-07', 8, 1)
+    ]);
+    const punkte = overlay.querySelector('svg.spark polyline').getAttribute('points').split(' ');
+    expect(punkte).toHaveLength(3);
+    expect(overlay.querySelector('.spark-caption')).not.toBeNull();
+  });
+
   it('zeichnet nichts bei weniger als zwei Zahlenreihen', async () => {
     const overlay = await oeffnen([
       eintrag('2026-07-01', { 'pushup-0': 8 }),

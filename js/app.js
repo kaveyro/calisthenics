@@ -9,7 +9,7 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { entryHasExercise, repsOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
+import { entryHasExercise, repsOf, sekOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
   SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
@@ -1463,17 +1463,19 @@ function showExHistory(id){
   if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
   else {
     html += topsatzKurve(logEntries, id);
-    /* Spalte hiess "Level", zeigte aber die Zahl der Level-Ups dieser Einheit.
-       Titel angepasst statt Inhalt geaendert – die Angabe ist die nuetzlichere. */
-    /* Die Wiederholungsspalte ist die einzige Angabe hier, die sich wirklich
-       auf DIESE Uebung bezieht – Saetze und Top zaehlen die ganze Einheit. */
-    html += '<table><tr><th>' + esc(__('colDate')) + '</th><th>' +
-      esc(__('colReps')) + '</th><th>' +
-      esc(__('colSets')) + '</th><th>' + esc(__('colTop')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
+    /* Jede Spalte bezieht sich jetzt auf DIESE Uebung. Vorher standen hier
+       Saetze, Top und Level-Ups der ganzen Einheit – "▲2" hiess, dass
+       irgendwelche zwei Uebungen aufgestiegen waren, nicht diese. Und die
+       Wiederholungsspalte blieb bei Halteuebungen leer, obwohl die Sekunden
+       seit v16 im Eintrag stehen. */
+    html += '<table><tr><th>' + esc(__('colDate')) + '</th><th>' + esc(__('colStage')) + '</th><th>' +
+      esc(__('colResult')) + '</th><th>' + esc(__('colLevelUp')) + '</th></tr>';
     logEntries.forEach(l => {
-      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + esc(repsOf(l, id).join(' · ')) + '</td><td>' +
-        l.sets + '</td><td>' + (l.tops ? '✓' : '') + '</td><td>' +
-        (l.ups && l.ups.length ? '▲' + l.ups.length : '') + '</td></tr>';
+      const lvl = l.lv && Number.isInteger(l.lv[id]) ? l.lv[id] : null;
+      const sek = sekOf(l, id);
+      html += '<tr><td>' + fmtDate(l.d) + '</td><td>' + (lvl === null ? '–' : lvl + 1) + '</td><td>' +
+        esc(sek.length ? mitEinheit(sek, true) : repsOf(l, id).join(' · ')) + '</td><td>' +
+        (Array.isArray(l.ups) && l.ups.includes(id) ? '▲' : '') + '</td></tr>';
     });
     html += '</table>';
   }
@@ -1497,9 +1499,23 @@ function showExHistory(id){
    darunter in der Tabelle und wuerden sonst zweimal vorgelesen. Bei
    Halteuebungen sind es Sekunden statt Wiederholungen – die Kurve zeigt
    beides, gerade weil sie unbeschriftet bleibt. */
+/* Der beste Satz je Einheit, aber nur seit dem letzten Stufenwechsel.
+   Ueber mehrere Stufen gezogen fiel die Kurve nach jedem Aufstieg ab – die
+   neue Variante ist schwerer, die Zahl also kleiner – und sah damit genau
+   dann nach Rueckschritt aus, wenn es voranging. Bei einem Wechsel der
+   Masseinheit (Sekunden zu Wiederholungen) mischte sie ausserdem beides.
+   Eintraege ohne bekannte Stufe zaehlen mit; sie lassen sich nicht zuordnen,
+   und ohne sie haette ein alter Bestand gar keine Kurve. */
 function topsatzKurve(logEntries, id){
-  const werte = [...logEntries].reverse()
-    .map(l => repsOf(l, id))
+  const neueste = logEntries.find(l => l.lv && Number.isInteger(l.lv[id]));
+  const stufe = neueste ? neueste.lv[id] : null;
+  const seitWechsel = [];
+  for(const l of logEntries){
+    if(stufe !== null && l.lv && Number.isInteger(l.lv[id]) && l.lv[id] !== stufe) break;
+    seitWechsel.push(l);
+  }
+  const werte = seitWechsel.reverse()
+    .map(l => { const s = sekOf(l, id); return s.length ? s : repsOf(l, id); })
     .filter(r => r.length)
     .map(r => Math.max(...r));
   if(werte.length < 2) return '';
@@ -1513,7 +1529,7 @@ function topsatzKurve(logEntries, id){
 
   return '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
     '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
+    '</svg><div class="spark-caption">' + esc(__('sparkCaption')) + '</div>';
 }
 
 function closeExHistory(){
