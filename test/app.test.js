@@ -1262,12 +1262,13 @@ describe('Aufwaermen abhaken', () => {
   const punkte = () => [...document.querySelectorAll('#warmupList input[type=checkbox]')];
   const offen = () => document.querySelector('.overlay.open');
 
-  async function tagUndAufwaermen(){
+  async function tagUndAufwaermen(n = 0){
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    document.querySelectorAll('.day-btn')[n].click();
     await ruhe();
     return app;
   }
+  const indizes = () => punkte().map(p => Number(p.dataset.i));
 
   it('haengt einen Haken an jeden Eintrag', async () => {
     await starten();
@@ -1321,9 +1322,11 @@ describe('Aufwaermen abhaken', () => {
   });
 
   it('fragt nach, wenn der Pflichtpunkt offen blieb', async () => {
-    const app = await tagUndAufwaermen();
+    /* Tag B: L-Sit ohne Handgelenks-Routine, der Pflichtpunkt steht da. */
+    const app = await tagUndAufwaermen(1);
+    expect(indizes()).toContain(3);
     /* Alles ausser dem Pflichtpunkt (Index 3). */
-    punkte().forEach((p, i) => { if(i !== 3) p.click(); });
+    punkte().forEach(p => { if(p.dataset.i !== '3') p.click(); });
     wiederholungsPunkte()[0].click();
     await ruhe();
 
@@ -1340,8 +1343,8 @@ describe('Aufwaermen abhaken', () => {
   });
 
   it('schliesst nach dem Bestaetigen trotzdem ab', async () => {
-    const app = await tagUndAufwaermen();
-    punkte().forEach((p, i) => { if(i !== 3) p.click(); });
+    const app = await tagUndAufwaermen(1);
+    punkte().forEach(p => { if(p.dataset.i !== '3') p.click(); });
     wiederholungsPunkte()[0].click();
     await ruhe();
 
@@ -1351,6 +1354,45 @@ describe('Aufwaermen abhaken', () => {
     await fertig;
     await ruhe();
     expect(gespeichert().log).toHaveLength(1);
+  });
+
+  it('zeigt ohne gewaehlten Tag die ganze Liste', async () => {
+    const { WARMUP } = await import('../js/exercises.js');
+    await starten();
+    expect(punkte()).toHaveLength(WARMUP.length);
+    expect(document.querySelector('#warmupList .warm-note')).toBeNull();
+  });
+
+  /* Tag A der Vorlage beginnt mit der Handgelenks-Routine – die Handgelenke
+     stuenden sonst doppelt da. Beine gibt es dort auch. */
+  it('laesst an einem Tag mit Handgelenks-Routine die Handgelenke weg', async () => {
+    const app = await tagUndAufwaermen(0);
+    expect(indizes()).not.toContain(3);
+    expect(indizes()).toEqual(expect.arrayContaining([0, 2, 6, 7]));
+    expect(document.querySelector('#warmupList .warm-note').textContent).toMatch(/Tag A/);
+    /* Und fragt beim Abschluss nicht nach einem Punkt, den es nicht gab. */
+    punkte().forEach(p => p.click());
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(offen()).toBeNull();
+    expect(gespeichert().log).toHaveLength(1);
+  });
+
+  it('bringt am Beintag Huefte und Knie statt Haengen und Schultern', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, planId: 'custom',
+      customPlan: { name: 'Beine', desc: '', days: [{ key: 'L', title: 'Beine', sub: '', ex: ['squat', 'glute_bridge'] }] } }));
+    await tagUndAufwaermen(0);
+    expect(indizes()).toEqual([0, 4, 6, 7]);
+  });
+
+  it('kopiert beim Entfernen die Liste in der Sprache der Oberflaeche', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, settings: { lang: 'en' } }));
+    const app = await starten();
+    await app.actions['warmup:remove']({ i: '0' });
+    await ruhe();
+    expect(gespeichert().warmupCustom[0]).toMatch(/^Arm circles/);
   });
 
   /* Ohne Nachruecken sitzt jeder Haken hinter der geloeschten Zeile

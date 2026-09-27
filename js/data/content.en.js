@@ -462,7 +462,9 @@ export const CONTENT_EN = {
     'Scapular push-ups – 2 × 8',
     'Wrists: circles + stretching in every direction, 20–30 sec each — mandatory!',
     'Cat-cow & shoulder openers at the wall – 1 min',
-    'On pull days: hang loosely from the bar for 10–15 sec'
+    'Hang loosely from the bar for 10–15 sec',
+    'Hip circles and leg swings – 10× per side',
+    '10 slow squats, pausing briefly at the bottom'
   ],
 
   plans: {

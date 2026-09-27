@@ -2,7 +2,7 @@
    PROGRESSION – App-Logik
    ========================================================= */
 
-import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, EX_BY_ID } from './exercises.js';
+import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, WARMUP_WANN, EX_BY_ID } from './exercises.js';
 import { store, STORAGE_KEY } from './storage.js';
 import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
 import { esc, sanitizeDayKey } from './domain/escape.js';
@@ -25,6 +25,7 @@ import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
 import { wochenTage, wochenbilanz } from './domain/bilanz.js';
+import { tagesMerkmale, passtZumTag } from './domain/warmup.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -829,7 +830,15 @@ function renderWarmup(){
      stehen in state.warmupCustom und bleiben so, wie er sie geschrieben hat. */
   const items = state.warmupCustom || WARMUP.map((w, i) => warmupText(i, w));
   const el = document.getElementById('warmupList');
-  el.innerHTML = items.map((w, i) =>
+  /* Mit gewaehltem Tag nur, was zu ihm passt (js/domain/warmup.js). Ohne
+     Tag die ganze Liste. Eine eigene Liste behaelt die Zuordnung fuer
+     die Punkte, die aus der Vorgabe stammen; selbst geschriebene kommen
+     immer dran. Der Index bleibt der der ganzen Liste – an ihm haengen
+     die Haken und das Entfernen. */
+  const day = session.dayKey ? getDay(session.dayKey) : null;
+  const zeigen = warmupPasst(items);
+  const aus = zeigen.filter(z => !z).length;
+  el.innerHTML = items.map((w, i) => !zeigen[i] ? '' :
     /* Merkmal aus den Daten statt aus einem deutschen Teilstring – die
        fruehere Pruefung w.includes('Pflicht') fiel auf Englisch stumm aus.
        Bei einer selbst zusammengestellten Liste laesst sich die Zuordnung
@@ -843,7 +852,22 @@ function renderWarmup(){
       '<span>' + esc(w) + '</span></label>' +
     ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
     ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">' + ikon('close') + '</button></li>'
-  ).join('');
+  ).join('') +
+    (aus ? '<li class="warm-note">' + esc(__('warmupFiltered', { day: day.key, n: aus })) + '</li>' : '');
+}
+/* Je Punkt, ob er zum gewaehlten Tag passt; ohne Tag alle. */
+function warmupPasst(items){
+  const day = session.dayKey ? getDay(session.dayKey) : null;
+  if(!day) return items.map(() => true);
+  const merkmale = tagesMerkmale(day.ex.map(id => session.subs[id] || id), EX_BY_ID);
+  return items.map((w, i) =>
+    passtZumTag(state.warmupCustom ? warmupWannFuer(w) : WARMUP_WANN[i], merkmale, state.equipment));
+}
+/* Die Bedingung eines Punkts aus einer eigenen Liste: die des gleich
+   lautenden Vorgabepunkts, in welcher Sprache er auch kopiert wurde. */
+function warmupWannFuer(text){
+  const j = WARMUP.findIndex((w, i) => w === text || warmupText(i, w) === text);
+  return j >= 0 ? WARMUP_WANN[j] : 'immer';
 }
 function toggleWarmupItem(i, on){
   if(on) session.warm[i] = true; else delete session.warm[i];
@@ -852,8 +876,12 @@ function toggleWarmupItem(i, on){
      denselben Weg wie jeder Satz. */
   if(session.dayKey) persistSession();
 }
+/* Die Kopie der Vorgabe in der Sprache der Oberflaeche. Bisher wurde die
+   deutsche Liste kopiert, und wer in der englischen Oberflaeche einen
+   Punkt entfernte, hatte danach ein deutsches Aufwaermen. */
+const warmupKopie = () => WARMUP.map((w, i) => warmupText(i, w));
 function removeWarmupItem(i){
-  if(!state.warmupCustom) state.warmupCustom = [...WARMUP];
+  if(!state.warmupCustom) state.warmupCustom = warmupKopie();
   state.warmupCustom.splice(i, 1);
   /* Die Haken haengen an der Position. Ohne dieses Nachruecken wandert
      jeder Haken hinter der geloeschten Zeile eine Zeile nach oben und sitzt
@@ -870,7 +898,7 @@ function removeWarmupItem(i){
 async function addWarmupItem(){
   const t = await askText(__('warmupExtend'), __('warmupNew'), '', 80);
   if(!t || !t.trim()) return;
-  if(!state.warmupCustom) state.warmupCustom = [...WARMUP];
+  if(!state.warmupCustom) state.warmupCustom = warmupKopie();
   state.warmupCustom.push(t.trim());
   save(); renderWarmup();
 }
@@ -1976,7 +2004,10 @@ function releaseWakeLock(){
 async function warmupGeprueft(){
   if(state.warmupCustom) return true;
   if(!Object.keys(session.warm).length) return true;
-  const offen = [...WARMUP_PFLICHT].filter(i => i < WARMUP.length && !session.warm[i]);
+  /* Nur, was heute auch angezeigt wird: mit der Handgelenks-Routine im Tag
+     steht der Pflichtpunkt gar nicht in der Liste. */
+  const sichtbar = warmupPasst(WARMUP);
+  const offen = [...WARMUP_PFLICHT].filter(i => i < WARMUP.length && sichtbar[i] && !session.warm[i]);
   if(!offen.length) return true;
   return askConfirm(
     __('warmupMissingTitle'),
