@@ -61,6 +61,65 @@ const HANDGELENKE = 'wrist_prep';
 
 const prioOf = e => Number.isFinite(e.prio) ? e.prio : 2;
 
+/* Die Bewegungsmuster aus exercises.js (Feld muster). */
+export const MUSTER_NAMEN = [
+  'h_druecken', 'dip', 'v_druecken', 'v_ziehen', 'h_ziehen', 'schulter',
+  'kniebeuge', 'huefte', 'wade', 'rumpf_vorn', 'rumpf_seite', 'mobility',
+  'handstand', 'planche', 'front_lever', 'back_lever', 'muscle_up', 'lsit', 'elbow_lever'
+];
+
+/* Rangfolge unter mehreren machbaren Uebungen: Grunduebung vor Ergaenzung,
+   dann was sich von der ersten Stufe an machen laesst, dann die Reihenfolge
+   im Katalog. */
+function rang(equipment, index){
+  return (a, b) => (prioOf(a) - prioOf(b)) ||
+    (Number(!levelMoeglich(a, 0, equipment)) - Number(!levelMoeglich(b, 0, equipment))) ||
+    (index.get(a.id) - index.get(b.id));
+}
+
+/* Ersatz fuer eine Uebung, die mit dieser Ausruestung nicht geht: zuerst
+   eine mit demselben Muster, sonst eine aus derselben Kategorie. Nie eine,
+   die schon im Tag steht. null, wenn es nichts gibt.
+
+   Ein Skill wird nur innerhalb seiner eigenen Linie ersetzt: ein L-Sit, der
+   ohne Parallettes und Stuehle nicht geht, wird nicht zum freien Handstand –
+   das waere ein anderes Ziel, kein Ersatz. Dann entfaellt er. */
+export function ersatzFuer(ex, exercises, equipment, schonDa = new Set()){
+  const alle = Array.isArray(exercises) ? exercises : [];
+  const index = new Map(alle.map((e, i) => [e.id, i]));
+  const frei = alle.filter(e => e.id !== ex.id && !schonDa.has(e.id) && exMoeglich(e, equipment));
+  const sortiert = liste => liste.slice().sort(rang(equipment, index));
+  const gleich = sortiert(frei.filter(e => e.muster && e.muster === ex.muster));
+  if(gleich.length) return gleich[0];
+  if(istSkill(ex)) return null;
+  const verwandt = sortiert(frei.filter(e => e.cat === ex.cat && !istSkill(e)));
+  return verwandt[0] || null;
+}
+
+/* Eine Vorlage fuer diese Ausruestung. Die Vorlagen in exercises.js sind
+   feste Listen; wer keine Parallettes hatte, bekam trotzdem Dips auf
+   Parallettes und musste den Plan von Hand umbauen. Jetzt wird jede nicht
+   machbare Uebung durch die beste machbare mit demselben Muster ersetzt.
+   Mit voller Ausruestung bleibt die Vorlage, wie sie ist. */
+export function vorlageAufloesen(plan, exercises, equipment){
+  if(!plan || !Array.isArray(plan.days)) return plan;
+  const alle = Array.isArray(exercises) ? exercises : [];
+  const byId = new Map(alle.map(e => [e.id, e]));
+  const days = plan.days.map(d => {
+    const ids = [];
+    const geplant = new Set(d.ex || []);
+    (d.ex || []).forEach(id => {
+      const ex = byId.get(id);
+      if(!ex) return;
+      if(exMoeglich(ex, equipment)){ if(!ids.includes(id)) ids.push(id); return; }
+      const e = ersatzFuer(ex, alle, equipment, new Set([...geplant, ...ids]));
+      if(e) ids.push(e.id);
+    });
+    return { ...d, ex: ids };
+  });
+  return { ...plan, days };
+}
+
 export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die

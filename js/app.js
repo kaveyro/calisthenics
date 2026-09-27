@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -527,7 +527,20 @@ function toggleTheme(){
 /* ================= Plan ================= */
 function getPlan(){
   if(state.customPlan) return state.customPlan;
-  return PLAN_TEMPLATES[state.planId] || PLAN_TEMPLATES.ab4;
+  return vorlageFuerAusruestung(state.planId);
+}
+
+/* Die Vorlage, aufgeloest fuer die eigene Ausruestung: nicht machbare
+   Uebungen sind durch solche mit demselben Muster ersetzt. Gemerkt je Plan
+   und Ausruestung – getPlan() laeuft bei jedem Rendern. */
+let vorlageCache = { schluessel: null, plan: null };
+function vorlageFuerAusruestung(planId){
+  const vorlage = PLAN_TEMPLATES[planId] || PLAN_TEMPLATES.ab4;
+  const schluessel = planId + '|' + (state.equipment || []).join(',');
+  if(vorlageCache.schluessel !== schluessel){
+    vorlageCache = { schluessel, plan: vorlageAufloesen(vorlage, EXERCISES, state.equipment) };
+  }
+  return vorlageCache.plan;
 }
 function getDays(){ return getPlan().days || []; }
 function getDay(key){ return getDays().find(d => d.key === key); }
@@ -3065,7 +3078,9 @@ async function generatePlan(){
 
 function ensureCustom(){
   if(!state.customPlan){
-    const base = PLAN_TEMPLATES[state.planId] || PLAN_TEMPLATES.ab4;
+    /* Von dem aus, was man gerade sieht – also der fuer die Ausruestung
+       aufgeloesten Vorlage, nicht der rohen Liste. */
+    const base = vorlageFuerAusruestung(state.planId);
     state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: __('customPlanDesc'), days: base.days }));
   }
   return state.customPlan;

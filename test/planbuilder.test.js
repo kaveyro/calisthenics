@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer } from '../js/domain/planbuilder.js';
+import { istSkill } from '../js/domain/skills.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
 /* Gegen die ECHTE Uebungsliste geprueft, nicht gegen einen Nachbau: der
@@ -284,5 +285,58 @@ describe('Vorlagen', () => {
       Object.entries(je).forEach(([kat, n]) =>
         expect(n, pid + ' ' + d.key + ' ' + kat).toBeLessThanOrEqual(KRAFTSAETZE_JE_KATEGORIE));
     }));
+  });
+});
+
+describe('Bewegungsmuster', () => {
+  it('traegt jede Uebung ein bekanntes Muster', () => {
+    EXERCISES.forEach(e => expect(MUSTER_NAMEN, e.id).toContain(e.muster));
+  });
+
+  it('gibt Skills ihre Linie und keiner Kraftuebung ein Skill-Muster', () => {
+    const skillMuster = ['handstand', 'planche', 'front_lever', 'back_lever', 'muscle_up', 'lsit', 'elbow_lever'];
+    EXERCISES.forEach(e => expect(skillMuster.includes(e.muster), e.id).toBe(istSkill(e)));
+  });
+});
+
+/* Die Vorlagen waren feste Listen: wer keine Parallettes hatte, bekam
+   trotzdem Dips auf Parallettes und musste umbauen. */
+describe('Vorlagen fuer die eigene Ausruestung', () => {
+  const quelleV = readFileSync(ROOT + 'js/exercises.js', 'utf8').replace(/^export /gm, '');
+  const { PLAN_TEMPLATES: VORLAGEN } = new Function(quelleV + '; return { PLAN_TEMPLATES };')();
+
+  it('bleiben mit voller Ausruestung, wie sie sind', () => {
+    Object.values(VORLAGEN).forEach(p => {
+      expect(vorlageAufloesen(p, EXERCISES, EQUIP_ALL).days.map(d => d.ex)).toEqual(p.days.map(d => d.ex));
+    });
+  });
+
+  it('enthalten fuer jede Ausruestung nur Machbares, ohne Dopplung', () => {
+    for(const equipment of [[], ['chair'], ['bar'], ['rings'], ['parallettes'], EQUIP_ALL]){
+      Object.entries(VORLAGEN).forEach(([pid, p]) => vorlageAufloesen(p, EXERCISES, equipment).days.forEach(d => {
+        d.ex.forEach(id => expect(exMoeglich(EX_BY_ID[id], equipment), pid + ' ' + d.key + ' ' + id).toBe(true));
+        expect(new Set(d.ex).size, pid + ' ' + d.key).toBe(d.ex.length);
+      }));
+    }
+  });
+
+  it('ersetzt zuerst durch dasselbe Muster', () => {
+    /* Ohne Geraet: Dips gehen nicht, Diamant-Liegestuetze schon – beide
+       sind Drueckuebungen, die Dips haben aber kein machbares Geschwister
+       im Muster "dip". Der Klimmzug wird zum Tuerrahmen-Rudern. */
+    const tagA = vorlageAufloesen(VORLAGEN.ab4, EXERCISES, []).days[0].ex;
+    expect(tagA).not.toContain('dips');
+    expect(ersatzFuer(EX_BY_ID.pullup, EXERCISES, []).id).toBe('towel_row');
+    /* Mit Ringen wird aus dem Rudern am Tisch das Ring-Rudern. */
+    expect(ersatzFuer(EX_BY_ID.dips, EXERCISES, ['rings']).id).toBe('ring_dip');
+  });
+
+  it('ersetzt einen Skill nie durch einen anderen', () => {
+    /* Ohne Stange ist der Front Lever unmoeglich – er entfaellt, statt zum
+       Handstand zu werden. */
+    expect(ersatzFuer(EX_BY_ID.front_lever, EXERCISES, [])).toBeNull();
+    const tagB = vorlageAufloesen(VORLAGEN.skill, EXERCISES, []).days[1].ex;
+    expect(tagB).not.toContain('front_lever');
+    expect(tagB.filter(id => istSkill(EX_BY_ID[id]))).toEqual([]);
   });
 });

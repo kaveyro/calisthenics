@@ -3142,3 +3142,25 @@ describe('Bereich Mehr auf der Karte', () => {
     expect(mehr().open).toBe(true);
   });
 });
+
+/* Vorlagen passen sich der Ausruestung an, statt Nichtmachbares zu zeigen. */
+describe('Vorlage fuer die eigene Ausruestung', () => {
+  it('ersetzt ohne Geraet die Dips in Tag A', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, equipment: [] }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const karten = [...document.querySelectorAll('#content .ex')].map(k => k.dataset.exid);
+    expect(karten).not.toContain('dips');
+    expect(karten).toContain('diamond');
+  });
+
+  it('laesst die Vorlage mit voller Ausruestung unveraendert', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const karten = [...document.querySelectorAll('#content .ex')].map(k => k.dataset.exid);
+    expect(karten).toContain('dips');
+  });
+});
