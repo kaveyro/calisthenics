@@ -266,6 +266,12 @@ export function migrateState(raw){
     if(typeof v === 'number' && !Number.isFinite(v)) return;
     settings[k] = v;
   });
+  /* Die Satz-Modi hiessen bis hierher 'light' (hoechstens 3) und 'hard'
+     (+1). 'volumen' ist dasselbe wie 'hard'; 'light' hat keine
+     Entsprechung mehr und wird zum Standard, der fast ueberall 3 Saetze
+     vorsieht. */
+  const ALTE_MODI = { light: 'standard', hard: 'volumen' };
+  if(ALTE_MODI[settings.setsMode]) settings.setsMode = ALTE_MODI[settings.setsMode];
   out.settings = settings;
 
   /* Bestleistungen auf die Form seit v10 bringen. */

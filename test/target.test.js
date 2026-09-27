@@ -30,20 +30,26 @@ describe('zielAuswerten', () => {
   });
 
   describe('Satz-Modus', () => {
-    it('deckelt Einsteiger auf drei Sätze, erhöht aber nie', () => {
-      expect(zielAuswerten({ saetze: 5, wdh: [8, 12] }, 'light').sets).toBe(3);
-      expect(zielAuswerten({ saetze: 2, wdh: [8, 12] }, 'light').sets).toBe(2);
+    /* Zwei harte Sätze holen für die Kraft den größten Teil heraus. */
+    it('deckelt Kompakt auf zwei Sätze, erhöht aber nie', () => {
+      expect(zielAuswerten({ saetze: 5, wdh: [8, 12] }, 'kompakt').sets).toBe(2);
+      expect(zielAuswerten({ saetze: 2, wdh: [8, 12] }, 'kompakt').sets).toBe(2);
     });
-    it('legt für Fortgeschrittene einen Satz drauf', () => {
-      expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }, 'hard').sets).toBe(5);
+    it('legt bei Volumen einen Satz drauf', () => {
+      expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }, 'volumen').sets).toBe(5);
+    });
+    it('kennt die alten Namen nicht mehr', () => {
+      /* Umgesetzt werden sie beim Laden (state.js), hier gelten sie als Standard. */
+      expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }, 'hard').sets).toBe(4);
+      expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }, 'light').sets).toBe(4);
     });
     it('lässt die Vorgabe unverändert', () => {
       expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }, 'standard').sets).toBe(4);
       expect(zielAuswerten({ saetze: 4, wdh: [8, 12] }).sets).toBe(4);
     });
     it('rührt Wiederholungen und Haltezeit nicht an', () => {
-      expect(zielAuswerten({ saetze: 4, sek: [10, 20] }, 'hard').holdSecs).toBe(20);
-      expect(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'light').maxReps).toBe(10);
+      expect(zielAuswerten({ saetze: 4, sek: [10, 20] }, 'volumen').holdSecs).toBe(20);
+      expect(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'kompakt').maxReps).toBe(10);
     });
   });
 
@@ -258,7 +264,7 @@ describe('einstiegsziel', () => {
   });
 
   it('folgt dem Satz-Modus', () => {
-    expect(einstiegsziel(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'light'))).toEqual([6, 6, 6]);
+    expect(einstiegsziel(zielAuswerten({ saetze: 4, wdh: [6, 10] }, 'kompakt'))).toEqual([6, 6]);
   });
 
   it('nennt bei Halteuebungen die kuerzeste Zeit der Spanne', () => {

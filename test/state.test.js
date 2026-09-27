@@ -169,6 +169,15 @@ describe('migrateState – Sammlungen normalisieren', () => {
 });
 
 describe('migrateState – Einstellungen', () => {
+  /* Die Satz-Modi hiessen bis hierher 'light' (hoechstens 3) und 'hard'
+     (+1). 'hard' ist heute 'volumen'; fuer 'light' gibt es keine
+     Entsprechung, der Standard sieht fast ueberall 3 Saetze vor. */
+  it('setzt die alten Satz-Modi um', () => {
+    expect(migrateState({ settings: { setsMode: 'hard' } }).settings.setsMode).toBe('volumen');
+    expect(migrateState({ settings: { setsMode: 'light' } }).settings.setsMode).toBe('standard');
+    expect(migrateState({ settings: { setsMode: 'kompakt' } }).settings.setsMode).toBe('kompakt');
+  });
+
   it('uebernimmt bekannte Einstellungen im richtigen Typ', () => {
     const out = migrateState({ settings: { rest: 120, sound: false, setsMode: 'pro' } });
     expect(out.settings).toEqual({ rest: 120, sound: false, setsMode: 'pro' });

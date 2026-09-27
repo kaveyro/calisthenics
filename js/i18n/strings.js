@@ -253,9 +253,9 @@ export const LANG = {
 
     /* Einstellungen */
     setsMode: 'Satz-Modus',
-    setsModeHint: 'Einsteiger deckelt alles auf 3 Sätze',
-    standard: 'Standard (3–4)', lightMode: 'Einsteiger (max. 3)',
-    hard: 'Fortgeschritten (+1 Satz)',
+    setsModeHint: 'Zwei harte Sätze reichen, wenn jeder ein, zwei Wiederholungen vor dem Versagen endet',
+    standard: 'Standard (wie im Plan, meist 3)', kompaktMode: 'Kompakt (2 harte Sätze)',
+    volumenMode: 'Volumen (+1 Satz)',
     restBasic: 'Satzpause', restBasicHint: 'Grundwert, falls keine übungsspezifische Pause gilt',
     perExRest: 'Übungsspezifische Pausen',
     perExRestHint: 'Nutzt die je Übung hinterlegte Pause',
@@ -631,9 +631,9 @@ export const LANG = {
     roadmap: 'Skill roadmap', nextStage: '{name} → next stage: {stage}',
 
     setsMode: 'Set mode',
-    setsModeHint: 'Beginner caps everything at 3 sets',
-    standard: 'Standard (3–4)', lightMode: 'Beginner (max. 3)',
-    hard: 'Advanced (+1 set)',
+    setsModeHint: 'Two hard sets are enough if each one ends one or two reps short of failure',
+    standard: 'Standard (as planned, mostly 3)', kompaktMode: 'Compact (2 hard sets)',
+    volumenMode: 'Volume (+1 set)',
     restBasic: 'Rest between sets', restBasicHint: 'Base value when no per-exercise rest applies',
     perExRest: 'Per-exercise rest',
     perExRestHint: 'Uses the rest stored with each exercise',

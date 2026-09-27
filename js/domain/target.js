@@ -37,8 +37,17 @@ export function stufeGueltig(level){
   return true;
 }
 
-/* Sätze und Zielzahlen einer Stufe. setsMode: 'light' deckelt auf 3 Sätze,
-   'hard' legt einen drauf.
+/* Sätze und Zielzahlen einer Stufe.
+
+   setsMode: 'kompakt' deckelt auf 2 Sätze, 'volumen' legt einen drauf,
+   alles andere nimmt die Vorgabe der Stufe. Bis hierher hießen die Modi
+   Einsteiger (höchstens 3) und Fortgeschritten (+1). Beides zielte am Kern
+   vorbei: der Zusatznutzen weiterer Sätze sinkt schnell, und zwei harte
+   Sätze – ein, zwei Wiederholungen vor dem Versagen – holen für die Kraft
+   den größten Teil heraus. Fortgeschrittene kommen über die schwerere
+   Stufe voran, nicht über einen fünften Satz. Und die Aufstiegsregel
+   verlangt jeden Satz an der Obergrenze: je mehr Sätze, desto sicherer
+   fällt der letzte durch Ermüdung ab.
 
    Die Form des Ergebnisses ist dieselbe wie beim früheren parseTarget(), damit
    sich an den Aufrufern nur der Eingang ändert. Neu ist allein `art`. */
@@ -48,8 +57,8 @@ export function zielAuswerten(level, setsMode = 'standard'){
      Zahlen. Das ist dasselbe stille Verhalten wie früher – nur dass der
      Katalogtest es jetzt verhindert, bevor es ausgeliefert wird. */
   let sets = Number.isInteger(l.saetze) && l.saetze > 0 ? l.saetze : 3;
-  if(setsMode === 'light') sets = Math.min(sets, 3);
-  if(setsMode === 'hard') sets = sets + 1;
+  if(setsMode === 'kompakt') sets = Math.min(sets, 2);
+  if(setsMode === 'volumen') sets = sets + 1;
 
   const isHold = paar(l.sek);
   const wdh = !isHold && paar(l.wdh) ? l.wdh : null;
