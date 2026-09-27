@@ -3056,7 +3056,10 @@ function planAusAusruestung(tage, fokus){
       desc: __('generatedPlanDesc'),
       sub: __('generatedDaySub'),
       ganzkoerper: __('fullBody'),
-      kat: Object.fromEntries(Object.keys(CATS).map(k => [k, catName(k, CATS[k].name)]))
+      tage: {
+        gk: __('fullBody'), ok: __('dayUpper'), uk: __('dayLower'),
+        push: __('dayPush'), pull: __('dayPull'), legs: __('dayLegs')
+      }
     }
   });
 }

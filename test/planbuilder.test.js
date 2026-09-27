@@ -107,12 +107,13 @@ describe('Schwerpunkt', () => {
     expect(skills).toEqual([]);
   });
 
-  it('stellt bei Skills eine Skill-Uebung an den Anfang jedes Tages', () => {
+  it('stellt bei Skills eine Skill-Uebung an den Anfang jedes Tages ausser dem Beintag', () => {
     const p = bauen({ tage: 4, fokus: 'skill' });
     p.days.forEach(d => {
       /* Die Handgelenks-Routine ist Pflicht und steht davor – sie zaehlt nicht. */
       const erste = d.ex[0] === 'wrist_prep' ? d.ex[1] : d.ex[0];
-      expect(EX_BY_ID[erste].cat, 'Tag ' + d.key + ': ' + d.ex.join(',')).toBe('skill');
+      const beinTag = d.title.startsWith('Unterkörper');
+      expect(EX_BY_ID[erste].cat === 'skill', 'Tag ' + d.key + ': ' + d.ex.join(',')).toBe(!beinTag);
     });
   });
 
@@ -133,23 +134,25 @@ describe('Ausruestung', () => {
     const alle = p.days.flatMap(d => d.ex);
     expect(alle.length).toBeGreaterThan(6);
     alle.forEach(id => expect(EX_BY_ID[id].equip).toEqual(['none']));
-    expect(p.days[0].title).toBe('Drücken');
+    expect(p.days[0].title).toBe('Ganzkörper');
   });
 
   /* Bis zu Tuerrahmen-Rudern und Y-T-W gab es ohne Geraet keine einzige
      Zuguebung, und der Zugtag hiess "Ganzkörper". */
-  it('baut ohne Geraet einen echten Zugtag', () => {
-    const p = bauen({ tage: 3, equipment: [] });
-    expect(p.days[1].title).toBe('Ziehen');
-    expect(p.days[1].ex).toEqual(expect.arrayContaining(['towel_row', 'prone_ytw']));
+  it('zieht auch ohne Geraet', () => {
+    /* Ganzkoerper: jeder der drei Tage hat eine Zuguebung. */
+    bauen({ tage: 3, equipment: [] }).days.forEach(d => expect(d.ex, d.key).toContain('towel_row'));
+    /* Bei sechs Tagen gibt es einen eigenen Zugtag. */
+    const zug = bauen({ tage: 6, equipment: [] }).days[1];
+    expect(zug.title).toBe('Ziehen');
+    expect(zug.ex).toEqual(expect.arrayContaining(['towel_row', 'prone_ytw']));
   });
 
   it('laesst bei vorhandener Stange die Klimmzuege vorn', () => {
-    const zug = bauen({ tage: 3, equipment: ['bar'] }).days[1].ex;
-    expect(zug).toContain('pullup');
-    /* prio 2 und am Ende der Zugsektion: das Tuerrahmen-Rudern kommt erst
-       nach den Uebungen an der Stange, wenn ueberhaupt. */
-    if(zug.includes('towel_row')) expect(zug.indexOf('towel_row')).toBeGreaterThan(zug.indexOf('pullup'));
+    const woche = bauen({ tage: 3, equipment: ['bar'] }).days.flatMap(d => d.ex);
+    expect(woche).toContain('pullup');
+    /* prio 2: das Tuerrahmen-Rudern kommt erst, wenn es sonst nichts gibt. */
+    expect(bauen({ tage: 3, equipment: ['bar', 'chair'] }).days[0].ex).not.toContain('towel_row');
   });
 
   /* Ist eine Kategorie gar nicht machbar, wird der Tag gefuellt statt leer
@@ -163,18 +166,41 @@ describe('Ausruestung', () => {
     expect(p.days[1].title).toBe('Ganzkörper');
   });
 
-  /* Umgekehrt: was der Titel nennt, muss auch drinstehen. Die Obergrenze
-     schnitt die zweite Kategorie sonst einfach ab. */
-  it('liefert zu jeder genannten Kategorie mindestens eine Uebung', () => {
-    [2, 4, 5, 6].forEach(tage => {
-      bauen({ tage }).days.forEach(d => {
-        if(d.title === 'Ganzkörper') return;
-        const kats = new Set(d.ex.map(id => EX_BY_ID[id].cat));
-        d.title.split(' & ').forEach(name => {
-          const kat = Object.keys(TEXTE.kat).find(k => TEXTE.kat[k] === name);
-          expect(kats.has(kat), tage + ' Tage, ' + d.key + ': ' + name + ' fehlt').toBe(true);
-        });
-      });
+  /* Bis hierher kam bei 2 bis 5 Tagen jede Muskelgruppe genau einmal pro
+     Woche dran. Mit hoechstens 12 Saetzen je Einheit hiess das hoechstens 12
+     Saetze pro Woche. */
+  it('trainiert jede Muskelgruppe mindestens zweimal pro Woche', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
+      for(const equipment of [[], ['chair'], ['bar'], ['rings'], EQUIP_ALL]){
+        const je = {};
+        bauen({ tage, equipment }).days.forEach(d =>
+          new Set(d.ex.map(id => EX_BY_ID[id].cat)).forEach(k => { je[k] = (je[k] || 0) + 1; }));
+        ['push', 'pull', 'legs'].forEach(k =>
+          expect(je[k] || 0, tage + ' Tage ' + JSON.stringify(equipment) + ' ' + k).toBeGreaterThanOrEqual(2));
+      }
+    }
+  });
+
+  it('gibt jedem Ganzkoerpertag einen Rumpfplatz', () => {
+    /* Am Ende der Liste fiel er der Hoechstzahl von sieben Uebungen zum Opfer. */
+    for(const equipment of [[], EQUIP_ALL]){
+      bauen({ tage: 3, equipment }).days.forEach(d =>
+        expect(d.ex.some(id => EX_BY_ID[id].cat === 'core'), d.key + ' ' + d.ex.join(',')).toBe(true));
+    }
+  });
+
+  it('wechselt die Uebung, wenn ein Muster mehrfach vorkommt', () => {
+    /* Vier Tage: zweimal Oberkoerper – nicht zweimal dieselben Liegestuetze. */
+    const [okA, , okB] = bauen({ tage: 4 }).days;
+    const druecken = tag => tag.ex.filter(id => EX_BY_ID[id].muster === 'h_druecken');
+    expect(druecken(okA)[0]).not.toBe(druecken(okB)[0]);
+  });
+
+  it('nimmt Hueftbeuge und Kniebeuge in jeden Beintag', () => {
+    bauen({ tage: 4 }).days.filter(d => d.title.startsWith('Unterkörper')).forEach(d => {
+      const muster = d.ex.map(id => EX_BY_ID[id].muster);
+      expect(muster).toContain('kniebeuge');
+      expect(muster).toContain('huefte');
     });
   });
 
@@ -261,13 +287,14 @@ describe('Saetze je Kategorie und Tag', () => {
   /* Die Reihenfolge entscheidet mit, was die Grenze uebersteht. Ein Zugtag
      braucht eine senkrechte und eine waagerechte Zuguebung. */
   it('laesst im Zugtag Klimmzug und Rudern', () => {
-    expect(bauen({ tage: 3, equipment: ['bar'] }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
-    expect(bauen({ tage: 3, equipment: EQUIP_ALL }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
+    /* Sechs Tage: Tag B ist der Zugtag. */
+    expect(bauen({ tage: 6, equipment: ['bar', 'chair'] }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
+    expect(bauen({ tage: 6, equipment: EQUIP_ALL }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
   });
 
   /* Wer nur Ringe hat, soll nicht das Rudern bekommen, das am Tisch beginnt. */
   it('nimmt bei gleichem Rang, was von der ersten Stufe an machbar ist', () => {
-    const zug = bauen({ tage: 3, equipment: ['rings'] }).days[1].ex;
+    const zug = bauen({ tage: 6, equipment: ['rings'] }).days[1].ex;
     expect(zug).toContain('ring_row');
     expect(zug).not.toContain('row');
   });

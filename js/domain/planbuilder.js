@@ -16,19 +16,52 @@
 import { exMoeglich, levelMoeglich } from './equipment.js';
 import { istSkill } from './skills.js';
 
-/* Welche Kategorien an welchem Tag drankommen. Bewusst eine Tabelle und
-   keine Rechnung: Trainingssplits sind Konvention, nicht Arithmetik.
+/* Tagesarten als Liste von Plaetzen, in der Reihenfolge ihrer Wichtigkeit.
+   Jeder Platz ist ein Bewegungsmuster und wird mit der besten machbaren
+   Uebung dieses Musters gefuellt.
 
-   Bei sechs Tagen tauchen Push, Pull und Beine zweimal auf – jeweils mit
-   einer anderen zweiten Kategorie, damit die beiden Tage nicht dieselbe
-   Liste bekommen. */
-const MUSTER = {
-  2: [['push', 'core'], ['pull', 'legs']],
-  3: [['push'], ['pull'], ['legs', 'core']],
-  4: [['push', 'core'], ['pull'], ['legs'], ['skill', 'mobility']],
-  5: [['push'], ['pull'], ['legs'], ['core', 'mobility'], ['skill']],
-  6: [['push'], ['pull'], ['legs', 'core'], ['push', 'skill'], ['pull', 'core'], ['legs', 'mobility']]
+   Vorher waren es Kategorien je Tag (Druecken / Ziehen / Beine & Rumpf),
+   und bei 2 bis 5 Tagen kam jede Muskelgruppe genau einmal pro Woche dran.
+   Mit hoechstens 12 Saetzen je Einheit hiess das hoechstens 12 Saetze pro
+   Muskelgruppe und Woche – am unteren Rand dessen, was sinnvoll ist. Jetzt
+   kommt jede mindestens zweimal pro Woche dran (siehe AUFTEILUNG).
+
+   Der Rumpf steht im Ganzkoerpertag vor dem zweiten Druck- und Zugplatz:
+   am Ende fiel er der Hoechstzahl von sieben Uebungen fast immer zum Opfer.
+   Plaetze zu denselben Mustern stehen in den Varianten A/B/C an anderer
+   Stelle, damit die Tage nicht dieselbe Liste bekommen, und die Uebung
+   wechselt, wenn ein Muster in der Woche mehrfach vorkommt. */
+const TAGESARTEN = {
+  gkA:  { titel: 'gk',   plaetze: ['h_druecken', 'v_ziehen', 'kniebeuge', 'huefte', 'rumpf_vorn', 'dip', 'h_ziehen'] },
+  gkB:  { titel: 'gk',   plaetze: ['v_druecken', 'h_ziehen', 'kniebeuge', 'huefte', 'rumpf_seite', 'h_druecken', 'v_ziehen'] },
+  gkC:  { titel: 'gk',   plaetze: ['dip', 'v_ziehen', 'kniebeuge', 'huefte', 'rumpf_vorn', 'h_druecken', 'h_ziehen'] },
+  okA:  { titel: 'ok',   plaetze: ['h_druecken', 'v_ziehen', 'v_druecken', 'h_ziehen', 'dip', 'schulter'] },
+  okB:  { titel: 'ok',   plaetze: ['dip', 'h_ziehen', 'h_druecken', 'v_ziehen', 'v_druecken', 'schulter'] },
+  ukA:  { titel: 'uk',   plaetze: ['kniebeuge', 'huefte', 'kniebeuge', 'rumpf_vorn', 'wade', 'rumpf_seite'] },
+  ukB:  { titel: 'uk',   plaetze: ['huefte', 'kniebeuge', 'huefte', 'rumpf_seite', 'rumpf_vorn'] },
+  push: { titel: 'push', plaetze: ['h_druecken', 'v_druecken', 'dip', 'h_druecken', 'rumpf_seite'] },
+  pull: { titel: 'pull', plaetze: ['v_ziehen', 'h_ziehen', 'v_ziehen', 'h_ziehen', 'schulter', 'rumpf_vorn'] },
+  legs: { titel: 'legs', plaetze: ['kniebeuge', 'huefte', 'kniebeuge', 'huefte', 'wade', 'rumpf_seite'] }
 };
+
+/* Welche Tagesarten bei wie vielen Tagen. Bis drei Tage Ganzkoerper, bei
+   vier Ober- und Unterkoerper im Wechsel, bei fuenf beides plus je ein Tag
+   Druecken, Ziehen, Beine, bei sechs Druecken/Ziehen/Beine zweimal. */
+export const AUFTEILUNG = {
+  2: ['gkA', 'gkB'],
+  3: ['gkA', 'gkB', 'gkC'],
+  4: ['okA', 'ukA', 'okB', 'ukB'],
+  5: ['okA', 'ukA', 'push', 'pull', 'legs'],
+  6: ['push', 'pull', 'legs', 'push', 'pull', 'legs']
+};
+const TITEL_VORGABE = {
+  gk: 'Ganzkörper', ok: 'Oberkörper', uk: 'Unterkörper & Rumpf',
+  push: 'Drücken', pull: 'Ziehen', legs: 'Beine & Rumpf'
+};
+/* An Tagen ohne Druecken und ohne Skill gehoert das Handgelenk-Aufwaermen
+   nicht an den Anfang. */
+const DRUECK_MUSTER = new Set(['h_druecken', 'dip', 'v_druecken']);
+
 const TAGE_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 /* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht. */
@@ -128,77 +161,61 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
   const t = Math.min(6, Math.max(2, Number.isFinite(roh) ? Math.round(roh) : 3));
   const schwerpunkt = ['kraft', 'skill', 'ausgewogen'].includes(fokus) ? fokus : 'ausgewogen';
   const texts = texte || {};
+  const titel = { ...TITEL_VORGABE, ...(texts.tage || {}) };
 
-  /* Reihenfolge einmal festlegen: erst Grunduebungen, dann Ergaenzungen, bei
-     Gleichstand die Reihenfolge aus exercises.js. Ein stabiles sort() gibt es
-     erst seit ES2019 zuverlaessig – der Index als zweiter Schluessel macht
-     die Sortierung unabhaengig davon. */
-  const machbare = alle
-    .map((e, i) => ({ e, i }))
-    .filter(({ e }) => exMoeglich(e, equipment))
-    .filter(({ e }) => !(schwerpunkt === 'kraft' && e.cat === 'skill' && e.id !== HANDGELENKE))
-    /* Bei gleichem Rang zuerst, was sich von der ersten Stufe an machen
-       laesst. Seit die Saetze je Kategorie begrenzt sind, passt oft nur noch
-       eine Ruderuebung: wer nur Ringe hat, bekaeme sonst das Rudern, das am
-       Tisch beginnt, statt der Ring-Rows. */
-    .sort((a, b) => (prioOf(a.e) - prioOf(b.e)) ||
-      (Number(!levelMoeglich(a.e, 0, equipment)) - Number(!levelMoeglich(b.e, 0, equipment))) ||
-      (a.i - b.i))
-    .map(({ e }) => e);
-
+  const index = new Map(alle.map((e, i) => [e.id, i]));
+  const machbare = alle.filter(e => exMoeglich(e, equipment)).sort(rang(equipment, index));
   if(!machbare.length) return { name: texts.name || '', desc: texts.desc || '', days: [] };
 
-  const muster = MUSTER[t] || MUSTER[3];
   const skills = machbare.filter(e => e.cat === 'skill');
-  const days = muster.map((kats, di) => {
-    const push = kats.includes('push') || kats.includes('skill');
+  /* Wie oft ein Muster in dieser Woche schon vergeben wurde – daran wechselt
+     die Uebung. */
+  const nutzung = new Map();
 
-    let liste = machbare.filter(e => kats.includes(e.cat));
-    /* Kein leerer Tag: ohne jede Ausruestung ist die ganze Kategorie "Ziehen"
-       unmoeglich, und ein Plan mit einem leeren Tag darin waere kaputt.
-       Dann wird aus allem gefuellt, was geht – und der Tag heisst danach
-       "Ganzkoerper" und nicht mehr "Ziehen". Ein Titel, der eine Kategorie
-       verspricht, die nicht drinsteht, ist schlimmer als der Ersatz selbst. */
-    const ersatz = !liste.length;
-    if(ersatz) liste = machbare.slice();
-
+  const days = AUFTEILUNG[t].map((art, di) => {
+    const tag = TAGESARTEN[art];
     const ids = [];
     const saetze = {};
-    /* Nimmt eine Uebung auf, wenn sie die Obergrenze ihrer Kategorie nicht
-       sprengt. */
     const nimm = e => {
+      if(ids.includes(e.id) || ids.length >= MAX_PRO_TAG) return false;
       const n = kraftsaetze(e);
       if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
       saetze[e.cat] = (saetze[e.cat] || 0) + n;
       ids.push(e.id);
       return true;
     };
-    if(push && machbare.some(e => e.id === HANDGELENKE)) ids.push(HANDGELENKE);
-    /* Beim Skill-Schwerpunkt bekommt jeder Tag eine Skill-Uebung nach vorn:
-       im frischen Zustand geuebt wird sie besser als am Ende. Reihum, damit
-       nicht an jedem Tag dieselbe steht. */
-    if(schwerpunkt === 'skill' && skills.length) ids.push(skills[di % skills.length].id);
 
-    /* Aus jeder genannten Kategorie zuerst die wichtigste Uebung, dann erst
-       nach Rang auffuellen. Ohne diesen Schritt schneidet die Obergrenze die
-       zweite Kategorie einfach ab: "Drücken & Skills" bekaeme sieben
-       Drueckuebungen und keinen einzigen Skill – und waere Zeichen fuer
-       Zeichen derselbe Tag wie das reine "Drücken" daneben. */
-    if(!ersatz) kats.forEach(k => {
-      const erste = liste.find(e => e.cat === k && !ids.includes(e.id));
-      if(erste) nimm(erste);
+    const beinTag = tag.titel === 'uk' || tag.titel === 'legs';
+    const skill = schwerpunkt === 'skill' && !beinTag && skills.length ? skills[di % skills.length] : null;
+    if((skill || tag.plaetze.some(m => DRUECK_MUSTER.has(m))) && machbare.some(e => e.id === HANDGELENKE)) {
+      ids.push(HANDGELENKE);
+    }
+    /* Ein Skill vorn: im frischen Zustand geuebt wird er besser als am Ende. */
+    if(skill) nimm(skill);
+
+    tag.plaetze.forEach(muster => {
+      const kandidaten = machbare.filter(e => e.muster === muster && !ids.includes(e.id));
+      if(!kandidaten.length) return;
+      /* Gewechselt wird unter den Grund- und Ergaenzungsuebungen des
+         Musters; eine fortgeschrittene kommt nur, wenn es sonst nichts gibt.
+         Sonst stuende nach der zweiten Nutzung der einarmige Liegestuetz im
+         Plan eines Einsteigers. */
+      const besterRang = prioOf(kandidaten[0]);
+      const pool = kandidaten.filter(e => prioOf(e) <= Math.max(besterRang, 2));
+      const n = nutzung.get(muster) || 0;
+      for(let k = 0; k < pool.length; k++){
+        if(nimm(pool[(n + k) % pool.length])){ nutzung.set(muster, n + 1); return; }
+      }
     });
 
-    liste.forEach(e => {
-      if(ids.length >= MAX_PRO_TAG || ids.includes(e.id)) return;
-      nimm(e);
-    });
+    /* Kein Tag ohne Uebung: bleibt kein einziger Platz fuellbar, wird aus
+       allem Machbaren gefuellt, und der Tag heisst "Ganzkoerper". */
+    const ersatz = !ids.some(id => id !== HANDGELENKE);
+    if(ersatz) machbare.forEach(e => { if(e.cat !== 'mobility') nimm(e); });
 
     return {
       key: TAGE_KEYS[di],
-      title: ersatz
-        ? (texts.ganzkoerper || 'Ganzkörper')
-        : kats.map(k => (texts.kat || {})[k] || k).join(' & '),
+      title: ersatz ? (texts.ganzkoerper || titel.gk) : titel[tag.titel],
       sub: texts.sub || '',
       ex: ids
     };
