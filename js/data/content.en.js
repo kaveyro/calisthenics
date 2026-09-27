@@ -167,6 +167,21 @@ export const CONTENT_EN = {
              'The counterpart to all the pushing. Keeps the shoulders healthy when the plan is full of push-ups and dips.',
              'Light band, clean execution. What counts here is the movement, not the resistance.']
     },
+    towel_row: {
+      name: 'Door frame rows',
+      levels: ['At the open door, body upright', 'Feet closer to the door, body lower',
+               'Towel over the door handles, body low', 'One-arm, body upright'],
+      tips: ['Open the door wide, grip both handles, feet either side of the door edge. Check first that the handles and hinges are solid.',
+             'Retract the shoulder blades first, then drive the elbows back close to the body.',
+             'The closer the feet are to the door, the lower the body and the harder each rep.']
+    },
+    prone_ytw: {
+      name: 'Prone Y-T-W',
+      levels: ['Y, T and W once each = one rep', 'With a 2-second hold in each position', 'Reverse snow angels'],
+      tips: ['Lie face down, forehead on a towel, thumbs pointing up.',
+             'The arms lift via the shoulder blades, not the lower back – the belly stays on the floor.',
+             'Strengthens the muscles between the shoulder blades that lose out when you push a lot.']
+    },
     squat: {
       name: 'Squats',
       levels: ['Squats', 'Deep squats', 'Tempo squats (3 seconds down)', 'Bulgarian split squats',

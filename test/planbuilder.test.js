@@ -132,12 +132,34 @@ describe('Ausruestung', () => {
     const alle = p.days.flatMap(d => d.ex);
     expect(alle.length).toBeGreaterThan(6);
     alle.forEach(id => expect(EX_BY_ID[id].equip).toEqual(['none']));
-    /* Ziehen ist ohne Geraet unmoeglich – der Tag wird gefuellt, nicht leer
-       gelassen. Und er heisst dann auch nicht mehr "Ziehen": ein Titel, der
-       eine Kategorie verspricht, die nicht drinsteht, ist irrefuehrend. */
+    expect(p.days[0].title).toBe('Drücken');
+  });
+
+  /* Bis zu Tuerrahmen-Rudern und Y-T-W gab es ohne Geraet keine einzige
+     Zuguebung, und der Zugtag hiess "Ganzkörper". */
+  it('baut ohne Geraet einen echten Zugtag', () => {
+    const p = bauen({ tage: 3, equipment: [] });
+    expect(p.days[1].title).toBe('Ziehen');
+    expect(p.days[1].ex).toEqual(expect.arrayContaining(['towel_row', 'prone_ytw']));
+  });
+
+  it('laesst bei vorhandener Stange die Klimmzuege vorn', () => {
+    const zug = bauen({ tage: 3, equipment: ['bar'] }).days[1].ex;
+    expect(zug).toContain('pullup');
+    /* prio 2 und am Ende der Zugsektion: das Tuerrahmen-Rudern kommt erst
+       nach den Uebungen an der Stange, wenn ueberhaupt. */
+    if(zug.includes('towel_row')) expect(zug.indexOf('towel_row')).toBeGreaterThan(zug.indexOf('pullup'));
+  });
+
+  /* Ist eine Kategorie gar nicht machbar, wird der Tag gefuellt statt leer
+     gelassen – und heisst dann nicht mehr nach ihr. Seit es Zuguebungen
+     ohne Geraet gibt, laesst sich das nur noch mit einem Bestand zeigen,
+     dem sie fehlen. */
+  it('fuellt einen unmoeglichen Tag und nennt ihn Ganzkörper', () => {
+    const ohneBoden = EXERCISES.filter(e => !['towel_row', 'prone_ytw'].includes(e.id));
+    const p = bauen({ tage: 3, equipment: [], exercises: ohneBoden });
     expect(p.days[1].ex.length).toBeGreaterThan(0);
     expect(p.days[1].title).toBe('Ganzkörper');
-    expect(p.days[0].title).toBe('Drücken');
   });
 
   /* Umgekehrt: was der Titel nennt, muss auch drinstehen. Die Obergrenze

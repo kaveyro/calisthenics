@@ -324,6 +324,37 @@ export const EXERCISES = [
       'Leichtes Band, saubere Ausführung. Hier zählt die Bewegung, nicht der Widerstand.'
     ]
   },
+  /* Ziehen ohne Gerät. Bis hierher war keine einzige Zugübung ohne Stange,
+     Ringe oder Band möglich – der Plangenerator machte den Zugtag dann zu
+     "Ganzkörper", und wer zu Hause trainierte, drückte nur. prio 2, damit
+     beide bei vorhandenem Gerät nicht die Klimmzüge verdrängen. */
+  {
+    id: 'towel_row', name: 'Türrahmen-Rudern', cat: 'pull', equip: ['none'], prio: 2, rest: 90,
+    levels: [
+      { stage: 'An der offenen Tür, Körper steil', saetze: 4, wdh: [8, 12] },
+      { stage: 'Füße näher an der Tür, Körper flacher', saetze: 4, wdh: [8, 12] },
+      { stage: 'Handtuch über die Türklinken, Körper flach', saetze: 4, wdh: [8, 12] },
+      { stage: 'Einarmig, Körper steil', saetze: 3, wdh: [5, 8] }
+    ],
+    tips: [
+      'Tür weit öffnen, beide Klinken greifen, Füße links und rechts der Türkante. Vorher prüfen, dass Klinken und Scharniere fest sitzen.',
+      'Erst die Schulterblätter zurückziehen, dann die Ellbogen eng am Körper nach hinten.',
+      'Je näher die Füße an der Tür, desto flacher der Körper und desto schwerer die Wiederholung.'
+    ]
+  },
+  {
+    id: 'prone_ytw', name: 'Y-T-W liegend', cat: 'pull', equip: ['none'], prio: 2, rest: 45,
+    levels: [
+      { stage: 'Y, T und W je einmal = eine Wiederholung', saetze: 3, wdh: [6, 10] },
+      { stage: 'Mit 2 Sek Halten in jeder Position', saetze: 3, wdh: [6, 10] },
+      { stage: 'Reverse Snow Angels', saetze: 3, wdh: [10, 12] }
+    ],
+    tips: [
+      'Bauchlage, Stirn auf einem Handtuch, Daumen zeigen nach oben.',
+      'Die Arme heben die Schulterblätter an, nicht der untere Rücken – Bauch bleibt am Boden.',
+      'Stärkt die Muskeln zwischen den Schulterblättern, die bei viel Drücken zu kurz kommen.'
+    ]
+  },
 
   /* ================= BEINE ================= */
   {

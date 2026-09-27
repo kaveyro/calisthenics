@@ -21,11 +21,12 @@ import { exMoeglich, levelMoeglich, hoechsteStufe } from './equipment.js';
 
 /* Je Kategorie eine Ankeruebung, nach Vorliebe geordnet: die erste, die mit
    der vorhandenen Ausruestung ueberhaupt machbar ist, gewinnt. Beim Ziehen
-   sind das zwei – ohne Stange ist der Klimmzug keine sinnvolle Frage, das
-   Rudern am Tisch schon. */
+   sind das drei – ohne Stange ist der Klimmzug keine sinnvolle Frage, das
+   Rudern am Tisch schon, und ohne Tisch das Rudern an der offenen Tür. Ohne
+   diesen dritten stellte der Einstieg gar keine Frage zum Ziehen. */
 export const ANKER = [
   { kat: 'push', ids: ['pushup'] },
-  { kat: 'pull', ids: ['pullup', 'row'] },
+  { kat: 'pull', ids: ['pullup', 'row', 'towel_row'] },
   { kat: 'legs', ids: ['squat'] },
   { kat: 'core', ids: ['plank'] }
 ];

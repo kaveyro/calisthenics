@@ -40,6 +40,14 @@ describe('ankerUebung', () => {
     expect(ankerUebung('pull', EXERCISES, ['chair']).id).toBe('row');
   });
 
+  /* Ohne Stange und ohne Tisch blieb das Ziehen bisher ganz ohne Frage. */
+  it('faellt ohne Geraet auf das Tuerrahmen-Rudern zurueck', () => {
+    const mitTuer = [...EXERCISES, { id: 'towel_row', cat: 'pull', equip: ['none'], levels: leiter(4) }];
+    expect(ankerUebung('pull', mitTuer, []).id).toBe('towel_row');
+    /* Mit Tisch bleibt es beim Tisch-Rudern. */
+    expect(ankerUebung('pull', mitTuer, ['chair']).id).toBe('row');
+  });
+
   it('liefert null, wenn gar nichts geht', () => {
     expect(ankerUebung('pull', EXERCISES, [])).toBe(null);
     expect(ankerUebung('gibtsnicht', EXERCISES, ALLES)).toBe(null);
