@@ -108,6 +108,12 @@ export const NUR_BIS = {
   band_pullup: ['pullup', 3]
 };
 
+/* Notbehelfe ohne Geraet: nur, wenn das Muster sonst nichts hergibt. Ohne
+   diese Regel stand bei Stange und Tisch am zweiten Oberkoerpertag das
+   Tuerrahmen-Rudern, weil im Muster gewechselt wird – obwohl man an der
+   Stange besser rudert. */
+export const NOTBEHELF = new Set(['towel_row']);
+
 /* Ziel-Skills und an welchen Tagen sie vorn stehen. Handstand, Planche,
    L-Sit und Elbow Lever tragen die Druckmuskulatur, Front Lever, Back Lever
    und Muscle-up die Zugmuskulatur. Beintage bekommen keinen Skill.
@@ -319,7 +325,9 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
          fortgeschrittene kommt erst, wenn ihre Vorstufe sitzt (VORSTUFEN).
          Gibt es fuer das Muster sonst nichts, auch eine andere. */
       const bereite = kandidaten.filter(e => bereit(e, stand));
-      const pool = bereite.length ? bereite : kandidaten;
+      const gute = bereite.length ? bereite : kandidaten;
+      const echte = gute.filter(e => !NOTBEHELF.has(e.id));
+      const pool = echte.length ? echte : gute;
       const n = nutzung.get(muster) || 0;
       const pflicht = plaetze < PFLICHT_PLAETZE;
       for(let k = 0; k < pool.length; k++){

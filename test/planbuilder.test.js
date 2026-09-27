@@ -460,6 +460,13 @@ describe('Stand beruecksichtigen', () => {
     expect(['pistol', 'shrimp_squat']).toContain(ukA.find(id => EX_BY_ID[id].muster === 'kniebeuge'));
   });
 
+  it('nimmt den Notbehelf nur, wenn das Muster sonst nichts hergibt', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
+      expect(woche({ tage, equipment: ['bar', 'chair'] }), tage + ' Tage').not.toContain('towel_row');
+    }
+    expect(woche({ equipment: [] })).toContain('towel_row');
+  });
+
   it('laesst die Hilfsuebung weg, sobald man sie nicht mehr braucht', () => {
     expect(woche({ levels: { pullup: 3 } })).not.toContain('band_pullup');
     expect(bereit(EX_BY_ID.band_pullup, { pullup: 2 })).toBe(true);
