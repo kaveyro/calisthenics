@@ -191,12 +191,18 @@ h1 .thin{color:var(--accent)}
 .tab.active{background:var(--accent);color:#fff}
 
 /* ---------- Banner ---------- */
-.banner{border-radius:var(--radius);padding:var(--abstand-3) var(--abstand-4);margin-bottom:var(--abstand-4);font-size:var(--text-md)}
-.banner.warn{background:var(--warn-soft);border:1px solid var(--warn)}
+/* Hinweise: die Farbe trägt ein Randstreifen, nicht die ganze Fläche.
+   Titel und Knöpfe stehen nebeneinander, wo Platz ist, sonst untereinander. */
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:var(--abstand-2) var(--abstand-3);background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:var(--abstand-2) var(--abstand-3);margin-bottom:var(--abstand-3);font-size:var(--text-sm);box-shadow:var(--schatten-1)}
+.banner.warn{border-left-color:var(--warn)}
 .banner.warn b{color:var(--warn)}
-.banner.info{background:var(--accent-soft);border:1px solid var(--accent)}
-.banner button{margin-top:8px;background:var(--warn);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:600;font-size:var(--text-md);cursor:pointer}
-.banner.info button{background:var(--accent)}
+.banner-text{flex:1 1 220px;min-width:0;line-height:1.4}
+.banner-body{color:var(--ink-soft)}
+.banner-actions{display:flex;flex-wrap:wrap;gap:var(--abstand-2)}
+.banner button{background:none;color:var(--accent);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-weight:600;font-size:var(--text-sm);cursor:pointer;min-height:36px}
+.banner button.haupt{background:var(--accent);border-color:var(--accent);color:#fff}
+.banner.warn button.haupt{background:var(--warn);border-color:var(--warn)}
+.banner button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 /* ---------- Eigene Dialoge (Ersatz für prompt/confirm) ---------- */
 .dlg-label{display:block;font-size:var(--text-sm);color:var(--ink-soft);margin:14px 0 6px}

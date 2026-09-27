@@ -45,7 +45,10 @@ function verwendeteNamen(text){
   return [
     ...[...text.matchAll(/data-action(?:-change|-input)?="([a-zA-Z:]+)"/g)].map(m => m[1]),
     ...[...text.matchAll(/dataset\.action(?:Change|Input)?\s*=\s*'([a-zA-Z:]+)'/g)].map(m => m[1]),
-    ...[...text.matchAll(/\baction:\s*'([a-zA-Z]+:[a-zA-Z]+)'/g)].map(m => m[1])
+    ...[...text.matchAll(/\baction:\s*'([a-zA-Z]+:[a-zA-Z]+)'/g)].map(m => m[1]),
+    /* Vierte Form: die Knoepfe der Hinweise ueber der Tagesauswahl baut
+       knopf('aktion', …) – ebenso eng gefasst wie die dritte. */
+    ...[...text.matchAll(/\bknopf\('([a-zA-Z]+:[a-zA-Z]+)'/g)].map(m => m[1])
   ];
 }
 const verwendet = new Set([...verwendeteNamen(html), ...verwendeteNamen(appQuelltext)]);

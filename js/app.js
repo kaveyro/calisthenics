@@ -682,45 +682,37 @@ function renderBanners(){
      sich umsieht. Es ist ausserdem dasselbe Muster wie bei der
      Entlastungswoche und der faelligen Sicherung. */
   if(!state.onboarded){
-    html += '<div class="banner info"><b>' + esc(__('welcomeTitle')) + '</b> ' +
-      esc(__('welcomeBody')) +
-      '<br><button data-action="onboarding:start">' + esc(__('welcomeStart')) + '</button> ' +
-      '<button data-action="onboarding:skip">' + esc(__('later')) + '</button></div>';
+    html += hinweis('info', __('welcomeTitle'), esc(__('welcomeBody')),
+      knopf('onboarding:start', __('welcomeStart'), true) + knopf('onboarding:skip', __('later')));
   }
 
   if(deloadAktiv()){
-    html += '<div class="banner info"><b>' + esc(__('deloadActive', { date: fmtDate(state.deload.bis) })) + '</b> ' +
-      esc(__('deloadHint')) +
-      '<br><button data-action="deload:end">' + esc(__('deloadEnd')) + '</button></div>';
+    html += hinweis('info', __('deloadActive', { date: fmtDate(state.deload.bis) }), esc(__('deloadHint')),
+      knopf('deload:end', __('deloadEnd')));
   }
   const every = cfg('deload');
   if(every > 0 && !deloadAktiv()){
     const due = Math.floor((state.workouts || 0) / every) * every;
     if(due > 0 && due > (state.deloadDismissed || 0)){
-      html += '<div class="banner warn"><b>' + esc(__('deloadTitle')) + '</b> ' +
-        esc(__('deloadBody', { n: state.workouts })) +
-        '<br><button data-action="deload:start" data-due="' + due + '">' + esc(__('deloadStart')) + '</button> ' +
-        '<button data-action="deload:dismiss" data-due="' + due + '">' + esc(__('understood')) + '</button></div>';
+      html += hinweis('warn', __('deloadTitle'), esc(__('deloadBody', { n: state.workouts })),
+        knopf('deload:start', __('deloadStart'), true, ' data-due="' + due + '"') +
+        knopf('deload:dismiss', __('understood'), false, ' data-due="' + due + '"'));
     }
   }
   if(state.lastDate){
     const days = Math.round((new Date(today()) - new Date(state.lastDate)) / 864e5);
     if(days >= 7){
-      html += '<div class="banner info"><b>' + esc(__('layoffTitle', { n: days })) + '</b> ' +
-        esc(__('layoffBody')) + '</div>';
+      html += hinweis('info', __('layoffTitle', { n: days }), esc(__('layoffBody')), '');
     }
   }
   const plateaus = detectPlateaus();
   if(plateaus.length){
-    html += '<div class="banner warn">' + esc(__('plateauDetected')) + ': ' + esc(plateaus.join(', ')) +
-      '.<br><small>' + esc(__('plateauMsg')) + '</small></div>';
+    html += hinweis('warn', __('plateauDetected') + ': ' + plateaus.join(', ') + '.', esc(__('plateauMsg')), '');
     /* Deload-Vorschlag: mehrere stagnierende Uebungen sind ein Zeichen fuer
        eine Entlastungswoche – die Erinnerung zaehlt nur Einheiten. */
     if(plateaus.length >= 2 && !deloadAktiv() && !state.deloadPlateauDismissed){
-      html += '<div class="banner info"><b>' + esc(__('deloadPlateauTitle')) + '</b> ' +
-        esc(__('deloadPlateauBody')) +
-        '<br><button data-action="deload:start">' + esc(__('deloadStart')) + '</button> ' +
-        '<button data-action="deload:plateauDismiss">' + esc(__('understood')) + '</button></div>';
+      html += hinweis('info', __('deloadPlateauTitle'), esc(__('deloadPlateauBody')),
+        knopf('deload:start', __('deloadStart'), true) + knopf('deload:plateauDismiss', __('understood')));
     }
   }
   /* Der Verlauf liegt nur in diesem Browser. Exportieren konnte man ihn
@@ -728,12 +720,30 @@ function renderBanners(){
      erinnerte daran. */
   const backup = backupFaellig(state, today());
   if(backup){
-    html += '<div class="banner warn"><b>' + esc(__('backupDueTitle')) + '</b> ' +
-      esc(__('backupDue' + backup.grund[0].toUpperCase() + backup.grund.slice(1), { n: backup.n })) +
-      '<br><button data-action="backup:exportJSON">' + esc(__('downloadBackup')) + '</button> ' +
-      '<button data-action="backup:remindLater">' + esc(__('later')) + '</button></div>';
+    html += hinweis('warn', __('backupDueTitle'),
+      esc(__('backupDue' + backup.grund[0].toUpperCase() + backup.grund.slice(1), { n: backup.n })),
+      knopf('backup:exportJSON', __('downloadBackup'), true) + knopf('backup:remindLater', __('later')));
   }
   el.innerHTML = html;
+}
+
+/* Ein Hinweis ueber der Tagesauswahl: Titel, Erklaerung, Knoepfe.
+
+   Vorher war jeder eine volle farbige Flaeche mit Knoepfen darunter. Nach 30
+   Einheiten standen zwei davon (Entlastungswoche, Sicherung) uebereinander
+   und schoben die Tagesauswahl auf dem Handy unter die erste
+   Bildschirmhoehe. Jetzt traegt nur ein Randstreifen die Farbe, die
+   Erklaerung steht leiser darunter, und die Knoepfe sitzen daneben, wo
+   Platz ist. Weg sind die Hinweise damit nicht – nur leiser.
+   text kommt schon maskiert herein, titel nicht. */
+function hinweis(art, titel, text, knoepfe){
+  return '<div class="banner ' + art + '"><div class="banner-text"><b>' + esc(titel) + '</b>' +
+    (text ? ' <span class="banner-body">' + text + '</span>' : '') + '</div>' +
+    (knoepfe ? '<div class="banner-actions">' + knoepfe + '</div>' : '') + '</div>';
+}
+function knopf(aktion, beschriftung, haupt = false, extra = ''){
+  return '<button data-action="' + aktion + '"' + extra + (haupt ? ' class="haupt"' : '') + '>' +
+    esc(beschriftung) + '</button>';
 }
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
 function backupSpaeter(){ state.backupDismissed = state.workouts || 0; save(); renderBanners(); }
