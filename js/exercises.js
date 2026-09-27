@@ -91,7 +91,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'support', name: 'Stützhalte', cat: 'push', equip: ['parallettes'], rest: 60,
+    id: 'support', name: 'Stützhalte', cat: 'push', equip: ['parallettes', 'chair'], rest: 60,
     levels: [
       { stage: 'Support Hold', saetze: 4, sek: [10, 20] },
       { stage: 'Support Hold', saetze: 4, sek: [20, 30] },
@@ -101,14 +101,15 @@ export const EXERCISES = [
     tips: [
       'Arme komplett gestreckt, Ellbogen "einrasten".',
       'Schultern aktiv nach unten drücken – weg von den Ohren (Depression).',
-      'Basis für L-Sit, Dips und später die Planche.'
+      'Basis für L-Sit, Dips und später die Planche.',
+      'Ohne Parallettes: zwischen zwei stabilen Stühlen, Lehnen nach außen.'
     ]
   },
   {
     id: 'dips', name: 'Dips', cat: 'push', equip: ['chair', 'parallettes', 'rings'], prio: 1, rest: 120,
     levels: [
       { stage: 'Bank-Dips (Füße am Boden)', saetze: 3, wdh: [8, 12], equip: ['chair'] },
-      { stage: 'Bank-Dips, Füße erhöht', saetze: 3, wdh: [8, 12], equip: ['chair'] },
+      { stage: 'Stuhl-Dips mit Fußunterstützung', saetze: 3, wdh: [6, 10], equip: ['chair'] },
       { stage: 'Negativ-Dips (Parallettes)', saetze: 3, wdh: [4, 6], equip: ['parallettes', 'rings'] },
       { stage: 'Dips auf Parallettes', saetze: 3, wdh: [5, 8], equip: ['parallettes', 'rings'] },
       { stage: 'Dips auf Parallettes', saetze: 3, wdh: [8, 12], equip: ['parallettes', 'rings'] }
@@ -116,7 +117,8 @@ export const EXERCISES = [
     tips: [
       'Schultern unten halten, nicht zu den Ohren ziehen.',
       'Kontrolliert ablassen, bis der Oberarm etwa parallel ist.',
-      'Bei Schmerz vorn in der Schulter: Bewegungsumfang verkleinern.'
+      'Bei Schmerz vorn in der Schulter: Bewegungsumfang verkleinern.',
+      'Stuhl-Dips: zwei Stühle nebeneinander, Füße vorn am Boden und nur so viel Gewicht darauf wie nötig.'
     ]
   },
   {
@@ -155,8 +157,7 @@ export const EXERCISES = [
       { stage: 'Pike-Halte', saetze: 3, sek: [15, 20] },
       { stage: 'Pike-Halte', saetze: 3, sek: [25, 35] },
       { stage: 'Pike, Füße erhöht (Halte)', saetze: 3, sek: [15, 25] },
-      { stage: 'Pike Push-ups', saetze: 3, wdh: [5, 8] },
-      { stage: 'Pike Push-ups, Füße erhöht', saetze: 3, wdh: [5, 8] }
+      { stage: 'Pike Push-ups', saetze: 3, wdh: [5, 10] }
     ],
     tips: [
       'Po so hoch wie möglich, Gewicht auf die Schultern schieben.',
@@ -165,7 +166,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'planche_lean', name: 'Planche Lean', cat: 'push', equip: ['parallettes'], prio: 3, rest: 90,
+    id: 'planche_lean', name: 'Planche Lean', cat: 'push', equip: ['none'], prio: 3, rest: 90,
     levels: [
       { stage: 'Leichter Lean', saetze: 3, sek: [10, 15] },
       { stage: 'Mittlerer Lean', saetze: 3, sek: [15, 20] },
@@ -173,7 +174,7 @@ export const EXERCISES = [
       { stage: 'Max Lean (Füße auf Zehenspitzen)', saetze: 4, sek: [15, 25] }
     ],
     tips: [
-      'Liegestützposition auf den Parallettes, Schultern vor die Hände lehnen.',
+      'Liegestützposition am Boden, Schultern vor die Hände lehnen. Parallettes entlasten die Handgelenke, sind aber nicht nötig.',
       'Nur so weit, wie Ellbogen gestreckt und Schulterblätter geschoben bleiben.',
       'Handgelenke vorher gründlich aufwärmen – hier liegt viel Last darauf.'
     ]
@@ -331,7 +332,8 @@ export const EXERCISES = [
       { stage: 'Kniebeugen', saetze: 4, wdh: [12, 15] },
       { stage: 'Tiefe Kniebeugen', saetze: 4, wdh: [15, 20] },
       { stage: 'Tempo-Kniebeugen (3 Sek runter)', saetze: 4, wdh: [12, 15] },
-      { stage: 'Bulgarian Split Squats', saetze: 3, wdh: [8, 12] }
+      { stage: 'Bulgarian Split Squats', saetze: 3, wdh: [8, 12] },
+      { stage: 'Bulgarian Split Squats, 2 Sek Pause unten', saetze: 3, wdh: [8, 12] }
     ],
     tips: [
       'Fersen bleiben am Boden, Knie folgen der Fußrichtung.',
@@ -480,8 +482,8 @@ export const EXERCISES = [
   {
     id: 'lsit', name: 'L-Sit', cat: 'skill', equip: ['parallettes', 'rings'], rest: 90,
     levels: [
-      { stage: 'Tuck L-Sit', saetze: 4, sek: [5, 10] },
-      { stage: 'Tuck L-Sit', saetze: 4, sek: [10, 15] },
+      { stage: 'Tuck L-Sit', saetze: 4, sek: [5, 10], equip: ['parallettes', 'rings', 'chair'] },
+      { stage: 'Tuck L-Sit', saetze: 4, sek: [10, 15], equip: ['parallettes', 'rings', 'chair'] },
       { stage: 'One-Leg L-Sit', saetze: 4, sek: [8, 12] },
       { stage: 'L-Sit', saetze: 4, sek: [5, 10] },
       { stage: 'L-Sit', saetze: 4, sek: [15, 20] }
@@ -526,6 +528,7 @@ export const EXERCISES = [
     id: 'hspu', name: 'Handstand Push-up', cat: 'skill', equip: ['none'], prio: 3, rest: 150,
     levels: [
       { stage: 'Pike Push-up, Füße erhöht', saetze: 4, wdh: [5, 8] },
+      { stage: 'Box-Pike Push-up (Hüfte 90°)', saetze: 4, wdh: [4, 8] },
       { stage: 'Wand-HSPU Negativ', saetze: 4, wdh: [3, 5] },
       { stage: 'Wand-HSPU', saetze: 4, wdh: [2, 5] },
       { stage: 'Wand-HSPU', saetze: 4, wdh: [6, 10] }
@@ -533,7 +536,8 @@ export const EXERCISES = [
     tips: [
       'Kopf bildet mit den Händen ein Dreieck am Boden.',
       'Erst wenn der Wand-Handstand 45 Sekunden sicher steht.',
-      'Nackenmuskulatur vorher aufwärmen.'
+      'Nackenmuskulatur vorher aufwärmen.',
+      'Box-Pike: Füße auf einer Kiste oder einem Stuhl, Hüfte über den Schultern – der Schritt zwischen Pike und Wand.'
     ]
   },
   {

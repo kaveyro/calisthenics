@@ -47,15 +47,17 @@ export const CONTENT_EN = {
       levels: ['Support hold', 'Support hold', 'Support hold', 'Support + slight lean'],
       tips: ['Arms fully straight, elbows locked out.',
              'Actively push the shoulders down – away from the ears (depression).',
-             'The base for the L-sit, dips and later the planche.']
+             'The base for the L-sit, dips and later the planche.',
+             'Without parallettes: between two sturdy chairs, backrests facing out.']
     },
     dips: {
       name: 'Dips',
-      levels: ['Bench dips (feet on the floor)', 'Bench dips, feet elevated',
+      levels: ['Bench dips (feet on the floor)', 'Chair dips with foot support',
                'Negative dips (parallettes)', 'Dips on parallettes', 'Dips on parallettes'],
       tips: ['Keep the shoulders down, do not let them ride up to the ears.',
              'Lower under control until the upper arm is roughly parallel.',
-             'If the front of the shoulder hurts: reduce the range of motion.']
+             'If the front of the shoulder hurts: reduce the range of motion.',
+             'Chair dips: two chairs side by side, feet on the floor in front, with only as much weight on them as needed.']
     },
     ring_pushup: {
       name: 'Ring push-ups',
@@ -75,8 +77,7 @@ export const CONTENT_EN = {
     },
     pike: {
       name: 'Pike progression',
-      levels: ['Pike hold', 'Pike hold', 'Pike, feet elevated (hold)',
-               'Pike push-ups', 'Pike push-ups, feet elevated'],
+      levels: ['Pike hold', 'Pike hold', 'Pike, feet elevated (hold)', 'Pike push-ups'],
       tips: ['Hips as high as possible, shift the weight over the shoulders.',
              'Look between your hands, keep the neck long.',
              'Direct strength work for the later handstand push-up.']
@@ -84,7 +85,7 @@ export const CONTENT_EN = {
     planche_lean: {
       name: 'Planche lean',
       levels: ['Slight lean', 'Moderate lean', 'Pronounced lean', 'Max lean (on the toes)'],
-      tips: ['Push-up position on the parallettes, lean the shoulders past the hands.',
+      tips: ['Push-up position on the floor, lean the shoulders past the hands. Parallettes ease the wrists but are not required.',
              'Only as far as you can keep the elbows locked and the scapulae protracted.',
              'Warm the wrists up thoroughly first – they take a lot of load here.']
     },
@@ -168,7 +169,8 @@ export const CONTENT_EN = {
     },
     squat: {
       name: 'Squats',
-      levels: ['Squats', 'Deep squats', 'Tempo squats (3 seconds down)', 'Bulgarian split squats'],
+      levels: ['Squats', 'Deep squats', 'Tempo squats (3 seconds down)', 'Bulgarian split squats',
+               'Bulgarian split squats, 2-second pause at the bottom'],
       tips: ['Heels stay on the floor, knees track over the feet.',
              'As deep as you can keep it clean – the back stays neutral.',
              'Tempo: two seconds down, controlled on the way up.']
@@ -270,10 +272,11 @@ export const CONTENT_EN = {
     },
     hspu: {
       name: 'Handstand push-up',
-      levels: ['Pike push-up, feet elevated', 'Wall HSPU negative', 'Wall HSPU', 'Wall HSPU'],
+      levels: ['Pike push-up, feet elevated', 'Box pike push-up (hips at 90°)', 'Wall HSPU negative', 'Wall HSPU', 'Wall HSPU'],
       tips: ['The head forms a triangle with the hands on the floor.',
              'Only once the wall handstand holds solidly for 45 seconds.',
-             'Warm up the neck muscles beforehand.']
+             'Warm up the neck muscles beforehand.',
+             'Box pike: feet on a box or chair, hips over the shoulders – the step between pike and wall.']
     },
     lsit_hs: {
       name: 'L-sit to handstand',
