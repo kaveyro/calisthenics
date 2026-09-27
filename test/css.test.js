@@ -244,6 +244,22 @@ describe('Kopfzeile auf schmalen Schirmen', () => {
   });
 });
 
+/* Punkte und Felder standen abwechselnd in einer umbrechenden Reihe; bei
+   vier Saetzen stand "3" am Zeilenende und sein Feld darunter. */
+describe('Satzspalten', () => {
+  it('stellt je Satz eine Spalte', () => {
+    expect(css).toMatch(/\.sets\{display:grid;grid-template-columns:repeat\(var\(--saetze,4\),minmax\(0,1fr\)\)/);
+  });
+
+  /* Gemessen bei 320px: "Ziel 20 Sek" ist 73px breit, eine Spalte bei
+     fuenf Saetzen gut 40px. Mit nowrap lagen die Ziele uebereinander. */
+  it('laesst das Ziel in seiner Spalte umbrechen', () => {
+    const regel = css.match(/\.satz-ziel\{[^}]*\}/)[0];
+    expect(regel).not.toMatch(/nowrap/);
+    expect(regel).toMatch(/max-width:100%/);
+  });
+});
+
 describe('Gestaltungsstufen', () => {
   const stufen = ['xs', 'sm', 'md', 'base', 'lg', 'xl'];
 

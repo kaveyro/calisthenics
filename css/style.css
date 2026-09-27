@@ -302,7 +302,16 @@ details.acc li{margin-bottom:5px}
 .rung-line.done{background:var(--success)}
 
 /* ---------- Sätze ---------- */
-.sets{display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap;align-items:center}
+/* Je Satz eine Spalte, so viele wie Sätze – bis sechs im Modus
+   Fortgeschritten. minmax(0,1fr) lässt die Spalten unter die Breite ihres
+   Inhalts schrumpfen, statt die Karte zu sprengen. */
+.sets{display:grid;grid-template-columns:repeat(var(--saetze,4),minmax(0,1fr));gap:var(--abstand-2);margin:var(--abstand-3) 0 var(--abstand-1);max-width:360px}
+.satz{display:flex;flex-direction:column;align-items:center;gap:var(--abstand-1);min-width:0}
+.satz .set-dot{width:100%;max-width:56px}
+.satz .rep-input,.satz .sek-input{width:100%;max-width:56px}
+/* Darf umbrechen: „Ziel 20 Sek" ist 73px breit, eine Spalte bei fünf
+   Sätzen auf 320px nur gut 40px. Ohne Umbruch lägen die Ziele übereinander. */
+.satz-ziel{font-family:var(--mono);font-size:var(--text-xs);color:var(--accent);font-weight:600;text-align:center;line-height:1.25;max-width:100%}
 .set-dot{width:48px;height:48px;border-radius:10px;border:2px solid var(--line);background:var(--card);font-family:var(--mono);font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .12s,border-color .12s}
 .set-dot:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .set-dot.done{background:var(--ink);border-color:var(--ink);color:var(--bg)}

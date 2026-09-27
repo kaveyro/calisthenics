@@ -1130,12 +1130,14 @@ function letzteZeilen(ex, lvl, t, letzte){
       })
       : __('lastReps', { reps, date })) + '</div>';
   }
+  /* Die Zahlen selbst stehen seit der Satzspalte unter jedem Satz. Diese
+     Zeile bleibt fuer das, was sich dort nicht zeigen laesst: dass es eine
+     neue Stufe ist, oder dass alle Saetze schon oben waren. */
   const heute = heuteVorgabe(ex, lvl, t, letzte);
-  if(heute){
-    const werte = mitEinheit(heute.werte, t.isHold);
+  if(heute && (heute.allesOben || heute.einstieg)){
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
-      : heute.einstieg ? __('todayEntry', { reps: werte }) : __('todayTarget', { reps: werte })) + '</div>';
+      : __('todayEntry', { reps: mitEinheit(heute.werte, t.isHold) })) + '</div>';
   }
   return html;
 }
@@ -1249,6 +1251,14 @@ function renderWorkout(){
          der Countdown ueberhaupt angesagt wird. Angesagt wurde damit aber
          JEDE einzelne Sekunde. Beginn und Ende meldet jetzt melde() ueber
          #srStatus, der Punkt selbst bleibt still. */
+      /* Je Satz eine Spalte: Punkt, Feld und darunter die Vorgabe. Vorher
+         standen Punkte und Felder abwechselnd in einer Reihe, die bei vier
+         Saetzen auf dem Handy umbrach – dann stand "3" am Zeilenende und
+         sein Feld in der naechsten Zeile. Und die Vorgabe stand in einer
+         eigenen Zeile ueber allem statt an dem Satz, fuer den sie gilt. */
+      const ziel = vorgabe && Number.isInteger(vorgabe[s]) ? vorgabe[s] : null;
+      const zielId = 'ziel-' + repKey;
+      dots += '<div class="satz">';
       dots += '<button class="set-dot" id="set-' + repKey + '"' +
         ' data-action="set:tap" data-ex="' + ex.id + '" data-set="' + s + '"' +
         ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
@@ -1259,6 +1269,7 @@ function renderWorkout(){
              auf der Karte, die Vorgabe ist die Zahl fuer DIESEN Satz. */
           ' placeholder="' + (vorgabe ? vorgabe[s] : t.minReps + '-' + t.maxReps) + '"' +
           ' aria-label="' + esc(__('repsAria', { ex: exName(ex), n: s + 1 })) + '"' +
+          (ziel !== null ? ' aria-describedby="' + zielId + '"' : '') +
           ' value="' + (session.reps[repKey] ?? '') + '" data-action-input="set:reps" data-key="' + repKey + '">';
       } else if(t.isHold){
         /* Die gehaltene Zeit: der Countdown traegt sie ein, von Hand laesst
@@ -1266,8 +1277,14 @@ function renderWorkout(){
         dots += '<input class="sek-input" id="sek-' + repKey + '" type="number" min="0" max="3600"' +
           ' placeholder="' + vorgabe[s] + '"' +
           ' aria-label="' + esc(__('secsAria', { ex: exName(ex), n: s + 1 })) + '"' +
+          (ziel !== null ? ' aria-describedby="' + zielId + '"' : '') +
           ' value="' + (session.sek[repKey] ?? '') + '" data-action-input="set:sek" data-key="' + repKey + '">';
       }
+      if(ziel !== null){
+        dots += '<span class="satz-ziel" id="' + zielId + '">' +
+          esc(__('setTarget', { n: ziel + (t.isHold ? ' ' + __('secShort') : '') })) + '</span>';
+      }
+      dots += '</div>';
     }
 
     let hint;
@@ -1300,7 +1317,7 @@ function renderWorkout(){
       letzteZeilen(ex, lvl, t, letzte[ex.id]) +
       zuSchwerHtml(ex, lvl, t, verlauf[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
-      '<div class="sets">' + dots + '</div>' +
+      '<div class="sets" style="--saetze:' + t.sets + '">' + dots + '</div>' +
       '<span class="hold-hint">' +
         (t.isHold ? esc(__('holdHint')) + ' · ' : '') +
         esc(__('restOf', { sec: restFor(ex) })) + '</span>' +

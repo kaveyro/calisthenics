@@ -2728,9 +2728,21 @@ describe('Tagesziel auf der Karte', () => {
   const heute = () => karte().querySelector('.last-reps.heute');
   const reps = (...n) => Object.fromEntries(n.map((w, i) => ['pushup-' + i, w]));
 
+  /* Die Zahlen stehen seit der Satzspalte unter jedem Satz, nicht mehr in
+     einer eigenen Zeile. */
   it('nennt je Satz eine Wiederholung mehr', async () => {
     await mitLetzter({ reps: reps(8, 8, 7, 7), lv: { pushup: 0 } });
-    expect(heute().textContent).toContain('9 · 9 · 8 · 8');
+    const ziele = [...karte().querySelectorAll('.satz-ziel')].map(z => z.textContent);
+    expect(ziele).toEqual(['Ziel 9', 'Ziel 9', 'Ziel 8', 'Ziel 8']);
+    expect(heute()).toBeNull();
+  });
+
+  it('haengt jede Vorgabe an ihr Eingabefeld', async () => {
+    await mitLetzter({ reps: reps(8, 8, 7, 7), lv: { pushup: 0 } });
+    const feld = document.getElementById('rep-pushup-2');
+    expect(document.getElementById(feld.getAttribute('aria-describedby')).textContent).toBe('Ziel 8');
+    /* Punkt, Feld und Vorgabe stehen in derselben Spalte. */
+    expect(feld.closest('.satz').querySelector('.set-dot').id).toBe('set-pushup-2');
   });
 
   it('sagt bei allen Saetzen oben, dass es noch einmal gilt', async () => {
@@ -2947,8 +2959,8 @@ describe('Gehaltene Sekunden', () => {
       sek: { 'support-0': 12, 'support-1': 12, 'support-2': 11, 'support-3': 9 }
     }]});
     expect([0, 1, 2, 3].map(s => feld(s).placeholder)).toEqual(['14', '14', '13', '11']);
-    const zeile = document.querySelector('[data-exid="support"] .last-reps.heute').textContent;
-    expect(zeile).toContain('14 · 14 · 13 · 11');
+    const ziele = [...document.querySelectorAll('[data-exid="support"] .satz-ziel')].map(z => z.textContent);
+    expect(ziele).toEqual(['Ziel 14 Sek', 'Ziel 14 Sek', 'Ziel 13 Sek', 'Ziel 11 Sek']);
   });
 
   it('leitet das obere Limit aus den Sekunden ab', async () => {
