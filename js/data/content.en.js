@@ -42,6 +42,14 @@ export const CONTENT_EN = {
              'The road to the one-arm push-up – only once 15 full push-ups are solid.',
              'Keep the hips square to the floor, no twisting.']
     },
+    one_arm_push: {
+      name: 'One-arm push-up',
+      levels: ['One-arm, elevated (table)', 'One-arm, elevated (bench/step)',
+               'One-arm on the floor, negative', 'One-arm push-up'],
+      tips: ['Figures are per side. Feet wide apart, the free arm rests on the back.',
+             'Hips and shoulders stay square to the floor – twisting is the typical escape.',
+             'Only once archer push-ups with an almost straight arm are clean.']
+    },
     support: {
       name: 'Support hold',
       levels: ['Support hold', 'Support hold', 'Support hold', 'Support + slight lean'],
@@ -301,6 +309,28 @@ export const CONTENT_EN = {
              'The key is shifting your weight forwards over the hands, not momentum.',
              'Negatives (lowering slowly from the handstand into the L-sit) build exactly the right strength.']
     },
+    muscle_up: {
+      name: 'Muscle-up',
+      levels: ['Explosive pull-ups, chest to bar', 'Transition on a low bar, feet on the floor',
+               'Muscle-up negative, lowering slowly', 'First muscle-up + negatives', 'Muscle-ups'],
+      tips: ['Prerequisite: 8–10 clean pull-ups and 10 dips. Without that base the transition turns into flailing.',
+             'Pull the bar to the hips, not the chin – the torso tips over the bar as you do.',
+             'A false grip on the bar (wrist over the bar) makes the transition much shorter.']
+    },
+    back_lever: {
+      name: 'Back lever',
+      levels: ['German hang', 'Tuck back lever', 'Advanced tuck back lever', 'Straddle or one-leg back lever'],
+      tips: ['Only once skin the cat goes slowly and pain-free – the shoulder is in full extension here.',
+             'Arms stay straight, the load runs through the biceps tendon. Take new stages slowly.',
+             'Tilt the pelvis back (squeeze the glutes), otherwise the hips sag.']
+    },
+    elbow_lever: {
+      name: 'Elbow lever',
+      levels: ['Both feet on the floor', 'One foot on the floor', 'Free'],
+      tips: ['Elbows tucked tight into the hips, fingers pointing back or to the side.',
+             'Shift the weight forwards until the feet get light on their own.',
+             'The first balance skill without equipment – good for wrists getting used to load.']
+    },
     wrist_prep: {
       name: 'Wrist routine',
       levels: ['Basic routine', 'With weight shifting', 'With fingertip push-ups'],
@@ -371,7 +401,9 @@ export const CONTENT_EN = {
     hs30: 'Free handstand, 30 seconds',
     lean20: '20-second planche lean with a pronounced lean',
     tuckplanche: 'Tuck planche, 10 seconds',
-    lsit_hs1: 'L-sit to handstand – first repetition'
+    lsit_hs1: 'L-sit to handstand – first repetition',
+    muscleup1: 'First muscle-up',
+    backlever_tuck: 'Tuck back lever, 10 seconds'
   },
 
   /* Gleiche Reihenfolge wie WARMUP in exercises.js. */

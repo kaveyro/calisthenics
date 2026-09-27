@@ -91,6 +91,20 @@ export const EXERCISES = [
     ]
   },
   {
+    id: 'one_arm_push', name: 'Einarmiger Liegestütz', cat: 'push', equip: ['none'], prio: 3, rest: 120,
+    levels: [
+      { stage: 'Einarmig erhöht (Tisch)', saetze: 3, wdh: [5, 8] },
+      { stage: 'Einarmig erhöht (Bank/Stufe)', saetze: 3, wdh: [4, 8] },
+      { stage: 'Einarmig am Boden, Negativ', saetze: 3, wdh: [3, 5] },
+      { stage: 'Einarmiger Liegestütz', saetze: 3, wdh: [1, 5] }
+    ],
+    tips: [
+      'Angaben gelten je Seite. Füße weit auseinander, der freie Arm liegt auf dem Rücken.',
+      'Hüfte und Schultern bleiben parallel zum Boden – das Verdrehen ist der typische Ausweg.',
+      'Erst wenn Archer-Liegestütze mit fast gestrecktem Arm sauber sitzen.'
+    ]
+  },
+  {
     id: 'support', name: 'Stützhalte', cat: 'push', equip: ['parallettes', 'chair'], rest: 60,
     levels: [
       { stage: 'Support Hold', saetze: 4, sek: [10, 20] },
@@ -586,6 +600,48 @@ export const EXERCISES = [
       'Negativs (aus dem Handstand langsam in den L-Sit) bauen genau die richtige Kraft.'
     ]
   },
+  {
+    id: 'muscle_up', name: 'Muscle-up', cat: 'skill', equip: ['bar', 'rings'], prio: 3, rest: 180,
+    levels: [
+      { stage: 'Explosive Klimmzüge, Brust zur Stange', saetze: 4, wdh: [3, 5] },
+      { stage: 'Übergang an tiefer Stange, Füße am Boden', saetze: 4, wdh: [3, 5] },
+      { stage: 'Muscle-up Negativ, langsam ablassen', saetze: 4, wdh: [2, 4] },
+      { stage: 'Erster Muscle-up + Negativs', saetze: 5, wdh: [1, 1] },
+      { stage: 'Muscle-ups', saetze: 4, wdh: [2, 5] }
+    ],
+    tips: [
+      'Voraussetzung: 8–10 saubere Klimmzüge und 10 Dips. Ohne diese Basis wird der Übergang zum Schwung-Gezappel.',
+      'Die Stange zieht zur Hüfte, nicht zum Kinn – der Oberkörper kippt dabei über die Stange.',
+      'An der Stange mit falschem Griff (Handgelenk über der Stange) wird der Übergang deutlich kürzer.'
+    ]
+  },
+  {
+    id: 'back_lever', name: 'Back Lever', cat: 'skill', equip: ['bar', 'rings'], prio: 3, rest: 120,
+    levels: [
+      { stage: 'German Hang', saetze: 3, sek: [10, 20] },
+      { stage: 'Tuck Back Lever', saetze: 4, sek: [8, 15] },
+      { stage: 'Advanced Tuck Back Lever', saetze: 4, sek: [8, 12] },
+      { stage: 'Straddle oder One-Leg Back Lever', saetze: 4, sek: [6, 10] }
+    ],
+    tips: [
+      'Erst wenn Skin the Cat langsam und schmerzfrei geht – die Schulter steht hier in voller Streckung.',
+      'Arme bleiben gestreckt, der Zug geht über die Bizepssehne. Neue Stufen langsam angehen.',
+      'Becken nach hinten kippen (Po anspannen), sonst hängt die Hüfte durch.'
+    ]
+  },
+  {
+    id: 'elbow_lever', name: 'Elbow Lever', cat: 'skill', equip: ['none'], prio: 3, rest: 90,
+    levels: [
+      { stage: 'Mit beiden Füßen am Boden', saetze: 3, sek: [10, 20] },
+      { stage: 'Ein Fuß am Boden', saetze: 3, sek: [8, 15] },
+      { stage: 'Frei', saetze: 4, sek: [5, 15] }
+    ],
+    tips: [
+      'Ellbogen eng in die Hüfte, Finger zeigen nach hinten oder zur Seite.',
+      'Das Gewicht nach vorn verlagern, bis die Füße von selbst leicht werden.',
+      'Der erste Balance-Skill ohne Gerät – gut für Handgelenke, die sich an Last gewöhnen.'
+    ]
+  },
 
   /* ================= MOBILITY ================= */
   {
@@ -775,7 +831,9 @@ export const MILESTONES = [
   { id: 'hs30', name: 'Freier Handstand, 30 Sekunden', when: { ex: 'handstand', lvl: 4, sek: 30 } },
   { id: 'lean20', name: '20 Sek Planche Lean mit deutlicher Vorlage', when: { ex: 'planche_lean', lvl: 2, sek: 20 } },
   { id: 'tuckplanche', name: 'Tuck Planche, 10 Sekunden', when: { ex: 'planche', lvl: 1, sek: 10 } },
-  { id: 'lsit_hs1', name: 'L-Sit zum Handstand – erste Wiederholung', when: { ex: 'lsit_hs', lvl: 4, reps: 1 } }
+  { id: 'lsit_hs1', name: 'L-Sit zum Handstand – erste Wiederholung', when: { ex: 'lsit_hs', lvl: 4, reps: 1 } },
+  { id: 'muscleup1', name: 'Erster Muscle-up', when: { ex: 'muscle_up', lvl: 3, reps: 1 } },
+  { id: 'backlever_tuck', name: 'Tuck Back Lever, 10 Sekunden', when: { ex: 'back_lever', lvl: 1, sek: 10 } }
 ];
 
 /* Warm-up-Bausteine (fest, vor jeder Einheit) */
