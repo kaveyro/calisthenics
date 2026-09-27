@@ -881,6 +881,19 @@ describe('Plangenerator', () => {
     expect(document.querySelectorAll('#pb-vorschau .pb-day')).toHaveLength(5);
   });
 
+  it('bietet nur machbare Ziel-Skills an und stellt den gewaehlten vorn', async () => {
+    await dialogOeffnen([]);
+    const ziel = document.getElementById('pb-ziel');
+    const werte = [...ziel.options].map(o => o.value);
+    expect(werte[0]).toBe('keiner');
+    expect(werte).toContain('handstand');
+    /* Ohne Stange gibt es keinen Front Lever. */
+    expect(werte).not.toContain('front_lever');
+    ziel.value = 'handstand';
+    ziel.dispatchEvent(new Event('change'));
+    expect(document.querySelector('#pb-vorschau .pb-day span').textContent).toContain('Wand-Handstand');
+  });
+
   it('fragt nach der Zeit pro Einheit und zeigt die geschaetzte Dauer', async () => {
     await dialogOeffnen(['bar', 'rings', 'chair', 'parallettes', 'band']);
     const minuten = document.getElementById('pb-minuten');

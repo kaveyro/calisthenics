@@ -76,6 +76,26 @@ export function dauerSek(ex, setsMode = 'standard'){
    haette bei 30 Minuten die Beine aus dem Ganzkoerpertag geworfen. */
 const PFLICHT_PLAETZE = 3;
 
+/* Ziel-Skills und an welchen Tagen sie vorn stehen. Handstand, Planche,
+   L-Sit und Elbow Lever tragen die Druckmuskulatur, Front Lever, Back Lever
+   und Muscle-up die Zugmuskulatur. Beintage bekommen keinen Skill.
+
+   Bis hierher gab es nur einen Schwerpunkt "Skills", der reihum irgendeinen
+   Skill vor jeden Tag stellte – an einem Tag Handstand, am naechsten Front
+   Lever. Wer auf einen Skill hinarbeitet, braucht ihn aber regelmaessig. */
+export const ZIELE = {
+  handstand: 'druck', planche: 'druck', lsit: 'druck', elbow_lever: 'druck',
+  front_lever: 'zug', back_lever: 'zug', muscle_up: 'zug'
+};
+const ZUG_MUSTER = new Set(['v_ziehen', 'h_ziehen']);
+
+/* Welche Ziele mit dieser Ausruestung ueberhaupt gehen – fuer die Auswahl
+   im Dialog. */
+export function moeglicheZiele(exercises, equipment){
+  const alle = Array.isArray(exercises) ? exercises : [];
+  return Object.keys(ZIELE).filter(z => alle.some(e => e.muster === z && exMoeglich(e, equipment)));
+}
+
 const TITEL_VORGABE = {
   gk: 'Ganzkörper', ok: 'Oberkörper', uk: 'Unterkörper & Rumpf',
   push: 'Drücken', pull: 'Ziehen', legs: 'Beine & Rumpf'
@@ -175,13 +195,13 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, fokus, minuten, setsMode, texte } = {}){
+export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, texte } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
   const roh = Number(tage);
   const t = Math.min(6, Math.max(2, Number.isFinite(roh) ? Math.round(roh) : 3));
-  const schwerpunkt = ['kraft', 'skill', 'ausgewogen'].includes(fokus) ? fokus : 'ausgewogen';
+  const zielArt = ZIELE[ziel] || null;
   const texts = texte || {};
   const titel = { ...TITEL_VORGABE, ...(texts.tage || {}) };
   /* Ohne Angabe gilt kein Budget – dann entscheiden Plaetze und Grenzen. */
@@ -191,7 +211,9 @@ export function buildPlan({ exercises, equipment, tage, fokus, minuten, setsMode
   const machbare = alle.filter(e => exMoeglich(e, equipment)).sort(rang(equipment, index));
   if(!machbare.length) return { name: texts.name || '', desc: texts.desc || '', days: [] };
 
-  const skills = machbare.filter(e => e.cat === 'skill');
+  /* Die Uebung zum Ziel: die beste machbare seiner Linie, etwa der
+     Wand-Handstand vor dem freien. */
+  const zielUebung = zielArt ? machbare.find(e => e.muster === ziel) || null : null;
   /* Wie oft ein Muster in dieser Woche schon vergeben wurde – daran wechselt
      die Uebung. */
   const nutzung = new Map();
@@ -213,11 +235,14 @@ export function buildPlan({ exercises, equipment, tage, fokus, minuten, setsMode
       return true;
     };
 
-    const beinTag = tag.titel === 'uk' || tag.titel === 'legs';
-    const skill = schwerpunkt === 'skill' && !beinTag && skills.length ? skills[di % skills.length] : null;
+    const passt = zielArt === 'druck' ? tag.plaetze.some(m => DRUECK_MUSTER.has(m))
+      : zielArt === 'zug' ? tag.plaetze.some(m => ZUG_MUSTER.has(m)) : false;
+    const skill = zielUebung && passt ? zielUebung : null;
     const handgelenke = machbare.find(e => e.id === HANDGELENKE);
     if((skill || tag.plaetze.some(m => DRUECK_MUSTER.has(m))) && handgelenke) nimm(handgelenke);
-    /* Ein Skill vorn: im frischen Zustand geuebt wird er besser als am Ende. */
+    /* Der Skill vorn: im frischen Zustand geuebt wird er besser als am Ende.
+       Er zaehlt zur Zeit, faellt aber dem Budget nicht zum Opfer – er ist das
+       erklaerte Ziel. */
     if(skill) nimm(skill);
 
     tag.plaetze.forEach(muster => {

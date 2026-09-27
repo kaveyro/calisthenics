@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -3046,11 +3046,11 @@ function dragDrop(di, ei){
 
 /* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
    Bezeichnungen hinein. Das Modul selbst bleibt damit ohne Sprachwissen. */
-function planAusAusruestung(tage, fokus, minuten){
+function planAusAusruestung(tage, ziel, minuten){
   return buildPlan({
     exercises: EXERCISES,
     equipment: state.equipment,
-    tage, fokus, minuten,
+    tage, ziel, minuten,
     setsMode: cfg('setsMode'),
     texte: {
       name: __('customPlan'),
@@ -3460,8 +3460,8 @@ function askChoice(titel, optionen){
    gesehen werden. Geruest, Fokusfalle und Promise kommen unveraendert aus
    askDialog(). */
 function askPlanBuilder(){
-  const FOKUS = ['kraft', 'ausgewogen', 'skill'];
-  const FOKUS_KEYS = { kraft: 'focusStrength', ausgewogen: 'focusBalanced', skill: 'focusSkills' };
+  /* Nur Ziele, die mit der eigenen Ausruestung gehen. */
+  const ZIELE_HIER = ['keiner', ...moeglicheZiele(EXERCISES, state.equipment)];
   return askDialog((modal, finish) => {
     const titel = __('buildPlan');
     modal.setAttribute('aria-label', titel);
@@ -3471,9 +3471,10 @@ function askPlanBuilder(){
         '<select id="pb-tage">' + [2, 3, 4, 5, 6].map(n =>
           '<option value="' + n + '"' + (n === cfg('weekGoal') ? ' selected' : '') + '>' + n + '×</option>').join('') +
         '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-fokus">' + esc(__('focus')) + '</label></span>' +
-        '<select id="pb-fokus">' + FOKUS.map(f =>
-          '<option value="' + f + '"' + (f === 'ausgewogen' ? ' selected' : '') + '>' + esc(__(FOKUS_KEYS[f])) + '</option>').join('') +
+      '<div class="set-row"><span><label class="lbl2" for="pb-ziel">' + esc(__('skillGoal')) + '</label>' +
+        '<span class="hint" id="hint-pb-ziel">' + esc(__('skillGoalHint')) + '</span></span>' +
+        '<select id="pb-ziel" aria-describedby="hint-pb-ziel">' + ZIELE_HIER.map(z =>
+          '<option value="' + z + '">' + esc(__('goal_' + z)) + '</option>').join('') +
         '</select></div>' +
       '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label></span>' +
         '<select id="pb-minuten">' + [30, 45, 60].map(m =>
@@ -3482,7 +3483,7 @@ function askPlanBuilder(){
       '<div id="pb-vorschau" class="pb-preview"></div>' +
       dialogFuss(__('apply'));
 
-    const tage = modal.querySelector('#pb-tage'), fokus = modal.querySelector('#pb-fokus');
+    const tage = modal.querySelector('#pb-tage'), ziel = modal.querySelector('#pb-ziel');
     const minuten = modal.querySelector('#pb-minuten');
     const vorschau = modal.querySelector('#pb-vorschau');
     /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
@@ -3491,14 +3492,14 @@ function askPlanBuilder(){
        bekommen, was er gesehen hat. */
     let plan = null;
     const zeichnen = () => {
-      plan = planAusAusruestung(zahl(tage.value), fokus.value, zahl(minuten.value));
+      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value));
       vorschau.innerHTML = plan.days.map(d =>
         '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) +
         ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
         esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') ||
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
-    tage.onchange = zeichnen; fokus.onchange = zeichnen; minuten.onchange = zeichnen;
+    tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
     zeichnen();
 
     modal.querySelector('[data-dlg=ok]').onclick = () => finish(plan);

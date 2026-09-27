@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele } from '../js/domain/planbuilder.js';
 import { istSkill } from '../js/domain/skills.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
@@ -19,7 +19,7 @@ const TEXTE = {
   kat: { push: 'Drücken', pull: 'Ziehen', legs: 'Beine', core: 'Rumpf', skill: 'Skills', mobility: 'Mobility' }
 };
 const bauen = (opts = {}) => buildPlan({
-  exercises: EXERCISES, equipment: EQUIP_ALL, tage: 3, fokus: 'ausgewogen', texte: TEXTE, ...opts
+  exercises: EXERCISES, equipment: EQUIP_ALL, tage: 3, texte: TEXTE, ...opts
 });
 
 describe('Grundzusagen', () => {
@@ -27,9 +27,9 @@ describe('Grundzusagen', () => {
      statt an einem Beispiel behauptet. */
   const faelle = [];
   for(const tage of [2, 3, 4, 5, 6]){
-    for(const fokus of ['kraft', 'ausgewogen', 'skill']){
+    for(const ziel of ['keiner', 'handstand', 'front_lever', 'muscle_up']){
       for(const equipment of [[], ['chair'], ['bar'], ['rings'], ['bar', 'band'], EQUIP_ALL]){
-        faelle.push({ tage, fokus, equipment });
+        faelle.push({ tage, ziel, equipment });
       }
     }
   }
@@ -98,33 +98,45 @@ describe('Tageszahl', () => {
   });
 });
 
-describe('Schwerpunkt', () => {
+describe('Ziel-Skill', () => {
   const ids = p => p.days.flatMap(d => d.ex);
+  const ersteNachAufwaermen = d => d.ex[0] === 'wrist_prep' ? d.ex[1] : d.ex[0];
 
-  it('laesst bei Kraft die Skills weg', () => {
-    const p = bauen({ tage: 4, fokus: 'kraft' });
-    const skills = ids(p).filter(id => EX_BY_ID[id].cat === 'skill');
-    expect(skills).toEqual([]);
+  it('laesst ohne Ziel die Skills weg', () => {
+    for(const tage of [2, 4, 6]){
+      expect(ids(bauen({ tage, ziel: 'keiner' })).filter(id => istSkill(EX_BY_ID[id]))).toEqual([]);
+    }
   });
 
-  it('stellt bei Skills eine Skill-Uebung an den Anfang jedes Tages ausser dem Beintag', () => {
-    const p = bauen({ tage: 4, fokus: 'skill' });
+  it('stellt den Handstand vorn in jeden Tag mit Druecken', () => {
+    const p = bauen({ tage: 4, ziel: 'handstand' });
     p.days.forEach(d => {
-      /* Die Handgelenks-Routine ist Pflicht und steht davor – sie zaehlt nicht. */
-      const erste = d.ex[0] === 'wrist_prep' ? d.ex[1] : d.ex[0];
-      const beinTag = d.title.startsWith('Unterkörper');
-      expect(EX_BY_ID[erste].cat === 'skill', 'Tag ' + d.key + ': ' + d.ex.join(',')).toBe(!beinTag);
+      const mitDruecken = d.ex.some(id => ['h_druecken', 'dip', 'v_druecken'].includes(EX_BY_ID[id].muster));
+      expect(EX_BY_ID[ersteNachAufwaermen(d)].muster === 'handstand', d.key + ' ' + d.ex.join(',')).toBe(mitDruecken);
     });
   });
 
-  it('verteilt die Skills ueber die Tage, statt ueberall dieselbe zu nennen', () => {
-    const p = bauen({ tage: 4, fokus: 'skill' });
-    const erste = p.days.map(d => d.ex[0] === 'wrist_prep' ? d.ex[1] : d.ex[0]);
-    expect(new Set(erste).size).toBeGreaterThan(1);
+  it('stellt den Front Lever nur an Tage mit Ziehen', () => {
+    const p = bauen({ tage: 6, ziel: 'front_lever' });
+    p.days.forEach(d => {
+      expect(d.ex.includes('front_lever'), d.title).toBe(d.title === 'Ziehen');
+    });
   });
 
-  it('faellt bei unbekanntem Schwerpunkt auf ausgewogen zurueck', () => {
-    expect(bauen({ fokus: 'quatsch' })).toEqual(bauen({ fokus: 'ausgewogen' }));
+  it('beginnt die Linie bei der leichtesten machbaren Uebung', () => {
+    /* Der Wand-Handstand vor dem freien. */
+    expect(bauen({ tage: 3, ziel: 'handstand' }).days[0].ex).toContain('wall_hs');
+  });
+
+  it('bietet nur Ziele an, die mit der Ausruestung gehen', () => {
+    expect(moeglicheZiele(EXERCISES, [])).not.toContain('front_lever');
+    expect(moeglicheZiele(EXERCISES, [])).toContain('handstand');
+    expect(moeglicheZiele(EXERCISES, EQUIP_ALL)).toEqual(expect.arrayContaining(['front_lever', 'muscle_up', 'lsit']));
+  });
+
+  it('behandelt ein unbekanntes oder unmoegliches Ziel wie keines', () => {
+    expect(bauen({ ziel: 'quatsch' })).toEqual(bauen({ ziel: 'keiner' }));
+    expect(bauen({ ziel: 'front_lever', equipment: [] })).toEqual(bauen({ ziel: 'keiner', equipment: [] }));
   });
 });
 
@@ -221,21 +233,23 @@ describe('Ausruestung', () => {
   });
 
   it('stellt die Handgelenks-Routine an den Anfang der Druecktage', () => {
-    bauen({ tage: 4 }).days.forEach(d => {
-      const istPush = d.title.includes('Drücken') || d.title.includes('Skills');
-      if(istPush) expect(d.ex[0]).toBe('wrist_prep');
-    });
+    for(const tage of [3, 4, 6]){
+      bauen({ tage }).days.forEach(d => {
+        const mitDruecken = d.ex.some(id => ['h_druecken', 'dip', 'v_druecken'].includes(EX_BY_ID[id].muster));
+        expect(d.ex[0] === 'wrist_prep', tage + ' ' + d.key).toBe(mitDruecken);
+      });
+    }
   });
 });
 
 describe('Vertraeglichkeit', () => {
   it('ist deterministisch', () => {
-    expect(bauen({ tage: 5, fokus: 'skill' })).toEqual(bauen({ tage: 5, fokus: 'skill' }));
+    expect(bauen({ tage: 5, ziel: 'handstand' })).toEqual(bauen({ tage: 5, ziel: 'handstand' }));
   });
 
   it('veraendert die Uebungsliste nicht', () => {
     const kopie = JSON.parse(JSON.stringify(EXERCISES));
-    bauen({ tage: 6, fokus: 'skill' });
+    bauen({ tage: 6, ziel: 'planche' });
     expect(EXERCISES).toEqual(kopie);
   });
 
@@ -263,11 +277,11 @@ describe('Saetze je Kategorie und Tag', () => {
 
   it('haelt die Grenze in jedem generierten Plan', () => {
     for(const tage of [2, 3, 4, 5, 6]){
-      for(const fokus of ['kraft', 'ausgewogen', 'skill']){
+      for(const ziel of ['keiner', 'handstand', 'front_lever']){
         for(const equipment of [[], ['chair'], ['bar'], ['rings'], ['bar', 'band'], EQUIP_ALL]){
-          bauen({ tage, fokus, equipment }).days.forEach(d => {
+          bauen({ tage, ziel, equipment }).days.forEach(d => {
             Object.entries(zaehle(d.ex)).forEach(([kat, n]) => {
-              expect(n, JSON.stringify({ tage, fokus, equipment, tag: d.key, kat })).toBeLessThanOrEqual(KRAFTSAETZE_JE_KATEGORIE);
+              expect(n, JSON.stringify({ tage, ziel, equipment, tag: d.key, kat })).toBeLessThanOrEqual(KRAFTSAETZE_JE_KATEGORIE);
             });
           });
         }
