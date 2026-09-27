@@ -3196,3 +3196,36 @@ describe('Vorlage fuer die eigene Ausruestung', () => {
     expect(karten).toContain('dips');
   });
 });
+
+describe('Wochenbilanz im Plan-Tab', () => {
+  const zeilen = () => [...document.querySelectorAll('#planBilanz .bil-row')];
+  const warnungen = () => [...document.querySelectorAll('#planBilanz .bil-warn li')].map(li => li.textContent);
+
+  it('zeigt Saetze und Tage je Muskelgruppe und warnt bei Luecken', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 16, onboarded: true, planId: 'custom',
+      customPlan: { name: 'Nur Druecken', desc: '', days: [
+        { key: 'A', title: 'A', sub: '', ex: ['pushup', 'dips'] },
+        { key: 'B', title: 'B', sub: '', ex: ['pushup', 'squat'] }] }
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    expect(zeilen().length).toBe(4);
+    expect(zeilen()[0].textContent).toMatch(/Drücken.*Sätze · 4×/);
+    expect(warnungen().join(' ')).toMatch(/Ziehen fehlt ganz/);
+    expect(warnungen().join(' ')).toMatch(/Hüftbeuge/);
+    expect(zeilen()[1].classList.contains('warn')).toBe(true);
+  });
+
+  it('richtet sich nach dem Wochenrhythmus, sobald es einen gibt', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    expect(document.querySelector('#planBilanz .bil-kopf').textContent).toMatch(/4× Training.*Wochenziel/);
+    await app.actions['weekplan:set']({ wd: '1' }, null, { value: 'A' });
+    await ruhe();
+    expect(document.querySelector('#planBilanz .bil-kopf').textContent).toMatch(/1× Training.*Wochenrhythmus/);
+  });
+});

@@ -24,6 +24,7 @@ import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
+import { wochenTage, wochenbilanz } from './domain/bilanz.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -2930,6 +2931,7 @@ function setWeekPlan(wd, key){
   if(key && getDay(key)) plan[wd] = key; else delete plan[wd];
   state.wochenplan = plan;
   save();
+  renderBilanz();
   /* Der Rhythmus entscheidet ueber den Vorschlag und die Zeile darueber –
      beides liegt im Trainings-Tab und wird sonst erst zufaellig neu gebaut. */
   renderDaySelect(); renderHistory();
@@ -2999,6 +3001,37 @@ function renderPlanTab(){
     '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
 
   renderWeekPlan();
+  renderBilanz();
+}
+
+/* Wochenbilanz unter dem Plan-Editor. Die Woche kommt aus dem festen
+   Rhythmus, sonst aus dem Wochenziel: bei A/B und vier Einheiten also
+   A, B, A, B. */
+const BILANZ_KAT = { druecken: 'push', ziehen: 'pull', beine: 'legs', rumpf: 'core' };
+function renderBilanz(){
+  const el = document.getElementById('planBilanz');
+  if(!el) return;
+  const woche = wochenTage(getDays(), state.wochenplan, cfg('weekGoal'));
+  if(!woche.length){ el.innerHTML = ''; el.hidden = true; return; }
+  el.hidden = false;
+  const b = wochenbilanz(woche, EX_BY_ID, state.levels, cfg('setsMode'));
+  const name = g => catName(BILANZ_KAT[g], CATS[BILANZ_KAT[g]].name);
+  const auffaellig = new Set(b.warnungen.map(w => w.gruppe).filter(Boolean));
+  const text = w => {
+    if(w.art === 'huefte') return __('bilanzHuefte');
+    if(w.art === 'zugWenig') return __('bilanzZugWenig', { d: b.gruppen.druecken.saetze, z: b.gruppen.ziehen.saetze });
+    return __('bilanz_' + w.art, { g: name(w.gruppe), n: b.gruppen[w.gruppe].saetze });
+  };
+  el.innerHTML =
+    '<p class="bil-kopf">' + esc(__(rhythmusAktiv() ? 'bilanzRhythmus' : 'bilanzZiel', { n: b.einheiten })) + '</p>' +
+    Object.entries(b.gruppen).map(([g, w]) =>
+      '<div class="bil-row' + (auffaellig.has(g) ? ' warn' : '') + '">' +
+        '<span class="bil-name"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' + esc(name(g)) + '</span>' +
+        '<span class="bil-wert">' + esc(w.saetze === 1 ? __('setsCountOne') : __('setsCountMany', { n: w.saetze })) +
+          ' · ' + esc(__('dayCount', { n: w.tage })) + '</span></div>').join('') +
+    (b.warnungen.length
+      ? '<ul class="bil-warn">' + b.warnungen.map(w => '<li>' + esc(text(w)) + '</li>').join('') + '</ul>'
+      : '<p class="bil-ok">' + esc(__('bilanzOk')) + '</p>');
 }
 
 /* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
