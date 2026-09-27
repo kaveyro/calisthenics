@@ -3052,6 +3052,7 @@ function planAusAusruestung(tage, ziel, minuten){
     equipment: state.equipment,
     tage, ziel, minuten,
     setsMode: cfg('setsMode'),
+    levels: state.levels,
     texte: {
       name: __('customPlan'),
       desc: __('generatedPlanDesc'),

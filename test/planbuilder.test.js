@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit } from '../js/domain/planbuilder.js';
 import { istSkill } from '../js/domain/skills.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
@@ -421,5 +421,69 @@ describe('Zeitbudget', () => {
 
   it('gilt ohne Angabe nicht', () => {
     expect(bauen({ tage: 3 }).days.map(d => d.ex)).toEqual(bauen({ tage: 3, minuten: 'viel' }).days.map(d => d.ex));
+  });
+});
+
+/* Der eigene Stand fliesst ein: Fortgeschrittenes erst, wenn die Vorstufe
+   sitzt, und eine ausgereizte Uebung macht der naechsten Platz. */
+describe('Stand beruecksichtigen', () => {
+  const woche = opts => bauen({ tage: 4, ...opts }).days.flatMap(d => d.ex);
+
+  it('kennt fuer jede fortgeschrittene Uebung eine Vorstufe, die es gibt', () => {
+    EXERCISES.filter(e => e.prio === 3).forEach(e => expect(VORSTUFEN[e.id], e.id).toBeTruthy());
+    Object.entries({ ...VORSTUFEN, ...NUR_BIS }).forEach(([id, [vor, stufe]]) => {
+      expect(EX_BY_ID[id], id).toBeTruthy();
+      expect(EX_BY_ID[vor], vor).toBeTruthy();
+      expect(stufe, id).toBeLessThan(EX_BY_ID[vor].levels.length);
+    });
+  });
+
+  it('laesst Fortgeschrittenes weg, solange die Vorstufe nicht sitzt', () => {
+    const plan = woche({});
+    expect(plan.filter(id => EX_BY_ID[id].prio === 3)).toEqual([]);
+  });
+
+  it('nimmt eine begonnene Uebung, auch ohne Vorstufe', () => {
+    expect(bereit(EX_BY_ID.archer_push, { archer_push: 1 })).toBe(true);
+    expect(bereit(EX_BY_ID.archer_push, {})).toBe(false);
+    expect(bereit(EX_BY_ID.archer_push, { pushup: 4 })).toBe(true);
+  });
+
+  it('stellt die naechste Stufe vor, wenn eine Uebung ausgereizt ist', () => {
+    /* Liegestuetze auf der hoechsten Stufe: die Archer-Liegestuetze werden
+       die erste Drueckuebung, nicht die leichteren Diamant-Liegestuetze. */
+    const okA = bauen({ tage: 4, levels: { pushup: 6 } }).days[0].ex;
+    const druecken = okA.filter(id => EX_BY_ID[id].muster === 'h_druecken');
+    expect(druecken[0]).toBe('archer_push');
+    /* Kniebeugen ausgereizt: Pistol oder Shrimp Squat zuerst. */
+    const ukA = bauen({ tage: 4, levels: { squat: 4 } }).days[1].ex;
+    expect(['pistol', 'shrimp_squat']).toContain(ukA.find(id => EX_BY_ID[id].muster === 'kniebeuge'));
+  });
+
+  it('laesst die Hilfsuebung weg, sobald man sie nicht mehr braucht', () => {
+    expect(woche({ levels: { pullup: 3 } })).not.toContain('band_pullup');
+    expect(bereit(EX_BY_ID.band_pullup, { pullup: 2 })).toBe(true);
+  });
+
+  it('geht beim Ziel-Skill zur naechsten Uebung der Linie, wenn die Vorstufe sitzt', () => {
+    expect(bauen({ tage: 3, ziel: 'handstand' }).days[0].ex).toContain('wall_hs');
+    expect(bauen({ tage: 3, ziel: 'handstand', levels: { wall_hs: 3 } }).days[0].ex).toContain('handstand');
+  });
+
+  it('nimmt die weiteste freigeschaltete Uebung der Linie', () => {
+    /* Planche Lean und Planche sind beide freigeschaltet: die Planche. */
+    const tag = bauen({ tage: 3, ziel: 'planche', equipment: ['parallettes'], levels: { pushup: 4, planche_lean: 2 } }).days[0].ex;
+    expect(tag).toContain('planche');
+    expect(tag).not.toContain('planche_lean');
+  });
+
+  it('nimmt das Ziel auch, wenn man fuer keine Uebung der Linie bereit ist', () => {
+    /* Der Muscle-up ist ausdruecklich gewaehlt – er steht dann eben ganz vorn
+       in der Leiter, mit den explosiven Klimmzuegen. */
+    expect(bauen({ tage: 3, ziel: 'muscle_up' }).days[0].ex).toContain('muscle_up');
+  });
+
+  it('aendert fuer Einsteiger nichts', () => {
+    expect(bauen({ tage: 4, levels: {} })).toEqual(bauen({ tage: 4 }));
   });
 });

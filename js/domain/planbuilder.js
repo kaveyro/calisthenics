@@ -76,6 +76,38 @@ export function dauerSek(ex, setsMode = 'standard'){
    haette bei 30 Minuten die Beine aus dem Ganzkoerpertag geworfen. */
 const PFLICHT_PLAETZE = 3;
 
+/* Vorstufen fortgeschrittener Uebungen (prio 3): [Uebung, Mindeststufe],
+   Stufen ab 0 gezaehlt. Der Generator nimmt eine solche Uebung erst, wenn
+   die Vorstufe sitzt oder man sie selbst schon begonnen hat. Ohne das stand
+   nach dem zweiten Wechsel im Muster der einarmige Liegestuetz im Plan
+   eines Einsteigers. Die Indizes zeigen auf die Leitern in exercises.js;
+   test/planbuilder.test.js prueft, dass es sie gibt und dass jede Uebung
+   mit prio 3 hier steht. */
+export const VORSTUFEN = {
+  archer_push: ['pushup', 4],        /* volle Liegestuetze, 10–15 */
+  one_arm_push: ['archer_push', 2],
+  planche_lean: ['pushup', 3],       /* volle Liegestuetze */
+  elbow_lever: ['pushup', 3],
+  front_lever: ['pullup', 3],        /* Klimmzuege */
+  back_lever: ['pullup', 2],         /* erster Klimmzug */
+  muscle_up: ['pullup', 4],
+  pistol: ['squat', 3],              /* Bulgarian Split Squat */
+  shrimp_squat: ['squat', 3],
+  dragon_flag: ['hollow', 2],
+  handstand: ['wall_hs', 3],         /* Brust zur Wand, lang */
+  planche: ['planche_lean', 2],
+  hspu: ['pike', 3],                 /* Pike Push-ups */
+  lsit_hs: ['lsit', 3]
+};
+
+/* Hilfsuebungen, die nur bis zu einer Stufe sinnvoll sind: [Uebung, Stufe].
+   Wer echte Klimmzuege schafft, braucht das Band nicht mehr. Ohne diese
+   Grenze bekam ein Fortgeschrittener mit ausgereizten Klimmzuegen die
+   Klimmzuege mit Band – die leichtere Variante statt der naechsten Stufe. */
+export const NUR_BIS = {
+  band_pullup: ['pullup', 3]
+};
+
 /* Ziel-Skills und an welchen Tagen sie vorn stehen. Handstand, Planche,
    L-Sit und Elbow Lever tragen die Druckmuskulatur, Front Lever, Back Lever
    und Muscle-up die Zugmuskulatur. Beintage bekommen keinen Skill.
@@ -143,13 +175,37 @@ export const MUSTER_NAMEN = [
   'handstand', 'planche', 'front_lever', 'back_lever', 'muscle_up', 'lsit', 'elbow_lever'
 ];
 
-/* Rangfolge unter mehreren machbaren Uebungen: Grunduebung vor Ergaenzung,
-   dann was sich von der ersten Stufe an machen laesst, dann die Reihenfolge
-   im Katalog. */
-function rang(equipment, index){
-  return (a, b) => (prioOf(a) - prioOf(b)) ||
+/* Rangfolge unter mehreren machbaren Uebungen:
+   1. die naechste Stufe zuerst – eine fortgeschrittene Uebung, deren
+      Vorstufe auf ihrer hoechsten Stufe steht (Archer-Liegestuetze, wenn
+      die Liegestuetze ausgereizt sind),
+   2. was nicht schon selbst auf der hoechsten Stufe steht,
+   3. Grunduebung vor Ergaenzung,
+   4. was sich von der ersten Stufe an machen laesst,
+   5. die Reihenfolge im Katalog.
+   "Ausgereizt nach hinten" allein fuehrte zur naechstLEICHTEREN Uebung
+   statt zur naechsten Stufe. Ohne Stufen (Vorlagen) fallen 1 und 2 weg. */
+function rang(equipment, index, levels = {}, byId = new Map()){
+  const oben = e => Number((levels[e.id] || 0) >= e.levels.length - 1);
+  const nachfolger = e => {
+    const vor = VORSTUFEN[e.id];
+    const v = vor && byId.get(vor[0]);
+    return Number(!(v && (levels[v.id] || 0) >= v.levels.length - 1));
+  };
+  return (a, b) => (nachfolger(a) - nachfolger(b)) || (oben(a) - oben(b)) || (prioOf(a) - prioOf(b)) ||
     (Number(!levelMoeglich(a, 0, equipment)) - Number(!levelMoeglich(b, 0, equipment))) ||
     (index.get(a.id) - index.get(b.id));
+}
+
+/* Darf diese Uebung in den Plan? Ja, wenn sie keine Vorstufe hat, wenn man
+   sie schon begonnen hat oder wenn die Vorstufe sitzt. */
+export function bereit(ex, levels = {}){
+  const bis = NUR_BIS[ex.id];
+  if(bis && (levels[bis[0]] || 0) >= bis[1]) return false;
+  const vor = VORSTUFEN[ex.id];
+  if(!vor) return true;
+  if((levels[ex.id] || 0) > 0) return true;
+  return (levels[vor[0]] || 0) >= vor[1];
 }
 
 /* Ersatz fuer eine Uebung, die mit dieser Ausruestung nicht geht: zuerst
@@ -195,7 +251,7 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, texte } = {}){
+export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
@@ -207,13 +263,24 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
   /* Ohne Angabe gilt kein Budget – dann entscheiden Plaetze und Grenzen. */
   const budget = MINUTEN.includes(Number(minuten)) ? Number(minuten) * 60 : Infinity;
 
+  const stand = levels && typeof levels === 'object' ? levels : {};
   const index = new Map(alle.map((e, i) => [e.id, i]));
-  const machbare = alle.filter(e => exMoeglich(e, equipment)).sort(rang(equipment, index));
+  const byId = new Map(alle.map(e => [e.id, e]));
+  const machbare = alle.filter(e => exMoeglich(e, equipment)).sort(rang(equipment, index, stand, byId));
   if(!machbare.length) return { name: texts.name || '', desc: texts.desc || '', days: [] };
 
-  /* Die Uebung zum Ziel: die beste machbare seiner Linie, etwa der
-     Wand-Handstand vor dem freien. */
-  const zielUebung = zielArt ? machbare.find(e => e.muster === ziel) || null : null;
+  /* Die Uebung zum Ziel: die am weitesten fortgeschrittene seiner Linie,
+     fuer die man bereit ist – der Wand-Handstand, bis er sitzt, danach der
+     freie. Man arbeitet auf das Ziel hin, also gewinnt die freigeschaltete
+     Uebung vor der Vorstufe. Ist man fuer keine bereit, die leichteste: das
+     Ziel ist ausdruecklich gewaehlt. */
+  const linie = zielArt ? machbare.filter(e => e.muster === ziel) : [];
+  /* Unter den freigeschalteten zuerst die, deren Vorstufe selbst in der
+     Linie liegt: die Planche kommt nach dem Planche Lean, nicht davor. */
+  const inLinie = e => Number(linie.some(x => x.id === VORSTUFEN[e.id][0]));
+  const freigeschaltet = linie.filter(e => VORSTUFEN[e.id] && bereit(e, stand))
+    .sort((a, b) => inLinie(b) - inLinie(a));
+  const zielUebung = freigeschaltet[0] || linie.find(e => bereit(e, stand)) || linie[0] || null;
   /* Wie oft ein Muster in dieser Woche schon vergeben wurde – daran wechselt
      die Uebung. */
   const nutzung = new Map();
@@ -248,12 +315,11 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
     tag.plaetze.forEach(muster => {
       const kandidaten = machbare.filter(e => e.muster === muster && !ids.includes(e.id));
       if(!kandidaten.length) return;
-      /* Gewechselt wird unter den Grund- und Ergaenzungsuebungen des
-         Musters; eine fortgeschrittene kommt nur, wenn es sonst nichts gibt.
-         Sonst stuende nach der zweiten Nutzung der einarmige Liegestuetz im
-         Plan eines Einsteigers. */
-      const besterRang = prioOf(kandidaten[0]);
-      const pool = kandidaten.filter(e => prioOf(e) <= Math.max(besterRang, 2));
+      /* Gewechselt wird unter den Uebungen, fuer die man bereit ist; eine
+         fortgeschrittene kommt erst, wenn ihre Vorstufe sitzt (VORSTUFEN).
+         Gibt es fuer das Muster sonst nichts, auch eine andere. */
+      const bereite = kandidaten.filter(e => bereit(e, stand));
+      const pool = bereite.length ? bereite : kandidaten;
       const n = nutzung.get(muster) || 0;
       const pflicht = plaetze < PFLICHT_PLAETZE;
       for(let k = 0; k < pool.length; k++){
