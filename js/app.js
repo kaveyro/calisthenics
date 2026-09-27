@@ -20,7 +20,7 @@ import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
 import { buildPlan, vorlageAufloesen, moeglicheZiele } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
-import { tagFuerWochentag, naechsteTermine } from './domain/plan.js';
+import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
@@ -3106,7 +3106,8 @@ function planAusAusruestung(tage, ziel, minuten){
 }
 
 async function generatePlan(){
-  const plan = await askPlanBuilder();
+  const res = await askPlanBuilder();
+  const plan = res && res.plan;
   if(!plan || !plan.days.length) return;
   /* Ein eigener Plan wird ueberschrieben – das ist Arbeit, die verloren geht,
      also nicht ohne Rueckfrage. */
@@ -3115,6 +3116,9 @@ async function generatePlan(){
     if(!ok) return;
   }
   state.customPlan = plan;
+  /* Die Tag-Keys des neuen Plans bedeuten etwas anderes als die des alten:
+     ein alter Rhythmus mit A am Montag zeigte sonst auf den neuen Tag A. */
+  if(res.wochenplan) state.wochenplan = res.wochenplan;
   save();
   renderPlanTab(); renderStats(); renderDaySelect(); renderLibrary();
   toast(__('planBuilt', { n: plan.days.length }));
@@ -3520,21 +3524,30 @@ function askPlanBuilder(){
         '<select id="pb-minuten">' + [30, 45, 60].map(m =>
           '<option value="' + m + '"' + (m === 45 ? ' selected' : '') + '>' + esc(__('minutesN', { n: m })) + '</option>').join('') +
         '</select></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-rhythmus">' + esc(__('setWeekdays')) + '</label>' +
+        '<span class="hint" id="hint-pb-rhythmus">' + esc(__(rhythmusAktiv() ? 'setWeekdaysReplace' : 'setWeekdaysHint')) + '</span></span>' +
+        '<input type="checkbox" id="pb-rhythmus" checked aria-describedby="hint-pb-rhythmus"></div>' +
       '<div id="pb-vorschau" class="pb-preview"></div>' +
       dialogFuss(__('apply'));
 
     const tage = modal.querySelector('#pb-tage'), ziel = modal.querySelector('#pb-ziel');
     const minuten = modal.querySelector('#pb-minuten');
+    const rhythmus = modal.querySelector('#pb-rhythmus');
     const vorschau = modal.querySelector('#pb-vorschau');
+    const namen = wochentage();
     /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
        genau dieser genommen – nicht ein zweites Mal gebaut. Die Funktion ist
        zwar deterministisch, aber wer die Vorschau bestaetigt, soll auch das
        bekommen, was er gesehen hat. */
-    let plan = null;
+    let plan = null, wochenplan = null;
     const zeichnen = () => {
       plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value));
+      wochenplan = rhythmus.checked ? wochentageVorschlag(plan.days.map(d => d.key)) : null;
+      /* Wochentag je Plan-Tag, Montag = 0 in namen[]. */
+      const wd = {};
+      Object.entries(wochenplan || {}).forEach(([t, key]) => { wd[key] = namen[(Number(t) + 6) % 7]; });
       vorschau.innerHTML = plan.days.map(d =>
-        '<div class="pb-day"><b>' + esc(d.key) + ' · ' + esc(d.title) +
+        '<div class="pb-day"><b>' + (wd[d.key] ? esc(wd[d.key]) + ' · ' : '') + esc(d.key) + ' · ' + esc(d.title) +
         ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
         esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') +
         /* Die Woche des neuen Plans: so viele Einheiten, wie Tage gewaehlt
@@ -3543,9 +3556,10 @@ function askPlanBuilder(){
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
     tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
+    rhythmus.onchange = zeichnen;
     zeichnen();
 
-    modal.querySelector('[data-dlg=ok]').onclick = () => finish(plan);
+    modal.querySelector('[data-dlg=ok]').onclick = () => finish({ plan, wochenplan });
     modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
   });
 }

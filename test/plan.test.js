@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { tagFuerWochentag, naechsteTermine } from '../js/domain/plan.js';
+import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from '../js/domain/plan.js';
+import { AUFTEILUNG } from '../js/domain/planbuilder.js';
 
 /* 2026-08-03 ist ein Montag. 0 = Sonntag … 6 = Samstag (Date.getDay). */
 const MO_MI_FR = { 1: 'A', 3: 'B', 5: 'A' };
@@ -79,5 +80,41 @@ describe('naechsteTermine', () => {
   /* Eine Obergrenze, damit ein verbogener Wert keine Endlosschleife wird. */
   it('kappt einen absurd langen Zeitraum', () => {
     expect(naechsteTermine({ 1: 'A' }, '2026-08-03', 100000).length).toBeLessThan(100);
+  });
+});
+
+describe('wochentageVorschlag', () => {
+  it('verteilt drei Tage auf Montag, Mittwoch und Freitag', () => {
+    expect(wochentageVorschlag(['A', 'B', 'C'])).toEqual({ 1: 'A', 3: 'B', 5: 'C' });
+  });
+
+  it('laesst zwischen zwei Tagen mindestens einen Ruhetag, solange es geht', () => {
+    for(const n of [2, 3]){
+      const tage = Object.keys(wochentageVorschlag(Array.from({ length: n }, (_, i) => 'T' + i))).map(Number);
+      tage.slice(1).forEach((t, i) => expect(t - tage[i]).toBeGreaterThanOrEqual(2));
+    }
+  });
+
+  /* Die Aufteilung des Generators: derselbe Tagestyp nie an zwei
+     aufeinanderfolgenden Tagen, auch nicht ueber das Wochenende. */
+  it('legt nie zwei gleiche Tagestypen des Generators hintereinander', () => {
+    for(const [n, arten] of Object.entries(AUFTEILUNG)){
+      const keys = arten.map((_, i) => String(i));
+      const plan = wochentageVorschlag(keys);
+      expect(Object.keys(plan)).toHaveLength(Number(n));
+      /* okA und okB sind derselbe Typ, push und pull nicht. */
+      const typ = wd => { const k = plan[String(wd % 7)]; return k === undefined ? null : arten[Number(k)].replace(/[ABC]$/, ''); };
+      for(let wd = 0; wd < 7; wd++){
+        const a = typ(wd), b = typ(wd + 1);
+        if(a && b) expect(a, n + ' Tage, Wochentag ' + wd).not.toBe(b);
+      }
+    }
+  });
+
+  it('gibt ohne passende Tageszahl keinen Rhythmus', () => {
+    expect(wochentageVorschlag([])).toEqual({});
+    expect(wochentageVorschlag(['A', 'B', 'C', 'D', 'E', 'F', 'G'])).toEqual({});
+    expect(wochentageVorschlag(null)).toEqual({});
+    expect(wochentageVorschlag(['A', '', 3])).toEqual({ 1: 'A' });
   });
 });

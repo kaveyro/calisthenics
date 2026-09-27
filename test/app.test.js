@@ -899,6 +899,34 @@ describe('Plangenerator', () => {
     expect(document.querySelector('#pb-vorschau .pb-day span').textContent).toContain('Wand-Handstand');
   });
 
+  it('legt die Wochentage fest und zeigt sie in der Vorschau', async () => {
+    const { p } = await dialogOeffnen(['bar']);
+    const tage = document.getElementById('pb-tage');
+    tage.value = '3';
+    tage.dispatchEvent(new Event('change'));
+    expect(document.getElementById('pb-rhythmus').checked).toBe(true);
+    expect(document.querySelector('#pb-vorschau .pb-day b').textContent).toMatch(/^Mo\.? · A/);
+    uebernehmen();
+    await p; await ruhe();
+    expect(gespeichert().wochenplan).toEqual({ 1: 'A', 3: 'B', 5: 'C' });
+  });
+
+  it('laesst den Rhythmus ohne Haken, wie er ist', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, equipment: ['bar'], wochenplan: { 2: 'A' } }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    const p = app.actions['plan:build']();
+    await ruhe();
+    expect(document.getElementById('hint-pb-rhythmus').textContent).toMatch(/Ersetzt/);
+    const haken = document.getElementById('pb-rhythmus');
+    haken.checked = false;
+    haken.dispatchEvent(new Event('change'));
+    expect(document.querySelector('#pb-vorschau .pb-day b').textContent).toMatch(/^A · /);
+    uebernehmen();
+    await p; await ruhe();
+    expect(gespeichert().wochenplan).toEqual({ 2: 'A' });
+  });
+
   it('sagt in der Vorschau, was bei 30 Minuten fehlt', async () => {
     await dialogOeffnen(['bar']);
     const warn = () => document.querySelector('#pb-vorschau .bil-warn');
