@@ -9,6 +9,7 @@ import { esc, sanitizeDayKey } from './domain/escape.js';
 import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
 import { serializeLog, parseLog } from './domain/csv.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
+import { istSkill } from './domain/skills.js';
 import { entryHasExercise, repsOf, sekOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
 import {
@@ -3258,7 +3259,7 @@ async function toggleMilestone(id, on){
   await save(); renderStats(); renderMilestones();
 }
 function renderRoadmap(){
-  const skills = EXERCISES.filter(e => e.cat === 'skill' || ['planche_lean', 'wall_hs', 'front_lever'].includes(e.id));
+  const skills = EXERCISES.filter(istSkill);
   document.getElementById('roadmap').innerHTML = skills.map(ex => {
     const lvl = lvlOf(ex);
     const pct = Math.round(lvl / (ex.levels.length - 1) * 100);

@@ -2587,7 +2587,9 @@ describe('Sprachwechsel waehrend einer Einheit', () => {
     expect(nachher).not.toBe(vorher);
     /* Die Einheit der Halteuebung kommt seit der Umstellung auf Daten aus
        der Uebersetzung und nicht mehr aus einer Textersetzung. */
-    expect(document.querySelector('[data-exid="support"] .ex-target').textContent).toMatch(/sec$/);
+    /* Wand-Handstand statt Stuetzhalte: die steht seit der Satzgrenze nicht
+       mehr in Tag A. */
+    expect(document.querySelector('[data-exid="wall_hs"] .ex-target').textContent).toMatch(/sec$/);
   });
 
   /* Die Karten werden dafuer neu aufgebaut. Das darf nichts kosten, was
@@ -2670,8 +2672,8 @@ describe('Oberes Limit aus den Wiederholungen', () => {
 
   it('laesst Halteuebungen bei der Handeingabe', async () => {
     await einheit();
-    expect(label('support').classList.contains('abgeleitet')).toBe(false);
-    expect(label('support').querySelector('.toplimit-grund')).toBeNull();
+    expect(label('wall_hs').classList.contains('abgeleitet')).toBe(false);
+    expect(label('wall_hs').querySelector('.toplimit-grund')).toBeNull();
   });
 
   it('zaehlt beim Abschluss ohne Haekchen, wenn die Zahlen stimmen', async () => {
@@ -2914,8 +2916,14 @@ describe('Gehaltene Sekunden', () => {
      alle, und welche zuletzt schrieb, hing vom Timing ab: lokal gruen, in
      CI rot. */
   let app;
+  /* Ein eigener Plan mit der Stuetzhalte: die Zahlen hier haengen an ihrer
+     Spanne 4 x 10-20 Sek, und die Vorlagen duerfen sich aendern, ohne dass
+     diese Tests es merken. */
+  const MIT_STUETZE = { planId: 'custom', customPlan: { name: 'Test', days: [
+    { key: 'A', title: 'A', sub: '', ex: ['support', 'pushup'] }
+  ]}};
   async function einheit(stand = {}){
-    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...stand }));
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...MIT_STUETZE, ...stand }));
     app = await starten();
     app.actions['day:select']({ key: 'A' });
     await ruhe();

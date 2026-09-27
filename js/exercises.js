@@ -226,7 +226,7 @@ export const EXERCISES = [
     ]
   },
   {
-    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 60,
+    id: 'scap', name: 'Scapula Pull-ups', cat: 'pull', equip: ['bar', 'rings'], prio: 2, rest: 60,
     levels: [
       { stage: 'Scapula Pull-ups', saetze: 3, wdh: [5, 8] },
       { stage: 'Scapula Pull-ups', saetze: 3, wdh: [8, 12] },
@@ -236,6 +236,22 @@ export const EXERCISES = [
       'Arme bleiben komplett gestreckt – nur die Schulterblätter ziehen dich hoch.',
       'Stell dir vor, du schiebst die Stange nach unten.',
       'Der Schlüsselbaustein für den ersten Klimmzug.'
+    ]
+  },
+  {
+    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 150,
+    levels: [
+      { stage: 'Negativ, 3 Sek ablassen', saetze: 4, wdh: [3, 5] },
+      { stage: 'Negativ, 5–8 Sek ablassen', saetze: 4, wdh: [3, 5] },
+      { stage: 'Erster Klimmzug + Negativs', saetze: 5, wdh: [1, 1] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [1, 3] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [3, 5] },
+      { stage: 'Klimmzüge', saetze: 4, wdh: [6, 10] }
+    ],
+    tips: [
+      'Mit Sprung oder Stuhl nach oben, Kinn über die Stange, dann langsam ablassen.',
+      'Die letzten Zentimeter nicht fallen lassen – dort passiert der Kraftaufbau.',
+      '2–3 Minuten Pause zwischen den Sätzen, das ist schwere Kraftarbeit.'
     ]
   },
   {
@@ -279,22 +295,6 @@ export const EXERCISES = [
       'Band über die Stange schlingen und Knie oder Fuß hineinstellen. Unten hilft es am meisten, oben kaum.',
       'Der zweite Weg zum ersten Klimmzug neben den Negativen – hier bleibt die volle Bewegung erhalten.',
       'Sobald ein dünnes Band 6 saubere Wiederholungen trägt: den ersten freien Klimmzug versuchen.'
-    ]
-  },
-  {
-    id: 'pullup', name: 'Klimmzug-Progression', cat: 'pull', equip: ['bar', 'rings'], prio: 1, rest: 150,
-    levels: [
-      { stage: 'Negativ, 3 Sek ablassen', saetze: 4, wdh: [3, 5] },
-      { stage: 'Negativ, 5–8 Sek ablassen', saetze: 4, wdh: [3, 5] },
-      { stage: 'Erster Klimmzug + Negativs', saetze: 5, wdh: [1, 1] },
-      { stage: 'Klimmzüge', saetze: 4, wdh: [1, 3] },
-      { stage: 'Klimmzüge', saetze: 4, wdh: [3, 5] },
-      { stage: 'Klimmzüge', saetze: 4, wdh: [6, 10] }
-    ],
-    tips: [
-      'Mit Sprung oder Stuhl nach oben, Kinn über die Stange, dann langsam ablassen.',
-      'Die letzten Zentimeter nicht fallen lassen – dort passiert der Kraftaufbau.',
-      '2–3 Minuten Pause zwischen den Sätzen, das ist schwere Kraftarbeit.'
     ]
   },
   {
@@ -844,9 +844,9 @@ export const PLAN_TEMPLATES = {
     desc: 'Der empfohlene Einstieg: Mo/Di/Do/Fr im Wechsel A–B–A–B.',
     days: [
       { key: 'A', title: 'Push & Stütz', sub: 'Drücken · Handstand-Basics',
-        ex: ['wrist_prep', 'pushup', 'support', 'pike', 'wall_hs', 'planche_lean', 'dips'] },
+        ex: ['wrist_prep', 'pushup', 'pike', 'wall_hs', 'planche_lean', 'dips'] },
       { key: 'B', title: 'Pull, Beine & Core', sub: 'Ziehen · Beine · L-Sit',
-        ex: ['hang', 'scap', 'pullup', 'row', 'squat', 'lsit', 'hollow', 'knee_raise'] }
+        ex: ['hang', 'pullup', 'row', 'squat', 'lsit', 'hollow', 'knee_raise'] }
     ]
   },
   full3: {
@@ -866,11 +866,11 @@ export const PLAN_TEMPLATES = {
     desc: 'Klassischer 3er-Split, 3–6× pro Woche wiederholbar.',
     days: [
       { key: 'P', title: 'Push', sub: 'Drücken',
-        ex: ['wrist_prep', 'pushup', 'dips', 'pike', 'support', 'planche_lean', 'diamond'] },
+        ex: ['wrist_prep', 'pushup', 'dips', 'pike', 'planche_lean'] },
       { key: 'Z', title: 'Pull', sub: 'Ziehen',
-        ex: ['hang', 'scap', 'pullup', 'row', 'chinup', 'knee_raise'] },
+        ex: ['hang', 'pullup', 'row', 'knee_raise'] },
       { key: 'L', title: 'Legs & Core', sub: 'Beine & Rumpf',
-        ex: ['squat', 'lunge', 'glute_bridge', 'calf', 'nordic', 'hollow', 'side_plank'] }
+        ex: ['squat', 'lunge', 'nordic', 'hollow', 'side_plank'] }
     ]
   },
   skill: {
@@ -884,7 +884,7 @@ export const PLAN_TEMPLATES = {
       { key: 'C', title: 'Planche & Push', sub: 'Skill zuerst',
         ex: ['wrist_prep', 'planche', 'planche_lean', 'support', 'pushup', 'pike', 'hollow'] },
       { key: 'D', title: 'Beine & Mobility', sub: 'Ausgleich',
-        ex: ['squat', 'pistol', 'glute_bridge', 'nordic', 'pike_stretch', 'pancake', 'shoulder_mob'] }
+        ex: ['squat', 'pistol', 'nordic', 'pike_stretch', 'pancake', 'shoulder_mob'] }
     ]
   }
 };

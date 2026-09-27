@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze } from '../js/domain/planbuilder.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
 
 /* Gegen die ECHTE Uebungsliste geprueft, nicht gegen einen Nachbau: der
@@ -182,11 +182,15 @@ describe('Ausruestung', () => {
     expect(alle.some(id => id.startsWith('ring_'))).toBe(true);
   });
 
+  /* Seit die Saetze je Tag begrenzt sind, passt der Klimmzug mit Band
+     hinter Haengen, Klimmzug und Rudern nicht mehr in den Zugtag. Geprueft
+     wird deshalb die Kombination selbst und dass ein Band allein ihn nie in
+     den Plan bringt. */
   it('bietet den Klimmzug mit Band erst an, wenn beides da ist', () => {
     const nurBand = bauen({ tage: 3, equipment: ['band'] }).days.flatMap(d => d.ex);
-    const beides = bauen({ tage: 3, equipment: ['bar', 'band'] }).days.flatMap(d => d.ex);
     expect(nurBand).not.toContain('band_pullup');
-    expect(beides).toContain('band_pullup');
+    expect(exMoeglich(EX_BY_ID.band_pullup, ['band'])).toBe(false);
+    expect(exMoeglich(EX_BY_ID.band_pullup, ['bar', 'band'])).toBe(true);
   });
 
   it('stellt die Handgelenks-Routine an den Anfang der Druecktage', () => {
@@ -217,5 +221,68 @@ describe('Vertraeglichkeit', () => {
     const p = buildPlan({ exercises: EXERCISES, equipment: EQUIP_ALL, tage: 2 });
     expect(p.days).toHaveLength(2);
     expect(typeof p.name).toBe('string');
+  });
+});
+
+/* Der Zusatznutzen weiterer Saetze sinkt schnell; pro Muskelgruppe und
+   Einheit bringt mehr als etwa zehn harte Saetze kaum noch etwas. Vorher
+   kamen Drucktage auf 20 Saetze. */
+describe('Saetze je Kategorie und Tag', () => {
+  const zaehle = ex => ex.reduce((acc, id) => {
+    const e = EX_BY_ID[id];
+    acc[e.cat] = (acc[e.cat] || 0) + kraftsaetze(e);
+    return acc;
+  }, {});
+
+  it('haelt die Grenze in jedem generierten Plan', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
+      for(const fokus of ['kraft', 'ausgewogen', 'skill']){
+        for(const equipment of [[], ['chair'], ['bar'], ['rings'], ['bar', 'band'], EQUIP_ALL]){
+          bauen({ tage, fokus, equipment }).days.forEach(d => {
+            Object.entries(zaehle(d.ex)).forEach(([kat, n]) => {
+              expect(n, JSON.stringify({ tage, fokus, equipment, tag: d.key, kat })).toBeLessThanOrEqual(KRAFTSAETZE_JE_KATEGORIE);
+            });
+          });
+        }
+      }
+    }
+  });
+
+  it('zaehlt Skills und Mobility nicht mit', () => {
+    expect(kraftsaetze(EX_BY_ID.handstand)).toBe(0);
+    expect(kraftsaetze(EX_BY_ID.wall_hs)).toBe(0);
+    expect(kraftsaetze(EX_BY_ID.wrist_prep)).toBe(0);
+    expect(kraftsaetze(EX_BY_ID.pushup)).toBe(4);
+    /* Halteuebungen zaehlen: vier Saetze Stuetzhalte sind echte Arbeit. */
+    expect(kraftsaetze(EX_BY_ID.support)).toBe(4);
+  });
+
+  /* Die Reihenfolge entscheidet mit, was die Grenze uebersteht. Ein Zugtag
+     braucht eine senkrechte und eine waagerechte Zuguebung. */
+  it('laesst im Zugtag Klimmzug und Rudern', () => {
+    expect(bauen({ tage: 3, equipment: ['bar'] }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
+    expect(bauen({ tage: 3, equipment: EQUIP_ALL }).days[1].ex).toEqual(expect.arrayContaining(['pullup', 'row']));
+  });
+
+  /* Wer nur Ringe hat, soll nicht das Rudern bekommen, das am Tisch beginnt. */
+  it('nimmt bei gleichem Rang, was von der ersten Stufe an machbar ist', () => {
+    const zug = bauen({ tage: 3, equipment: ['rings'] }).days[1].ex;
+    expect(zug).toContain('ring_row');
+    expect(zug).not.toContain('row');
+  });
+});
+
+/* Die festen Vorlagen halten dieselbe Grenze. */
+describe('Vorlagen', () => {
+  const quelleT = readFileSync(ROOT + 'js/exercises.js', 'utf8').replace(/^export /gm, '');
+  const { PLAN_TEMPLATES } = new Function(quelleT + '; return { PLAN_TEMPLATES };')();
+
+  it('bleiben je Tag und Kategorie unter der Grenze', () => {
+    Object.entries(PLAN_TEMPLATES).forEach(([pid, p]) => p.days.forEach(d => {
+      const je = {};
+      d.ex.forEach(id => { const e = EX_BY_ID[id]; je[e.cat] = (je[e.cat] || 0) + kraftsaetze(e); });
+      Object.entries(je).forEach(([kat, n]) =>
+        expect(n, pid + ' ' + d.key + ' ' + kat).toBeLessThanOrEqual(KRAFTSAETZE_JE_KATEGORIE));
+    }));
   });
 });

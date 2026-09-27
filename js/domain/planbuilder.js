@@ -13,7 +13,8 @@
    Deterministisch: gleiche Eingabe, gleicher Plan. Kein Zufall, damit der
    Nutzer die Vorschau im Dialog wiedererkennt, wenn er sie uebernimmt. */
 
-import { exMoeglich } from './equipment.js';
+import { exMoeglich, levelMoeglich } from './equipment.js';
+import { istSkill } from './skills.js';
 
 /* Welche Kategorien an welchem Tag drankommen. Bewusst eine Tabelle und
    keine Rechnung: Trainingssplits sind Konvention, nicht Arithmetik.
@@ -32,6 +33,27 @@ const TAGE_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 /* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht. */
 const MAX_PRO_TAG = 7;
+
+/* Hoechstens so viele Kraftsaetze je Kategorie an einem Tag. Der
+   Zusatznutzen weiterer Saetze sinkt schnell; pro Muskelgruppe und Einheit
+   bringt mehr als etwa zehn harte Saetze kaum noch etwas, mehr Volumen
+   gehoert auf weitere Tage. Vorher kamen Drucktage auf 20 Saetze.
+
+   Halteuebungen zaehlen mit: vier Saetze Stuetzhalte sind echte Arbeit fuer
+   Schultern und Trizeps. Skills und Mobility zaehlen nicht, ein Satz
+   Handstand ist Techniktraining, kein Kraftsatz. Gezaehlt wird die erste
+   Stufe, weil der Plan die Stufe des Nutzers nicht kennt.
+
+   Weil der Plan in Katalogreihenfolge auffuellt, entscheidet die Reihenfolge
+   in exercises.js mit, was die Grenze uebersteht. Der Klimmzug steht deshalb
+   vor dem Rudern – sonst fiel er hinter Haengen, Scapula Pull-ups und
+   Rudern aus dem Zugtag heraus. */
+export const KRAFTSAETZE_JE_KATEGORIE = 12;
+export function kraftsaetze(ex){
+  const l = ex && ex.levels && ex.levels[0];
+  if(!l || istSkill(ex) || ex.cat === 'mobility') return 0;
+  return l.saetze || 0;
+}
 
 /* Pflichtprogramm vor jeder Druck- und Skill-Einheit; steht deshalb ganz
    vorn statt irgendwo zwischen den Mobility-Uebungen (siehe WARMUP_PFLICHT). */
@@ -56,7 +78,13 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
     .map((e, i) => ({ e, i }))
     .filter(({ e }) => exMoeglich(e, equipment))
     .filter(({ e }) => !(schwerpunkt === 'kraft' && e.cat === 'skill' && e.id !== HANDGELENKE))
-    .sort((a, b) => (prioOf(a.e) - prioOf(b.e)) || (a.i - b.i))
+    /* Bei gleichem Rang zuerst, was sich von der ersten Stufe an machen
+       laesst. Seit die Saetze je Kategorie begrenzt sind, passt oft nur noch
+       eine Ruderuebung: wer nur Ringe hat, bekaeme sonst das Rudern, das am
+       Tisch beginnt, statt der Ring-Rows. */
+    .sort((a, b) => (prioOf(a.e) - prioOf(b.e)) ||
+      (Number(!levelMoeglich(a.e, 0, equipment)) - Number(!levelMoeglich(b.e, 0, equipment))) ||
+      (a.i - b.i))
     .map(({ e }) => e);
 
   if(!machbare.length) return { name: texts.name || '', desc: texts.desc || '', days: [] };
@@ -76,6 +104,16 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
     if(ersatz) liste = machbare.slice();
 
     const ids = [];
+    const saetze = {};
+    /* Nimmt eine Uebung auf, wenn sie die Obergrenze ihrer Kategorie nicht
+       sprengt. */
+    const nimm = e => {
+      const n = kraftsaetze(e);
+      if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
+      saetze[e.cat] = (saetze[e.cat] || 0) + n;
+      ids.push(e.id);
+      return true;
+    };
     if(push && machbare.some(e => e.id === HANDGELENKE)) ids.push(HANDGELENKE);
     /* Beim Skill-Schwerpunkt bekommt jeder Tag eine Skill-Uebung nach vorn:
        im frischen Zustand geuebt wird sie besser als am Ende. Reihum, damit
@@ -89,12 +127,12 @@ export function buildPlan({ exercises, equipment, tage, fokus, texte } = {}){
        Zeichen derselbe Tag wie das reine "Drücken" daneben. */
     if(!ersatz) kats.forEach(k => {
       const erste = liste.find(e => e.cat === k && !ids.includes(e.id));
-      if(erste) ids.push(erste.id);
+      if(erste) nimm(erste);
     });
 
     liste.forEach(e => {
       if(ids.length >= MAX_PRO_TAG || ids.includes(e.id)) return;
-      ids.push(e.id);
+      nimm(e);
     });
 
     return {

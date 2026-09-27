@@ -18,6 +18,7 @@
    aus equipment.js sind domain -> domain und damit erlaubt. */
 
 import { exMoeglich, levelMoeglich, hoechsteStufe } from './equipment.js';
+import { istSkill } from './skills.js';
 
 /* Je Kategorie eine Ankeruebung, nach Vorliebe geordnet: die erste, die mit
    der vorhandenen Ausruestung ueberhaupt machbar ist, gewinnt. Beim Ziehen
@@ -46,8 +47,6 @@ const DAEMPFUNG = 0.5;
    Liegestuetze macht, hat deswegen keinen halben Handstand. Dieselbe Liste
    behandelt der Skill-Fahrplan als Skills, obwohl die Kategorie etwas
    anderes sagt. */
-const NICHT_UEBERTRAGEN = new Set(['skill']);
-const NICHT_UEBERTRAGEN_IDS = new Set(['wall_hs', 'planche_lean', 'front_lever']);
 
 const liste = v => Array.isArray(v) ? v : [];
 
@@ -108,7 +107,7 @@ export function startStufen({ exercises, equipment, antworten } = {}){
 
     alle.forEach(ex => {
       if(!ex || ex.id === anker.id || ex.cat !== kat) return;
-      if(NICHT_UEBERTRAGEN.has(ex.cat) || NICHT_UEBERTRAGEN_IDS.has(ex.id)) return;
+      if(istSkill(ex)) return;
       const eigeneGrenze = hoechsteStufe(ex, equipment);
       if(eigeneGrenze < 0) return;
       const ziel = Math.min(
