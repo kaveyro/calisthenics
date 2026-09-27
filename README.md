@@ -2,7 +2,7 @@
 
 Eine offline-fähige Web-App (PWA), die deinen Calisthenics-Fortschritt trackt und die Übungsvorgaben automatisch anpasst. Kein Backend, keine Anmeldung, keine Abhängigkeiten zur Laufzeit – alle Daten bleiben auf deinem Gerät, und es geht keine einzige Anfrage an einen fremden Server. Auch die Schriften liegen lokal (`fonts/`, SIL OFL 1.1).
 
-**Funktionen:** Einstieg mit Selbsteinschätzung · automatische Progression über Stufen, entschieden aus den eingetragenen Wiederholungen und gehaltenen Sekunden · Tagesziel je Übung aus der letzten Einheit · Stagnations- und Überforderungshinweis · Halte- und Pausen-Timer mit Signal · 42 Übungen mit 166 Progressionsstufen · Geräteauswahl mit Plangenerator · vier Plan-Vorlagen plus eigener Plan-Editor mit Wochenrhythmus · Verlauf mit Diagrammen, Trainingsdauer und frei wählbarem Zeitraum · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 18 Meilensteine, die sich selbst erkennen · Skill-Fahrplan · Entlastungswoche · Dark Mode · auf breiten Schirmen mit Navigationsschiene und zweispaltigem Inhalt · Backup als JSON/CSV.
+**Funktionen:** Einstieg mit Selbsteinschätzung · automatische Progression über Stufen, entschieden aus den eingetragenen Wiederholungen und gehaltenen Sekunden · Tagesziel je Übung aus der letzten Einheit · Stagnations- und Überforderungshinweis · Halte- und Pausen-Timer mit Signal · 55 Übungen mit 211 Progressionsstufen, Ziehen auch ohne Gerät · Geräteauswahl mit Plangenerator · vier Plan-Vorlagen plus eigener Plan-Editor mit Wochenrhythmus · Verlauf mit Diagrammen, Trainingsdauer und frei wählbarem Zeitraum · Gewichts-Tracking · Notizen und Bestleistungen pro Übung · 20 Meilensteine, die sich selbst erkennen · Skill-Fahrplan · Entlastungswoche · Dark Mode · auf dem Handy Navigation unten in der Daumenzone, auf breiten Schirmen eine Navigationsschiene und zweispaltiger Inhalt · eigener Symbolsatz und Farben je Kategorie · Backup als JSON/CSV.
 
 ---
 
@@ -139,9 +139,15 @@ progression/
 
 **Hinweise.** Entlastungswoche, Sicherung, Stagnation und Einstieg stehen über der Tagesauswahl als schmale Hinweise: ein farbiger Randstreifen statt einer vollen Fläche, die Knöpfe neben dem Text, wo Platz ist. Gebaut werden alle mit `hinweis()` und `knopf()` in `app.js`; `test/actions.test.js` erkennt `knopf('aktion', …)` als Verwendung eines Aktionsnamens.
 
-**Gestaltungsstufen.** Neben den Farben stehen auch Schriftgrößen (`--text-xs` … `--text-xl`, sechs Stufen nach Rolle), Abstände (`--abstand-1` … `--abstand-6`) und Höhen (`--schatten-1`, `--schatten-2`) als Variablen in `:root`. Vorher standen 17 verschiedene Schriftgrößen im Regelwerk, viele einen halben Pixel auseinander. Zwei Größen bleiben bewusst außerhalb der Skala, und `test/css.test.js` nennt genau diese zwei: die Handy-Tableiste mit 13 px, weil fünf Beschriftungen in 341 px passen müssen, und die Symbolglyphe im runden Knopf. Die Wortmarke unter 352 px folgt der Fensterbreite (`6.5vw`) und steht damit gar nicht in Pixeln. **Eine neue Regel nimmt eine Stufe**, keine rohe Pixelzahl — sonst schlägt der Test fehl.
+**Navigation unten.** Unter 1040 px ist die Tableiste eine feste Leiste am unteren Rand, in der Daumenzone, mit Symbol über der Beschriftung. Während einer Einheit sitzt die Abschlussleiste darauf und der Pausen-Chip darüber; die Höhe steht einmal in `--leiste-h`, den Abstand zum iPhone-Balken trägt `env(safe-area-inset-bottom)`. Die Tabs bleiben eine waagerechte Tabliste mit ←/→.
 
-**Zweisprachig (Deutsch/Englisch).** Umschaltbar in den Einstellungen, übersetzt sind Oberfläche *und* Inhalte – Übungsnamen, alle 166 Stufen, Ausführungshinweise, Meilensteine und Plan-Vorlagen.
+**Symbole.** 19 eigene Strichzeichnungen als SVG-Sprite in `index.html`, eingesetzt über `ikon()` in `app.js`, immer `aria-hidden`, Farbe aus `currentColor`. Sie ersetzen Emoji und Unicode-Zeichen, die je nach System anders aussahen. `test/css.test.js` prüft, dass jedes verwendete Symbol im Sprite steht und keines ungenutzt ist.
+
+**Farben je Kategorie.** `--vol-push` … `--vol-mobility` färben den Streifen oben auf der Übungskarte, den Kategorie-Chip, die Stufenleiter, erledigte Satzpunkte, den Randstreifen in der Bibliothek und den Punkt im Plan-Editor – und den Verteilungsbalken. Jede hält 4,5:1 gegen die Kartenfläche in beiden Themen, weil sie auch 11-px-Text trägt; der Test rechnet es nach. Text auf Akzent-, Warn- und Erfolgsflächen nimmt `--on-accent`: hell Weiß, dunkel die Hintergrundfarbe. Bis hierher stand im dunklen Thema Weiß auf dem hellen Akzent, das sind 2,4:1.
+
+**Gestaltungsstufen.** Neben den Farben stehen auch Schriftgrößen (`--text-xs` … `--text-xl`, sechs Stufen nach Rolle), Abstände (`--abstand-1` … `--abstand-6`) und Höhen (`--schatten-1`, `--schatten-2`) als Variablen in `:root`. Vorher standen 17 verschiedene Schriftgrößen im Regelwerk, viele einen halben Pixel auseinander. Eine Größe bleibt bewusst außerhalb der Skala, und `test/css.test.js` nennt genau diese: das Symbol im runden Knopf. Die zweite – 13 px für die Handy-Tableiste oben – ist mit der Navigation unten entfallen. Die Wortmarke unter 352 px folgt der Fensterbreite (`6.5vw`) und steht damit gar nicht in Pixeln. **Eine neue Regel nimmt eine Stufe**, keine rohe Pixelzahl — sonst schlägt der Test fehl.
+
+**Zweisprachig (Deutsch/Englisch).** Umschaltbar in den Einstellungen, übersetzt sind Oberfläche *und* Inhalte – Übungsnamen, alle 211 Stufen, Ausführungshinweise, Meilensteine und Plan-Vorlagen.
 
 - Oberflächentexte: `js/i18n/strings.js`. Platzhalter in geschweiften Klammern (`'{n} Sätze'`) statt zusammengesetzter Strings – die Wortstellung unterscheidet sich zwischen Sprachen.
 - Statisches Markup: `data-i18n="schlüssel"` am Element, `data-i18n-placeholder` / `-aria-label` / `-title` für Attribute.
@@ -254,7 +260,7 @@ Jede Übung hat Stufen. Angezeigt wird immer die aktuelle. Eine Einheit zählt a
 
 ## 8a. Geräte und Plangenerator
 
-Jede Übung nennt in `equip`, was sie braucht. Die Liste ist ein **ODER** (`['chair','bar']` = Tischkante *oder* Stange); ein Eintrag darf mit `+` eine Kombination ausdrücken (`'bar+band'` = Stange *und* Band). Eine einzelne Progressionsstufe darf ein eigenes `equip` tragen und überschreibt damit die Übung – nötig, weil Progressionen unterwegs das Gerät wechseln: Dips fangen an der Bank an und enden auf den Parallettes.
+Jede Übung nennt in `equip`, was sie braucht. Die Liste ist ein **ODER** (`['chair','bar']` = Tischkante *oder* Stange); ein Eintrag darf mit `+` eine Kombination ausdrücken (`'bar+band'` = Stange *und* Band). Eine einzelne Progressionsstufe darf ein eigenes `equip` tragen und überschreibt damit die Übung – nötig, weil Progressionen unterwegs das Gerät wechseln: Dips fangen an der Bank an und enden auf den Parallettes. Umgekehrt steht bei Planche Lean, Stützhalte und Tuck L-Sit kein Gerät als Pflicht, das nur bequemer ist: der Lean geht am Boden, die Stütze und der Tuck L-Sit zwischen zwei Stühlen.
 
 Markiert wird nur eigens angeschafftes Gerät. Eine erhöhte Fläche, eine Wand, ein Türrahmen oder eine Treppenstufe gilt als `none` – wer die nicht hat, dem hilft ein Filter auch nicht weiter.
 
@@ -268,7 +274,7 @@ Was der Nutzer in den Einstellungen anhakt, steht in `state.equipment` und wirkt
 
 **Einstieg.** Beim ersten Start lädt ein Banner über der Tagesauswahl dazu ein (bewusst kein Dialog – eine App, die einen begrüßt, bevor man sie gesehen hat, wird weggeklickt). Zwei Fragen: welche Geräte da sind, und je Kategorie, welche **Stufe** man sauber schafft.
 
-Gefragt wird ausdrücklich nicht nach Wiederholungen. Die Leitern steigen über den Hebel, nicht über die Zahl – bei den Liegestützen steht in fast jeder Stufe „4 × 6–10", vom Tisch bis zum einarmigen. Aus „20 Liegestütze" ließe sich die Stufe gar nicht ableiten. Stattdessen zeigt der Dialog die Leiter mit Namen und Ziel zur Auswahl; das ist genau statt geschätzt und erklärt nebenbei das Grundprinzip. Die Fragen richten sich nach der Ausrüstung: ohne Stange steht beim Ziehen das Rudern statt des Klimmzugs, und Stufen mit fehlendem Gerät stehen gar nicht erst zur Wahl.
+Gefragt wird ausdrücklich nicht nach Wiederholungen. Die Leitern steigen über den Hebel, nicht über die Zahl – bei den Liegestützen steht in fast jeder Stufe „4 × 6–10", vom Tisch bis zum einarmigen. Aus „20 Liegestütze" ließe sich die Stufe gar nicht ableiten. Stattdessen zeigt der Dialog die Leiter mit Namen und Ziel zur Auswahl; das ist genau statt geschätzt und erklärt nebenbei das Grundprinzip. Die Fragen richten sich nach der Ausrüstung: ohne Stange steht beim Ziehen das Rudern am Tisch statt des Klimmzugs, ohne Tisch das Rudern an der offenen Tür, und Stufen mit fehlendem Gerät stehen gar nicht erst zur Wahl.
 
 Auf die übrigen Übungen derselben Kategorie wird nur zur **Hälfte** übertragen (`js/domain/einstieg.js`). Zu niedrig kostet eine Einheit mit zu leichtem Ziel; zu hoch bedeutet eine Übung, die sich nicht sauber ausführen lässt. Skills bleiben ganz außen vor – dazu zählen auch Wand-Handstand, Planche Lean und Front Lever, die in `exercises.js` unter *Drücken* bzw. *Ziehen* stehen. Ein bestehender Stand gilt als eingerichtet; wer den Einstieg übersprungen hat, findet ihn in den Einstellungen.
 
@@ -298,7 +304,7 @@ Ein Tagesschlüssel, den der Plan nicht mehr kennt, bleibt in der Zuordnung steh
 
 **Jahresrückblick.** Unten im Verlauf: Trainings, Level-Ups, Meilensteine, Wiederholungen, gehaltene Zeit und die meistgeübte Übung des laufenden Jahres – ohne Mobility, sonst stand dort die Handgelenks-Routine, also das Aufwärmen. Alles aus dem Log gerechnet und alles auf das Jahr gefiltert — auch die Meilensteine, deren gespeicherter Wert das Datum des ersten Mals ist.
 
-**Eigene Meilensteine.** Neben den 18 festen lassen sich eigene Ziele anlegen. Sie tragen keine Bedingung und erkennen sich deshalb nicht selbst; abgehakt werden sie wie alle anderen von Hand.
+**Eigene Meilensteine.** Neben den 20 festen lassen sich eigene Ziele anlegen. Sie tragen keine Bedingung und erkennen sich deshalb nicht selbst; abgehakt werden sie wie alle anderen von Hand.
 
 **Bibliothek.** Jeder Eintrag nennt, wann die Übung zuletzt dran war; ab zwei Wochen steht ein Hinweis daneben. Sortieren lässt sich nach Kategorie (Vorgabe), „am längsten nicht trainiert" (nie Trainiertes zuerst) oder Fortschritt.
 
@@ -317,7 +323,7 @@ Bewusste Entscheidungen, keine offenen Aufgaben – damit niemand danach sucht:
 - **Der CSV-Export enthält keine Trainingsdauer und keine Haltezeiten.** Die Wiederholungen sind seit Längerem drin (Spalten `Uebungen` und `Wdh`, siehe `js/domain/csv.js`) und überstehen einen Roundtrip; die Dauer nicht. Eine weitere Spalte wäre eine Formatänderung mit Rückwirkung auf den Import. Der CSV ist der Verlaufs-Export — das vollständige Abbild ist das JSON-Backup.
 - **Gewichts- und Messreihen sind bei 1000 Einträgen gekappt** (`MAX_SERIES_ENTRIES`), das Trainingslog bei 2000. Bei täglichem Wiegen ist die erste Grenze nach knapp drei Jahren erreicht, die zweite bei vier Einheiten pro Woche nach gut neun. Gekappt wird beim Laden und bei jedem Import, und zwar am älteren Ende ohne Hinweis.
 - **Die Startstufen des Einstiegs sind für die Ankerübung genau und für alles andere geschätzt.** Die Übertragung auf die übrige Kategorie ist bewusst gedämpft und bleibt eine Vermutung – jede Stufe lässt sich in der Bibliothek mit ± nachziehen.
-- **Die Meilenstein-Erkennung ist ein Vorschlag, kein Urteil.** Sie liest Stufe und Bestleistung, sieht aber keine Ausführung. Ein Meilenstein ohne `when` bliebe stumm statt als „nicht geschafft" zu gelten — derzeit tragen alle 18 eine Bedingung.
+- **Die Meilenstein-Erkennung ist ein Vorschlag, kein Urteil.** Sie liest Stufe und Bestleistung, sieht aber keine Ausführung. Ein Meilenstein ohne `when` bliebe stumm statt als „nicht geschafft" zu gelten — derzeit tragen alle 20 eine Bedingung.
 - **Die Trainingserinnerung der App erreicht keine geschlossene App.** Ohne Server kann eine PWA nur benachrichtigen, solange ihre Seite lebt; wird sie vom System eingefroren oder geschlossen, fällt die Erinnerung aus. Deshalb bleibt sie eine schwache Zusatzfunktion und der Kalender-Export der eigentliche Weg (Abschnitt 8b).
 - **Geräte markieren nur Angeschafftes.** Wand, Türrahmen, Treppenstufe und erhöhte Flächen gelten als „kein Gerät"; ein Filter darauf wäre Schikane statt Hilfe.
 

@@ -1,7 +1,7 @@
 /* Englische Übersetzung der Übungsinhalte aus js/exercises.js.
 
    Warum eine eigene Datei statt {de, en}-Objekte in exercises.js:
-   die Struktur dort (36 Übungen, 141 Stufen) bleibt unangetastet und damit
+   die Struktur dort bleibt unangetastet und damit
    das Risiko gering. Zugeordnet wird über die IDs, die laut README ohnehin
    nie geändert werden dürfen. Ein Test prüft, dass jede Übung, jede Stufe
    und jeder Tipp eine Entsprechung hat – eine Lücke fällt sofort auf.
