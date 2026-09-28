@@ -183,6 +183,13 @@ export const CONTENT_EN = {
              'Retract the shoulder blades first, then drive the elbows back close to the body.',
              'The closer the feet are to the door, the lower the body and the harder each rep.']
     },
+    floor_pull: {
+      name: 'Floor lat pull',
+      levels: ['On the towel, half range', 'On the towel, full range', 'Full range, 2-second hold at the end', 'One-arm, alternating'],
+      tips: ['Lie face down on a smooth floor, a towel under chest and hips. Arms straight out in front of the head, palms flat on the floor.',
+             'Press the hands into the floor and pull the body forward until the hands are beside the shoulders – the elbows travel towards the hips.',
+             'Works the lats like a pull-up, only lying flat. Carpet stops the slide; tiles or wooden floors work better.']
+    },
     prone_ytw: {
       name: 'Prone Y-T-W',
       levels: ['Y, T and W once each = one rep', 'With a 2-second hold in each position', 'Reverse snow angels'],

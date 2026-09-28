@@ -159,7 +159,7 @@ describe('Ausruestung', () => {
     /* Bei sechs Tagen gibt es einen eigenen Zugtag. */
     const zug = bauen({ tage: 6, equipment: [] }).days[1];
     expect(zug.title).toBe('Ziehen');
-    expect(zug.ex).toEqual(expect.arrayContaining(['towel_row', 'prone_ytw']));
+    expect(zug.ex).toEqual(expect.arrayContaining(['towel_row', 'floor_pull', 'prone_ytw']));
   });
 
   it('laesst bei vorhandener Stange die Klimmzuege vorn', () => {
@@ -174,7 +174,7 @@ describe('Ausruestung', () => {
      ohne Geraet gibt, laesst sich das nur noch mit einem Bestand zeigen,
      dem sie fehlen. */
   it('fuellt einen unmoeglichen Tag und nennt ihn Ganzkörper', () => {
-    const ohneBoden = EXERCISES.filter(e => !['towel_row', 'prone_ytw'].includes(e.id));
+    const ohneBoden = EXERCISES.filter(e => !['towel_row', 'floor_pull', 'prone_ytw'].includes(e.id));
     const p = bauen({ tage: 3, equipment: [], exercises: ohneBoden });
     expect(p.days[1].ex.length).toBeGreaterThan(0);
     expect(p.days[1].title).toBe('Ganzkörper');
@@ -369,7 +369,7 @@ describe('Vorlagen fuer die eigene Ausruestung', () => {
        im Muster "dip". Der Klimmzug wird zum Tuerrahmen-Rudern. */
     const tagA = vorlageAufloesen(VORLAGEN.ab4, EXERCISES, []).days[0].ex;
     expect(tagA).not.toContain('dips');
-    expect(ersatzFuer(EX_BY_ID.pullup, EXERCISES, []).id).toBe('towel_row');
+    expect(ersatzFuer(EX_BY_ID.pullup, EXERCISES, []).id).toBe('floor_pull');
     /* Mit Ringen wird aus dem Rudern am Tisch das Ring-Rudern. */
     expect(ersatzFuer(EX_BY_ID.dips, EXERCISES, ['rings']).id).toBe('ring_dip');
   });
@@ -506,9 +506,9 @@ describe('Wochenbilanz des erzeugten Plans', () => {
 
   /* Die Bilanz im Plan-Tab soll einem frisch erzeugten Plan nichts
      vorwerfen. Vor diesem Stand meldete sie bei zwei und drei Tagen mit
-     Stange deutlich mehr Druecken als Ziehen. Ohne jedes Geraet gibt der
-     Katalog ab vier Tagen nicht genug Zuguebungen her; das bleibt ehrlich
-     stehen. 30 Minuten sind ein Kompromiss und hier nicht verlangt. */
+     Stange deutlich mehr Druecken als Ziehen. Ohne jedes Geraet gab der
+     Katalog ab vier Tagen nicht genug Zuguebungen her, bis der Boden-Latzug
+     dazukam. 30 Minuten sind ein Kompromiss und hier nicht verlangt. */
   it('bleibt ab 45 Minuten ohne Warnung', () => {
     for(const tage of [2, 3, 4, 5, 6]){
       for(const [name, equipment] of Object.entries(EQUIPS)){
@@ -517,7 +517,9 @@ describe('Wochenbilanz des erzeugten Plans', () => {
         }
       }
     }
-    for(const tage of [2, 3]) expect(warnungen(tage, [], 45), 'ohne ' + tage).toEqual([]);
+    for(const tage of [2, 3, 4, 5, 6]){
+      for(const minuten of [45, 60, undefined]) expect(warnungen(tage, [], minuten), 'ohne ' + tage + ' ' + minuten).toEqual([]);
+    }
   });
 
   it('behaelt bei 30 Minuten den Rumpf und verliert nur die Hueftbeuge', () => {
@@ -675,8 +677,8 @@ describe('Schwerpunkt Muskelgruppe', () => {
     }
   });
 
-  it('bleibt auch ohne Geraet bei zwei und drei Tagen ohne Warnung', () => {
-    for(const tage of [2, 3]){
+  it('bleibt auch ohne Geraet ohne Warnung', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
       for(const sp of ['oben', 'beine']) expect(bilanz(tage, [], 45, sp).warnungen, sp + ' ' + tage).toEqual([]);
     }
   });

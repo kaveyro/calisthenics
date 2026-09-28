@@ -364,6 +364,20 @@ export const EXERCISES = [
     ]
   },
   {
+    id: 'floor_pull', name: 'Boden-Latzug', cat: 'pull', muster: 'v_ziehen', equip: ['none'], prio: 2, rest: 60,
+    levels: [
+      { stage: 'Auf dem Handtuch, halbe Strecke', saetze: 4, wdh: [8, 12] },
+      { stage: 'Auf dem Handtuch, volle Strecke', saetze: 4, wdh: [8, 12] },
+      { stage: 'Volle Strecke, 2 Sek Halten am Ende', saetze: 4, wdh: [8, 12] },
+      { stage: 'Einarmig im Wechsel', saetze: 3, wdh: [5, 8] }
+    ],
+    tips: [
+      'Bauchlage auf glattem Boden, ein Handtuch unter Brust und Hüfte. Die Arme liegen gestreckt vor dem Kopf, die Handflächen flach am Boden.',
+      'Hände fest in den Boden drücken und den Körper nach vorn ziehen, bis die Hände neben den Schultern liegen – die Ellbogen gehen dabei Richtung Hüfte.',
+      'Arbeitet den breiten Rückenmuskel wie ein Klimmzug, nur flach. Auf Teppich fehlt das Gleiten; dort lieber Fliesen oder Parkett.'
+    ]
+  },
+  {
     id: 'prone_ytw', name: 'Y-T-W liegend', cat: 'pull', muster: 'schulter', equip: ['none'], prio: 2, rest: 45,
     levels: [
       { stage: 'Y, T und W je einmal = eine Wiederholung', saetze: 3, wdh: [6, 10] },

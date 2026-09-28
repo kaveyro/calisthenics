@@ -192,8 +192,9 @@ export const NUR_BIS = {
 /* Notbehelfe ohne Geraet: nur, wenn das Muster sonst nichts hergibt. Ohne
    diese Regel stand bei Stange und Tisch am zweiten Oberkoerpertag das
    Tuerrahmen-Rudern, weil im Muster gewechselt wird – obwohl man an der
-   Stange besser rudert. */
-export const NOTBEHELF = new Set(['towel_row']);
+   Stange besser rudert. Der Boden-Latzug ersetzt den Klimmzug genauso
+   nur zu Hause. */
+export const NOTBEHELF = new Set(['towel_row', 'floor_pull']);
 
 /* Ziel-Skills und an welchen Tagen sie vorn stehen. Handstand, Planche,
    L-Sit und Elbow Lever tragen die Druckmuskulatur, Front Lever, Back Lever
