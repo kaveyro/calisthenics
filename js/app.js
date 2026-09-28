@@ -28,6 +28,7 @@ import { volumenJeGruppe } from './domain/volume.js';
 import { wochenTage, wochenbilanz, istBilanz, istLuecken } from './domain/bilanz.js';
 import { tagesMerkmale, passtZumTag, anlaufSatz } from './domain/warmup.js';
 import { wochenRueckblick } from './domain/rueckblick.js';
+import { fokusStart, fokusNachSatz } from './domain/fokus.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -73,6 +74,14 @@ const an = (ziel, typ, fn, opts = {}) => ziel.addEventListener(typ, fn, { ...opt
    genau die Sperrzeit nach. Der Tick zeichnet nur noch. */
 const TAKT = 250;
 let restEnde = 0;
+/* Wann die laufende Pause begann – fuer den Ring im Fokus-Modus, der den
+   Anteil der verbleibenden Zeit zeigt. Eine Verlaengerung behaelt den
+   Beginn, sonst sprange der Ring bei +30 auf voll. */
+let restStart = 0;
+/* Der Schritt, der im Fokus-Modus zu sehen ist, oder null: dann der erste
+   offene (fokusStart()). Nur zur Laufzeit – nach dem Neuladen geht es beim
+   ersten offenen weiter, und das ist in aller Regel derselbe. */
+let fokusIdx = null;
 /* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
 let restLetzteSek = 0;
 let libFilter = 'all';
@@ -466,10 +475,12 @@ function renderAll(){
   renderStats(); renderPhase(); renderBanners(); renderDaySelect();
   /* Ein laufendes Training nicht ueberschreiben. Alle Aufrufer, die eine
      Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
-  if(session.dayKey) return;
+  if(session.dayKey){ fokusAnwenden(); return; }
+  fokusIdx = null;
   document.getElementById('content').innerHTML = abschlussHtml() +
     '<div class="empty-hint">' + esc(__('selectDay')) + '.<br><br>' +
     esc(__('selectDayHint')) + '</div>';
+  fokusAnwenden();
 }
 
 /* Abschlussblatt: was die Einheit gebracht hat, auf einen Blick.
@@ -1102,12 +1113,14 @@ function addKeyboardShortcuts(){
       e.preventDefault();
       const active = document.activeElement;
       if(active && active.classList.contains('set-dot')){ active.click(); return; }
-      const firstUndone = document.querySelector('.set-dot:not(.done)');
+      /* Im Fokus-Modus der naechste Satz der sichtbaren Uebung. */
+      const firstUndone = document.querySelector('#content.fokus .fokus-aktiv .set-dot:not(.done)') ||
+        document.querySelector('.set-dot:not(.done)');
       if(firstUndone) firstUndone.click();
       return;
     }
     if(e.key === 'r' || e.key === 'R'){
-      if(document.getElementById('restChip').style.display === 'flex'){
+      if(restEnde > 0){
         stopRest(); persistSession();
       } else if(session.dayKey){
         const defaultRest = cfg('rest');
@@ -1526,6 +1539,7 @@ function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest
 function selectDay(key){
   cancelHold(); stopRest();
   abschluss = null;
+  fokusIdx = null;
   session = { ...leereSession(), dayKey: key };
   persistSession();
   /* Neue Einheit, neues Aufwaermen: die Haken der vorigen duerfen nicht
@@ -1724,6 +1738,113 @@ function renderWorkout(){
   }));
   document.getElementById('finishBar').style.display = 'block';
   updateFinish();
+  fokusAnwenden();
+}
+
+/* ================= Fokus-Modus =================
+   Die lange Liste ist fuer den Ueberblick gut und fuer das Training selbst
+   zu viel: zwischen zwei Saetzen scrollt man durch sieben Karten, um die
+   eine zu finden, die dran ist. Im Fokus-Modus steht nur sie da – bei einem
+   Supersatz beide Karten seiner Klammer –, oben eine Leiste mit dem Schritt
+   und den Pfeilen, und die Pause laeuft als grosser Ring statt als Chip.
+
+   Gebaut ist das als Schicht ueber der Liste: renderWorkout() zeichnet alle
+   Karten wie bisher, fokusAnwenden() blendet die uebrigen aus. So gilt
+   alles, was an einer Karte haengt – Haltezeit, Supersatz, oberes Limit,
+   Notizen –, im Fokus genauso, ohne zweiten Weg.
+
+   Weiter geht es nicht sofort nach dem letzten Satz: dann verschwaende die
+   Karte, bevor man die Wiederholungen des letzten Satzes eintragen kann.
+   Die Leiste zeigt, dass der Schritt fertig ist; zur naechsten Uebung geht
+   es mit dem Pfeil oder, wenn die Pause endet oder weggetippt wird, von
+   selbst (fokusWeiter()). */
+const fokusAn = () => !!cfg('fokus') && !!session.dayKey;
+const fokusSchritte = () =>
+  [...document.getElementById('content').children].filter(el => el.matches('.ex, .supersatz'));
+/* Fertig ist ein Schritt ohne offenen Satz – auch einer, der heute
+   ausgelassen wird und gar keine Saetze hat. */
+const schrittFertig = el => !el.querySelector('.set-dot:not(.done)');
+const schrittName = el => [...el.querySelectorAll('.ex-name')].map(n => n.textContent.trim()).join(' + ');
+/* Schritte, ihr Stand und der sichtbare. Solange nicht geblaettert wurde,
+   ist das der erste offene – aus dem Stand abgeleitet und nicht gemerkt,
+   weil restoreSession() die erledigten Saetze erst nach dem Zeichnen
+   wiederherstellt. */
+function fokusStand(){
+  const schritte = session.dayKey ? fokusSchritte() : [];
+  const status = schritte.map(el => ({ fertig: schrittFertig(el) }));
+  const idx = fokusIdx !== null && fokusIdx < schritte.length ? fokusIdx : fokusStart(status);
+  return { schritte, status, idx };
+}
+
+function fokusAnwenden(){
+  const nav = document.getElementById('fokusNav'), content = document.getElementById('content');
+  if(!nav || !content) return;
+  const { schritte, status, idx } = fokusStand();
+  const an = fokusAn() && schritte.length > 0;
+  content.classList.toggle('fokus', an);
+  schritte.forEach(el => el.classList.remove('fokus-aktiv'));
+  if(!schritte.length){ nav.innerHTML = ''; pauseOrt(); return; }
+  if(!an){
+    nav.innerHTML = '<div class="fokus-leiste fokus-leiste--aus">' +
+      '<button type="button" class="fokus-schalter" data-action="focus:toggle" aria-pressed="false">' +
+      ikon('focus') + '<span>' + esc(__('focusOn')) + '</span></button></div>';
+    pauseOrt();
+    return;
+  }
+  schritte[idx].classList.add('fokus-aktiv');
+  const letzter = idx === schritte.length - 1;
+  const bereit = status[idx].fertig && !letzter;
+  nav.innerHTML = '<div class="fokus-leiste" role="group" aria-label="' + esc(__('focusNavAria')) + '">' +
+    '<button type="button" class="fokus-pfeil" data-action="focus:step" data-delta="-1" aria-label="' + esc(__('focusPrev')) + '"' +
+      (idx === 0 ? ' disabled' : '') + '>' + ikon('prev') + '</button>' +
+    '<div class="fokus-mitte"><span class="fokus-zahl">' + esc(__('focusCount', { i: idx + 1, n: schritte.length })) + '</span>' +
+      '<span class="fokus-punkte" aria-hidden="true">' + status.map((s, i) =>
+        '<i class="' + (i === idx ? 'jetzt' : s.fertig ? 'fertig' : '') + '"></i>').join('') + '</span></div>' +
+    '<button type="button" class="fokus-pfeil' + (bereit ? ' bereit' : '') + '" data-action="focus:step" data-delta="1" aria-label="' +
+      esc(bereit ? __('focusNextReady', { name: schrittName(schritte[idx + 1]) }) : __('focusNext')) + '"' +
+      (letzter ? ' disabled' : '') + '>' + ikon('next') + '</button>' +
+    '<button type="button" class="fokus-schalter" data-action="focus:toggle" aria-pressed="true" aria-label="' + esc(__('focusOffAria')) + '">' +
+      ikon('list') + '<span>' + esc(__('focusOff')) + '</span></button></div>';
+  pauseOrt();
+}
+
+/* Einen Schritt vor oder zurueck. Die Karte beginnt oben; der Fokus bleibt
+   auf dem Pfeil (mitFokus), und die Ansage nennt, was jetzt dran ist. */
+function fokusSchritt(delta){
+  const { schritte, idx } = fokusStand();
+  if(!fokusAn() || !schritte.length) return;
+  const neu = Math.max(0, Math.min(schritte.length - 1, idx + delta));
+  if(neu === idx) return;
+  fokusIdx = neu;
+  fokusAnwenden();
+  fokusZeigen();
+}
+function fokusZeigen(){
+  const { schritte, idx } = fokusStand();
+  const el = schritte[idx];
+  if(!el) return;
+  document.getElementById('fokusNav').scrollIntoView?.({ block: 'start', behavior: wenigerBewegung() ? 'auto' : 'smooth' });
+  melde(__('focusNow', { name: schrittName(el), i: idx + 1, n: schritte.length }));
+}
+/* Nach der Pause – abgelaufen oder weggetippt – zur naechsten offenen
+   Uebung, wenn die aktuelle fertig ist. */
+function fokusWeiter(){
+  if(!fokusAn()) return;
+  const { schritte, status, idx } = fokusStand();
+  if(!schritte.length) return;
+  const neu = fokusNachSatz(status, idx);
+  if(neu === idx) return;
+  fokusIdx = neu;
+  fokusAnwenden();
+  fokusZeigen();
+}
+function fokusUmschalten(){
+  state.settings.fokus = !cfg('fokus');
+  save();
+  fokusAnwenden();
+  if(fokusAn()) fokusZeigen();
+  /* Der Schalter wird neu gezeichnet; der Fokus geht an den neuen. */
+  document.querySelector('#fokusNav .fokus-schalter')?.focus({ preventScroll: true });
 }
 
 /* Stellt nach einem Neuzeichnen des Trainings wieder her, was nicht im
@@ -1749,6 +1870,7 @@ function restoreSession(reps){
     if(el && reps[k] != null) el.value = reps[k];
   });
   updateFinish();
+  fokusAnwenden();
 }
 
 function adjustLevel(id, d){
@@ -2085,6 +2207,14 @@ function markDone(key, el, s, ex){
      App keine Vorgabe eintragen konnte (siehe toplimitHtml()). */
   topLimitAktualisieren(ex.id);
   updateFinish(); persistSession();
+  if(fokusAn()){
+    /* Den sichtbaren Schritt festhalten: sonst sprange die Ansicht, sobald
+       sein letzter Satz erledigt ist, zum naechsten offenen. */
+    const { schritte, idx } = fokusStand();
+    fokusIdx = idx;
+    fokusAnwenden();
+    if(schritte[idx] && schrittFertig(schritte[idx])) melde(__('focusStepDone'));
+  }
 }
 /* Wie es nach Satz s dieser Uebung im Supersatz weitergeht, oder null,
    wenn sie heute in keinem steht (oder der Partner ausgelassen ist). */
@@ -2158,9 +2288,10 @@ function updateFinish(){
 function startRest(secs){
   restBis(Date.now() + (secs || cfg('rest')) * 1000);
 }
-function restBis(ende){
+function restBis(ende, beginn = Date.now()){
   stopRest();
   restEnde = ende;
+  restStart = Math.min(beginn, Date.now());
   pauseAnzeigen();
   if(!restEnde) return;
   restTimer = setInterval(pauseAnzeigen, TAKT);
@@ -2174,6 +2305,7 @@ function pauseAnzeigen(){
     stopRest();
     persistSession();
     signal(false); toast(__('restOver'));
+    fokusWeiter();
     return;
   }
   /* Drei kurze Toene vor dem Ende. Der Tick laeuft viermal pro Sekunde,
@@ -2183,24 +2315,44 @@ function pauseAnzeigen(){
     tick();
   }
 
-  const out = document.getElementById('restTime');
   const txt = Math.floor(rem / 60) + ':' + String(rem % 60).padStart(2, '0');
-  if(out.textContent !== txt) out.textContent = txt;
-  document.getElementById('restChip').style.display = 'flex';
+  for(const id of ['restTime', 'fokusPauseZeit']){
+    const out = document.getElementById(id);
+    if(out && out.textContent !== txt) out.textContent = txt;
+  }
+  /* Der Ring zeigt den Anteil, der noch bleibt: voll zu Beginn, leer am Ende. */
+  const bogen = document.getElementById('fokusPauseBogen');
+  if(bogen){
+    const gesamt = Math.max(1, restEnde - restStart), umfang = 2 * Math.PI * 54;
+    const rest = Math.max(0, Math.min(1, (restEnde - Date.now()) / gesamt));
+    bogen.setAttribute('stroke-dasharray', umfang.toFixed(1));
+    bogen.setAttribute('stroke-dashoffset', (umfang * (1 - rest)).toFixed(1));
+  }
+  pauseOrt();
+}
+/* Wo die laufende Pause steht: im Fokus-Modus als Ring ueber der Karte,
+   sonst als Chip unten. Ohne Pause nirgends. restEnde statt restTimer:
+   pauseAnzeigen() laeuft einmal, bevor das Intervall steht. */
+function pauseOrt(){
+  const laeuft = restEnde > 0;
+  const ring = fokusAn();
+  document.getElementById('restChip').style.display = laeuft && !ring ? 'flex' : 'none';
+  const fp = document.getElementById('fokusPause');
+  if(fp) fp.hidden = !(laeuft && ring);
 }
 function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
   restEnde = 0;
   restLetzteSek = 0;
-  document.getElementById('restChip').style.display = 'none';
+  pauseOrt();
 }
 
 /* Pause verlaengern. Ein Satz, der schlecht lief, braucht mehr Zeit – der
    Chip konnte die Pause bisher nur abbrechen. Laeuft gerade keine, faengt
    die Verlaengerung bei jetzt an, damit die Schaltflaeche nie ins Leere tippt. */
 function restVerlaengern(sek){
-  const basis = restEnde > Date.now() ? restEnde : Date.now();
-  restBis(basis + sek * 1000);
+  const laeuft = restEnde > Date.now();
+  restBis((laeuft ? restEnde : Date.now()) + sek * 1000, laeuft ? restStart : Date.now());
   persistSession();
 }
 
@@ -4319,7 +4471,7 @@ function showTextDialog(titel, text){
 }
 
 function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'reminder', 'lang'].forEach(k => {
+  ['setsMode', 'rest', 'perExRest', 'autoRest', 'fokus', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'reminder', 'lang'].forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
@@ -4960,7 +5112,7 @@ export const actions = {
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
   'summary:close':      () => abschlussSchliessen(),
-  'rest:stop':          () => { stopRest(); persistSession(); },
+  'rest:stop':          () => { stopRest(); persistSession(); fokusWeiter(); },
   'rest:extend':        d => restVerlaengern(zahl(d.sec) || 30),
   'sw:update':          () => updateAnwenden(),
   'app:install':        () => appInstallieren(),
@@ -5011,6 +5163,8 @@ export const actions = {
   'planEx:pair':        d => paarSchalten(zahl(d.day), zahl(d.i)),
   'planEx:pairUndo':    () => paarRueckgaengig(),
   'review:close':       () => rueckblickSchliessen(),
+  'focus:toggle':       () => fokusUmschalten(),
+  'focus:step':         d => mitFokus(() => fokusSchritt(zahl(d.delta))),
   /* Ohne mitFokus(): moveEx() setzt den Fokus selbst, auf die gewanderte
      Uebung statt auf die, die jetzt an ihrem alten Platz steht. */
   'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),

@@ -76,6 +76,10 @@
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-focus" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2.5"/><path d="M8 3h8M8 21h8"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
     <symbol id="i-levelup" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
     <symbol id="i-train" viewBox="0 0 24 24"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/></symbol>
     <symbol id="i-history" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
@@ -143,6 +147,18 @@
       <button class="mini-btn" data-action="warmup:add" data-i18n="warmupAddShort" data-i18n-aria-label="warmupAdd" aria-label="Warm-up-Eintrag hinzufügen">+ Eintrag</button>
     </details>
 
+    <!-- Fokus-Modus (fokusAnwenden() in app.js): die Leiste mit Schritt und
+         Pfeilen, darunter die Pause als Ring. Beide stehen außerhalb von
+         #content, das bei jedem Neuzeichnen ersetzt wird. -->
+    <div id="fokusNav"></div>
+    <div class="fokus-pause" id="fokusPause" hidden>
+      <button class="fp-ring" data-action="rest:stop" aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
+        <svg viewBox="0 0 120 120" aria-hidden="true" focusable="false"><circle class="fp-bahn" cx="60" cy="60" r="54"/><circle class="fp-wert" id="fokusPauseBogen" cx="60" cy="60" r="54"/></svg>
+        <span class="fp-mitte"><small data-i18n="restRingHint">Pause</small><b id="fokusPauseZeit">1:30</b><small data-i18n="restRingTap">Tippen beendet</small></span>
+      </button>
+      <button class="fp-plus" data-action="rest:extend" data-sec="30"
+              aria-label="Pause um 30 Sekunden verlängern" data-i18n-aria-label="restExtendAria">+30</button>
+    </div>
     <div id="content" class="raster"><div class="loading" data-i18n="loading">Lade deinen Fortschritt …</div></div>
   </section>
 
@@ -408,6 +424,10 @@
     <div class="set-row">
       <span><label class="lbl2" for="cfg-autoRest" data-i18n="autoRest">Pausen-Timer automatisch</label><span class="hint" id="hint-cfg-autoRest" data-i18n="autoRestHint">Startet nach jedem abgehakten Satz</span></span>
       <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest" aria-describedby="hint-cfg-autoRest">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="cfg-fokus" data-i18n="focusSetting">Fokus-Modus im Training</label><span class="hint" id="hint-cfg-fokus" data-i18n="focusSettingHint">Eine Übung je Ansicht, die Pause als Ring</span></span>
+      <input type="checkbox" id="cfg-fokus" data-action-change="setting:update" data-key="fokus" aria-describedby="hint-cfg-fokus">
     </div>
     <div class="set-row">
       <span><label class="lbl2" for="cfg-sound" data-i18n="sound">Signaltöne</label><span class="hint" id="hint-cfg-sound" data-i18n="soundHint">Ton bei Timer-Ende und Level-Ups</span></span>

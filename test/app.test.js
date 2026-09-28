@@ -3837,6 +3837,98 @@ describe('Ziehen mit dem Finger im Plan-Editor', () => {
   });
 });
 
+describe('Fokus-Modus', () => {
+  const PLAN = { name: 'F', desc: '', days: [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'squat', 'prone_ytw', 'towel_row'], ss: [['prone_ytw', 'towel_row']] }] };
+  async function einheit(fokus = true){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, customPlan: PLAN, settings: { fokus } }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const sichtbar = () => [...document.querySelectorAll('#content > .ex, #content > .supersatz')]
+    .filter(el => el.classList.contains('fokus-aktiv') || !document.getElementById('content').classList.contains('fokus'));
+  const zahl = () => document.querySelector('#fokusNav .fokus-zahl')?.textContent;
+  const tippeAlle = () => document.querySelectorAll('#content .fokus-aktiv .set-dot:not(.done)').forEach(d => d.click());
+
+  it('zeigt nur die aktuelle Uebung und blaettert mit den Pfeilen', async () => {
+    const app = await einheit();
+    expect(document.getElementById('content').classList.contains('fokus')).toBe(true);
+    expect(sichtbar()).toHaveLength(1);
+    expect(sichtbar()[0].dataset.exid).toBe('pushup');
+    expect(zahl()).toBe('Übung 1 von 3');
+    expect(document.querySelector('.fokus-pfeil[data-delta="-1"]').disabled).toBe(true);
+    await app.actions['focus:step']({ delta: '1' });
+    expect(sichtbar()[0].dataset.exid).toBe('squat');
+    /* Ein Supersatz ist ein Schritt mit beiden Karten. */
+    await app.actions['focus:step']({ delta: '1' });
+    expect(sichtbar()[0].classList.contains('supersatz')).toBe(true);
+    expect(zahl()).toBe('Übung 3 von 3');
+    expect(document.querySelector('.fokus-pfeil[data-delta="1"]').disabled).toBe(true);
+    await new Promise(r => setTimeout(r, 50));
+    expect(document.getElementById('srStatus').textContent).toMatch(/^Y-T-W liegend \+ Türrahmen-Rudern – Übung 3 von 3/);
+  });
+
+  it('zeigt die Pause als Ring und geht erst nach ihr weiter', async () => {
+    const app = await einheit();
+    tippeAlle();
+    await ruhe();
+    /* Noch dieselbe Karte – der letzte Satz will vielleicht noch eine Zahl. */
+    expect(sichtbar()[0].dataset.exid).toBe('pushup');
+    expect(document.querySelector('.fokus-pfeil[data-delta="1"]').classList.contains('bereit')).toBe(true);
+    expect(document.getElementById('fokusPause').hidden).toBe(false);
+    expect(document.getElementById('restChip').style.display).toBe('none');
+    expect(document.getElementById('fokusPauseZeit').textContent).toBe('1:30');
+    expect(document.querySelectorAll('.fokus-punkte i')[0].className).toBe('jetzt');
+    await app.actions['rest:stop']();
+    await ruhe();
+    expect(sichtbar()[0].dataset.exid).toBe('squat');
+    expect(document.getElementById('fokusPause').hidden).toBe(true);
+    expect(document.querySelectorAll('.fokus-punkte i')[0].className).toBe('fertig');
+  });
+
+  it('behaelt beim Verlaengern den Beginn, damit der Ring nicht auf voll springt', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    try{
+      const app = await einheit();
+      document.querySelector('#content .fokus-aktiv .set-dot').click();
+      vi.advanceTimersByTime(45000);
+      await app.actions['rest:extend']({ sec: '30' });
+      const umfang = 2 * Math.PI * 54;
+      /* 45 von 120 Sekunden sind um. */
+      expect(Number(document.getElementById('fokusPauseBogen').getAttribute('stroke-dashoffset'))).toBeCloseTo(umfang * 45 / 120, 0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('schaltet um, merkt sich die Wahl und zeigt ohne Fokus den Chip', async () => {
+    const app = await einheit(false);
+    expect(sichtbar().length).toBe(3);
+    expect(document.querySelector('#fokusNav .fokus-schalter').getAttribute('aria-pressed')).toBe('false');
+    await app.actions['focus:toggle']();
+    expect(gespeichert().settings.fokus).toBe(true);
+    expect(sichtbar()).toHaveLength(1);
+    await app.actions['focus:toggle']();
+    expect(sichtbar().length).toBe(3);
+    document.querySelector('#content .set-dot').click();
+    await ruhe();
+    expect(document.getElementById('restChip').style.display).toBe('flex');
+    expect(document.getElementById('fokusPause').hidden).toBe(true);
+  });
+
+  it('raeumt Leiste und Ring nach der Einheit weg', async () => {
+    const app = await einheit();
+    document.querySelector('#content .fokus-aktiv .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(document.getElementById('fokusNav').innerHTML).toBe('');
+    expect(document.getElementById('fokusPause').hidden).toBe(true);
+    expect(document.getElementById('content').classList.contains('fokus')).toBe(false);
+  });
+});
+
 describe('Wochenrueckblick', () => {
   const einheit = (n, extra = {}) => ({ d: isoDaysAgo(n), day: 'A', ex: ['pushup'], sets: 4, reps: { 'pushup-0': 10 }, dauer: 0, ups: [], ...extra });
   /* Die Tage relativ zu heute, aber sicher in der letzten und vorletzten

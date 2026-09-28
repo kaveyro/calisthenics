@@ -20,7 +20,9 @@ export const SETTINGS_DEFAULTS = {
   /* Trainingserinnerung. Der Schalter gab es in den Einstellungen, den
      Schluessel hier nicht – und was hier nicht steht, wirft migrateState()
      weg. Die Erinnerung war nach jedem Neuladen wieder aus. */
-  reminder: false
+  reminder: false,
+  /* Fokus-Modus im Training: eine Uebung je Ansicht statt der ganzen Liste. */
+  fokus: false
 };
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
@@ -143,7 +145,7 @@ export const DEFAULT_STATE = () => ({
    (wie sich eine Uebung angefuehlt hat; leer bei allem davor). v18 ergaenzt
    rueckblickZu (die Woche, in der der Wochenrueckblick weggeklickt wurde,
    als '2026-KW39'; Vorgabe null – ein alter Stand sieht den Rueckblick
-   einmal). */
+   einmal) und settings.fokus (Fokus-Modus im Training, Vorgabe aus). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
