@@ -2127,7 +2127,9 @@ describe('Verteilung je Trainingstag', () => {
 
 describe('Wochenrhythmus', () => {
   const hinweis = () => document.getElementById('heuteHinweis');
-  const abzeichen = () => document.querySelector('.day-btn .badge')?.closest('.day-btn')?.dataset.key;
+  /* Der Vorschlag steht seit der Heute-Karte dort, nicht mehr als
+     Abzeichen an einem der Tag-Knoepfe. */
+  const abzeichen = () => document.querySelector('#heuteKarte .heute-karte')?.dataset.key;
   const auswahl = wd => document.getElementById('wp-' + wd);
 
   /* Der Wochentag von heute nach Date.getDay(). */
@@ -3632,5 +3634,29 @@ describe('Kompakte Uebungskarte', () => {
     /* Der Halte-Hinweis nur bei Halteuebungen. */
     expect(karte('pushup').querySelector('.hold-hint')).toBeNull();
     expect(karte('wall_hs').querySelector('.hold-hint')).not.toBeNull();
+  });
+});
+
+describe('Heute-Karte und Kennzahlen', () => {
+  it('stellt den faelligen Tag gross vor die Tagesauswahl und startet ihn', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 17, onboarded: true, log: [{ d: isoDaysAgo(2), day: 'A', ex: ['pushup'], sets: 4, reps: {}, dauer: 0 }]
+    }));
+    const app = await starten();
+    const karte = document.querySelector('#heuteKarte .heute-karte');
+    expect(karte.dataset.key).toBe('B');
+    expect(karte.textContent).toMatch(/Als Nächstes/);
+    expect(karte.textContent).toMatch(/ca\. \d+ Min/);
+    expect(document.getElementById('daySelect').classList.contains('klein')).toBe(true);
+    /* Alle Tage bleiben waehlbar, ohne Abzeichen. */
+    expect(document.querySelectorAll('#daySelect .day-btn')).toHaveLength(2);
+    expect(document.querySelector('#daySelect .badge')).toBeNull();
+    karte.click();
+    await ruhe();
+    expect(gespeichert().activeSession.dayKey).toBe('B');
+    expect(document.querySelector('#heuteKarte .heute-karte')).toBeNull();
+    expect(document.getElementById('daySelect').classList.contains('klein')).toBe(false);
+    app.actions['tab:show']({ tab: 'plan' });
+    expect(document.body.dataset.tab).toBe('plan');
   });
 });

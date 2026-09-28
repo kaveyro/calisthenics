@@ -270,7 +270,18 @@ h1 .thin{color:var(--accent)}
 .day-btn .sub{font-size:var(--text-sm);color:var(--ink-soft);margin-top:3px}
 .day-btn.active{border-color:var(--accent);background:var(--accent-soft)}
 .day-btn.active .tag{color:var(--accent)}
-.day-btn .badge{position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:var(--on-accent);border-radius:20px;padding:2px 7px}
+.heute-karte{display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:2px;width:100%;text-align:left;background:var(--accent-soft);border:2px solid var(--accent);border-radius:var(--radius);padding:var(--abstand-4);margin:6px 0 10px;cursor:pointer;color:var(--ink);font:inherit;box-shadow:var(--schatten-1)}
+.heute-karte:hover{box-shadow:var(--schatten-2)}
+.heute-karte:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.heute-karte > span{grid-column:1}
+.hk-label{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:600}
+.hk-titel{font-family:var(--display);font-size:var(--text-xl);text-transform:uppercase;line-height:1.1}
+.hk-sub,.hk-meta{font-size:var(--text-sm);color:var(--ink-soft)}
+.heute-karte > .hk-los{grid-column:2;grid-row:1 / span 4;align-self:center;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:10px 18px;font-weight:700;font-size:var(--text-md)}
+.day-select.klein{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.day-select.klein .day-btn{padding:10px 12px;border-width:1px}
+.day-select.klein .day-btn .tag{font-size:var(--text-md)}
+.day-select.klein .day-btn .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- Aufklappbares ---------- */
 details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:var(--abstand-4);overflow:hidden;box-shadow:var(--schatten-1)}
@@ -846,8 +857,6 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .vol-keys i{forced-color-adjust:none;background:CanvasText}
 }
 @media(max-width:420px){
-  .stats{flex-wrap:wrap}
-  .stat{min-width:calc(50% - 5px)}
   .rep-input,.sek-input{width:44px;height:32px;font-size:var(--text-xs)}
 }
 /* Unter 352px passte die Kopfzeile nicht: die Wortmarke ist bei ihren
@@ -877,6 +886,16 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .finish-bar{bottom:var(--leiste-h);padding-bottom:12px}
   /* Die Abschlussleiste ist gemessen 94px hoch (bei 320 und 375px). */
   .rest-chip{bottom:calc(var(--leiste-h) + 104px)}
+  /* Die vier Kennzahlen standen auf jedem Tab als 2×2-Kacheln und belegten
+     rund 200px, bevor irgendetwas kam. Jetzt eine schmale Zeile, und nur im
+     Training – in Verlauf, Plan und Zielen stehen die Zahlen ohnehin
+     ausführlicher. */
+  body[data-tab]:not([data-tab="train"]) .stats{display:none}
+  .stats{gap:0;margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--schatten-1);padding:8px 0}
+  .stat{background:none;border:none;box-shadow:none;border-radius:0;padding:0 2px;text-align:center}
+  .stat + .stat{border-left:1px solid var(--line)}
+  .stat .num{font-size:var(--text-lg)}
+  .stat .lbl{letter-spacing:0;line-height:1.2}
 }
 
 @media print{

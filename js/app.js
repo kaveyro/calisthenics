@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE, dauerSek } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -974,6 +974,9 @@ function showTab(t, ausHistory = false){
   if(!TABS.includes(t)) t = 'train';
   if(!ausHistory && t !== aktiverTab) history.pushState({ tab: t }, '', '#' + t);
   aktiverTab = t;
+  /* Fuer das Stylesheet: auf dem Handy stehen die Kennzahlen nur im
+     Training (siehe css/style.css). */
+  document.body.dataset.tab = t;
   TABS.forEach(x => {
     const sel = (x === t);
     document.getElementById('view-' + x).hidden = !sel;
@@ -1136,18 +1139,44 @@ function addKeyboardShortcuts(){
 /* ================= Trainingstag wählen ================= */
 function renderDaySelect(){
   const sug = nextSuggestedKey();
-  document.getElementById('daySelect').innerHTML = getDays().map(d =>
+  renderHeuteKarte(sug);
+  const sel = document.getElementById('daySelect');
+  /* Neben der Heute-Karte werden die Tage klein: gewaehlt wird dort nur,
+     wer heute etwas anderes machen will. */
+  sel.classList.toggle('klein', !session.dayKey && !!sug);
+  sel.innerHTML = getDays().map(d =>
     /* Der Tag-Key stammt aus einer Nutzereingabe und darf nicht in einen
        JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
        weil der HTML-Parser die Entities vor der JS-Auswertung zurueckwandelt.
        Deshalb data-key + delegierter Listener (siehe unten). */
     '<button class="day-btn' + (session.dayKey === d.key ? ' active' : '') +
       '" data-action="day:select" data-key="' + esc(d.key) + '">' +
-    (d.key === sug && !session.dayKey ? '<span class="badge">' + esc(__('upNext')) + '</span>' : '') +
     '<div class="tag">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</div>' +
     '<div class="sub">' + esc(daySubOf(d) || __('exercisesCount', { n: d.ex.length })) + '</div></button>'
   ).join('') || '<div class="empty-hint">' + esc(__('noPlanDays') + __('noPlanDaysHint')) + '</div>';
   renderHeute();
+}
+
+/* Der faellige Tag als grosse Karte, solange keine Einheit laeuft.
+
+   Vorher waren alle Tage gleich grosse Knoepfe, der faellige trug nur ein
+   kleines "dran". Was man oeffnet, um zu trainieren, ist aber fast immer
+   genau dieser eine – er soll der erste und groesste Knopf sein. Die Dauer
+   ist die Schaetzung des Generators, mit dem eigenen Tempo verrechnet. */
+function renderHeuteKarte(sug){
+  const el = document.getElementById('heuteKarte');
+  if(!el) return;
+  const d = !session.dayKey && sug ? getDay(sug) : null;
+  if(!d){ el.innerHTML = ''; return; }
+  const tempo = planTempo();
+  const sek = d.ex.reduce((s, id) => s + (EX_BY_ID[id] ? dauerSek(EX_BY_ID[id], cfg('setsMode')) : 0), 0) * (tempo ? tempo.faktor : 1);
+  const meta = [__('exercisesCount', { n: d.ex.length }), sek ? __('aboutMinutes', { n: Math.round(sek / 60) }) : ''].filter(Boolean).join(' · ');
+  el.innerHTML = '<button class="heute-karte" data-action="day:select" data-key="' + esc(d.key) + '">' +
+    '<span class="hk-label">' + esc(__(heutigerPlanTag() === d.key ? 'todayPlanned' : 'upNextLong')) + '</span>' +
+    '<span class="hk-titel">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</span>' +
+    (daySubOf(d) ? '<span class="hk-sub">' + esc(daySubOf(d)) + '</span>' : '') +
+    '<span class="hk-meta">' + esc(meta) + '</span>' +
+    '<span class="hk-los" aria-hidden="true">' + esc(__('startDay')) + '</span></button>';
 }
 
 /* Was heute ansteht – nur bei eingerichtetem Wochenrhythmus.

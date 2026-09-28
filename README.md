@@ -141,6 +141,8 @@ progression/
 
 **Navigation unten.** Unter 1040 px ist die Tableiste eine feste Leiste am unteren Rand, in der Daumenzone, mit Symbol über der Beschriftung. Während einer Einheit sitzt die Abschlussleiste darauf und der Pausen-Chip darüber; die Höhe steht einmal in `--leiste-h`, den Abstand zum iPhone-Balken trägt `env(safe-area-inset-bottom)`. Die Tabs bleiben eine waagerechte Tabliste mit ←/→.
 
+**Kopf und Heute-Karte.** Auf dem Handy standen die vier Kennzahlen auf jedem Tab als 2×2-Kacheln, rund 200 px vor allem anderen. Jetzt sind sie eine Zeile von 59 px und stehen nur im Training (`body[data-tab]`, gesetzt von `showTab()`); auf breiten Schirmen bleiben sie in der Schiene. Der fällige Tag ist eine große Karte über der Tagesauswahl – „Als Nächstes" oder mit Wochenrhythmus „Heute dran", mit Übungszahl, geschätzter Dauer (die Schätzung des Generators mit dem eigenen Tempo) und „Starten". Die Tage darunter werden daneben klein und bleiben alle wählbar; das „dran"-Abzeichen am Tag-Knopf ist entfallen.
+
 **Symbole.** 19 eigene Strichzeichnungen als SVG-Sprite in `index.html`, eingesetzt über `ikon()` in `app.js`, immer `aria-hidden`, Farbe aus `currentColor`. Sie ersetzen Emoji und Unicode-Zeichen, die je nach System anders aussahen. `test/css.test.js` prüft, dass jedes verwendete Symbol im Sprite steht und keines ungenutzt ist.
 
 **Farben je Kategorie.** `--vol-push` … `--vol-mobility` färben den Streifen oben auf der Übungskarte, den Kategorie-Chip, die Stufenleiter, erledigte Satzpunkte, den Randstreifen in der Bibliothek und den Punkt im Plan-Editor – und den Verteilungsbalken. Jede hält 4,5:1 gegen die Kartenfläche in beiden Themen, weil sie auch 11-px-Text trägt; der Test rechnet es nach. Text auf Akzent-, Warn- und Erfolgsflächen nimmt `--on-accent`: hell Weiß, dunkel die Hintergrundfarbe. Bis hierher stand im dunklen Thema Weiß auf dem hellen Akzent, das sind 2,4:1.
@@ -319,7 +321,7 @@ Unter dem Wiederholungsdiagramm steht die **Verteilung nach Sätzen** je Bereich
 
 Wer eine Leiter umbaut, muss die Stufenindizes dort nachziehen. `test/milestones.test.js` prüft gegen die echten Daten, dass jede genannte Übung existiert, jeder Index in der Leiter liegt und die geforderte Zahl dort überhaupt erreichbar ist.
 
-**Wochenrhythmus.** Im Tab *Plan*, unter dem Editor: je Wochentag ein Trainingstag oder nichts. Leer heißt „kein fester Rhythmus" — dann ergibt sich der nächste Tag wie bisher aus der Reihenfolge. Ist etwas eingetragen, nennt eine Zeile über der Tagesauswahl, was heute ansteht, das „dran"-Abzeichen folgt dem Wochentag statt der Rotation, und der Kalender zeigt die kommenden geplanten Tage gestrichelt. **Eine Sperre ist das nie:** am Ruhetag lässt sich jeder Tag antippen und abschließen, und der Satz sagt das auch.
+**Wochenrhythmus.** Im Tab *Plan*, unter dem Editor: je Wochentag ein Trainingstag oder nichts. Leer heißt „kein fester Rhythmus" — dann ergibt sich der nächste Tag wie bisher aus der Reihenfolge. Ist etwas eingetragen, nennt eine Zeile über der Tagesauswahl, was heute ansteht, die Heute-Karte folgt dem Wochentag statt der Rotation, und der Kalender zeigt die kommenden geplanten Tage gestrichelt. **Eine Sperre ist das nie:** am Ruhetag lässt sich jeder Tag antippen und abschließen, und der Satz sagt das auch.
 
 Ein Tagesschlüssel, den der Plan nicht mehr kennt, bleibt in der Zuordnung stehen — der Plan darf wechseln, ohne die Einrichtung still zu löschen; gelesen wird sie ohnehin nur, wenn es den Tag gibt.
 
