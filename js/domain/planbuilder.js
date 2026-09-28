@@ -16,6 +16,7 @@
 import { exMoeglich, levelMoeglich } from './equipment.js';
 import { istSkill } from './skills.js';
 import { zielAuswerten } from './target.js';
+import { GRUPPEN } from './bilanz.js';
 
 /* Tagesarten als Liste von Plaetzen, in der Reihenfolge ihrer Wichtigkeit.
    Jeder Platz ist ein Bewegungsmuster und wird mit der besten machbaren
@@ -205,6 +206,85 @@ const DRUECK_MUSTER = new Set(['h_druecken', 'dip', 'v_druecken']);
 
 const TAGE_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+/* Schwerpunkt: Oberkoerper oder Beine bekommen mehr, ohne dass eine andere
+   Gruppe unter die Grenzen der Wochenbilanz faellt.
+
+   Bis drei Tage – Ganzkoerper – tauscht jeder Tag Plaetze. Ein zusaetzlicher
+   Platz der Gruppe steht direkt hinter dem Pflichtteil des Tages (dem
+   ersten Platz jeder Gruppe und der ersten Hueftbeuge), davor also, wo
+   sonst die zweiten Plaetze der anderen stehen. An der Hoechstzahl von
+   sieben Uebungen oder am Zeitbudget faellt dann einer von denen weg:
+     beine  ein Kniebeuge- oder Hueftbeugeplatz mehr, dafuer faellt der
+            letzte Druckplatz. Zwei Beinplaetze hatte der Tag schon.
+     oben   ein Zug- oder Druckplatz mehr, im Wechsel und Ziehen zuerst –
+            sonst kaemen bei drei Tagen zwei Druck- auf einen Zugplatz. Dafuer
+            steht nur noch ein Beinplatz im Tag, abwechselnd Kniebeuge und
+            Hueftbeuge, damit die Hueftbeuge in der Woche nicht fehlt.
+   Nur ein Platz mehr fuer dieselbe Gruppe haette beim Oberkoerper nichts
+   geaendert: dort stehen die zweiten Druck- und Zugplaetze schon hinter dem
+   Pflichtteil, der neue haette einen von ihnen verdraengt.
+
+   Ab vier Tagen hilft ein Platz mehr nichts: Ober- und Unterkoerpertage
+   stehen schon am Satzdeckel von zwoelf je Kategorie. Dort aendert sich die
+   Verteilung der Tagesarten (AUFTEILUNG_SCHWERPUNKT). */
+export const SCHWERPUNKTE = ['ausgewogen', 'oben', 'beine'];
+const GRUPPE_VON = new Map(Object.entries(GRUPPEN).flatMap(([g, m]) => m.map(x => [x, g])));
+const EXTRA_MUSTER = {
+  ziehen: ['v_ziehen', 'h_ziehen'],
+  druecken: ['h_druecken', 'dip', 'v_druecken'],
+  beine: ['kniebeuge', 'huefte']
+};
+function mitSchwerpunkt(plaetze, schwerpunkt, di, zaehler){
+  const liste = plaetze.slice();
+  let gruppe;
+  if(schwerpunkt === 'beine'){
+    gruppe = 'beine';
+    const letzterDruck = liste.map(m => GRUPPE_VON.get(m)).lastIndexOf('druecken');
+    if(liste.filter(m => GRUPPE_VON.get(m) === 'druecken').length > 1) liste.splice(letzterDruck, 1);
+  } else {
+    gruppe = ['ziehen', 'druecken'][zaehler.n++ % 2];
+    /* Ein Beinplatz bleibt: an geraden Tagen die Kniebeuge, an ungeraden
+       die Hueftbeuge. */
+    const weg = di % 2 ? 'kniebeuge' : 'huefte';
+    if(liste.includes('kniebeuge') && liste.includes('huefte')) liste.splice(liste.indexOf(weg), 1);
+  }
+  let ende = 0;
+  const gesehen = new Set();
+  liste.forEach((m, i) => {
+    const gr = GRUPPE_VON.get(m) || m;
+    const ersteHuefte = m === 'huefte' && liste.indexOf('huefte') === i;
+    if(!gesehen.has(gr) || ersteHuefte){ gesehen.add(gr); ende = i + 1; }
+  });
+  const anzahl = m => liste.filter(x => x === m).length;
+  const extra = EXTRA_MUSTER[gruppe].reduce((best, m) => anzahl(m) < anzahl(best) ? m : best);
+  return [...liste.slice(0, ende), extra, ...liste.slice(ende)];
+}
+/* Ab vier Tagen. Die Reihenfolge ist die der Wochentage aus
+   wochentageVorschlag() (4: Mo Di Do Fr, 5: Mo Di Mi Fr Sa, 6: Mo bis Sa):
+   Beintage liegen, wo es geht, nicht nebeneinander. Bei vier Tagen geht es
+   nicht – drei von vier Tagen mit Beinen haben immer zwei Nachbarn; der
+   Ganzkoerpertag ist der leichtere davon.
+     beine  4: ein Oberkoerpertag wird Ganzkoerper – Beine an drei Tagen.
+            5: beide Unterkoerpertage und der Beintag, Oberkoerper zweimal.
+            6: zwei Beintage und ein Unterkoerpertag, dazu Oberkoerper,
+               Druecken und Ziehen je einmal.
+     oben   4: ein Unterkoerpertag wird Ganzkoerper – Oberkoerper dreimal.
+            5: dreimal Oberkoerper statt Oberkoerper, Druecken und Ziehen;
+               das sind je drei statt zwei Tage fuer Druecken und Ziehen.
+            6: zwei Oberkoerpertage statt eines Beintags und eines
+               Druecktags – Druecken und Ziehen an vier Tagen. */
+const AUFTEILUNG_SCHWERPUNKT = {
+  beine: {
+    4: ['okA', 'ukA', 'gkB', 'ukB'],
+    5: ['ukA', 'okA', 'legs', 'okB', 'ukB'],
+    6: ['okA', 'legs', 'push', 'ukA', 'pull', 'legs']
+  },
+  oben: {
+    4: ['okA', 'ukA', 'okB', 'gkA'],
+    5: ['okA', 'legs', 'okB', 'ukA', 'okA'],
+    6: ['push', 'pull', 'legs', 'okA', 'ukA', 'okB']
+  }
+};
 
 /* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht.
    Die Handgelenks-Routine zaehlt nicht mit: sie ist Aufwaermen. Sonst
@@ -322,7 +402,7 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte, tempo } = {}){
+export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte, schwerpunkt, tempo } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
@@ -336,6 +416,9 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
   /* Aus tempoFaktor(): die Schaetzung je Uebung mal diesem Faktor. */
   const [tUnten, tOben] = TEMPO_GRENZEN;
   const faktor = Number.isFinite(tempo) ? Math.min(tOben, Math.max(tUnten, tempo)) : 1;
+  const schwer = SCHWERPUNKTE.includes(schwerpunkt) && schwerpunkt !== 'ausgewogen' ? schwerpunkt : null;
+  const zaehler = { n: 0 };
+  const aufteilung = (schwer && AUFTEILUNG_SCHWERPUNKT[schwer][t]) || AUFTEILUNG[t];
 
   const stand = levels && typeof levels === 'object' ? levels : {};
   const index = new Map(alle.map((e, i) => [e.id, i]));
@@ -359,8 +442,9 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
      die Uebung. */
   const nutzung = new Map();
 
-  const days = AUFTEILUNG[t].map((art, di) => {
+  const days = aufteilung.map((art, di) => {
     const tag = TAGESARTEN[art];
+    const plaetzeTag = schwer && tag.titel === 'gk' ? mitSchwerpunkt(tag.plaetze, schwer, di, zaehler) : tag.plaetze;
     const ids = [];
     const saetze = {};
     let zeit = 0, plaetze = 0;
@@ -386,7 +470,7 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
        erklaerte Ziel. */
     if(skill) nimm(skill);
 
-    tag.plaetze.forEach(platz => {
+    plaetzeTag.forEach(platz => {
       const frei = m => machbare.filter(e => e.muster === m && !ids.includes(e.id));
       const muster = [platz, ...(AUSWEICHMUSTER[platz] || [])].find(m => frei(m).length);
       if(!muster) return;

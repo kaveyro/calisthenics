@@ -647,3 +647,56 @@ describe('Dauer aus echten Einheiten', () => {
     expect(bauen({ tempo: 1.4 }).days[0].min).toBeGreaterThan(bauen({}).days[0].min);
   });
 });
+
+describe('Schwerpunkt Muskelgruppe', () => {
+  const EQUIPS = { stuhl: ['chair'], stange: ['bar'], ringe: ['rings'], alles: EQUIP_ALL };
+  const bilanz = (tage, equipment, minuten, schwerpunkt) => {
+    const p = bauen({ tage, equipment, minuten, schwerpunkt });
+    return wochenbilanz(wochenTage(p.days, {}, tage), EX_BY_ID);
+  };
+  const saetze = (b, ...gruppen) => gruppen.reduce((s, g) => s + b.gruppen[g].saetze, 0);
+
+  /* Das Versprechen im Dialog: mehr fuer die gewaehlte Gruppe, und keine
+     andere faellt unter die Grenzen der Wochenbilanz. */
+  it('gibt der Gruppe mehr, ohne eine Warnung der Wochenbilanz', () => {
+    for(const tage of [2, 3, 4, 5, 6]){
+      for(const [name, equipment] of Object.entries(EQUIPS)){
+        for(const minuten of [45, 60, undefined]){
+          const fall = tage + ' ' + name + ' ' + minuten;
+          const basis = bilanz(tage, equipment, minuten, 'ausgewogen');
+          const oben = bilanz(tage, equipment, minuten, 'oben');
+          const beine = bilanz(tage, equipment, minuten, 'beine');
+          expect(oben.warnungen, 'oben ' + fall).toEqual([]);
+          expect(beine.warnungen, 'beine ' + fall).toEqual([]);
+          expect(saetze(oben, 'druecken', 'ziehen'), 'oben ' + fall).toBeGreaterThan(saetze(basis, 'druecken', 'ziehen'));
+          expect(saetze(beine, 'beine'), 'beine ' + fall).toBeGreaterThan(saetze(basis, 'beine'));
+        }
+      }
+    }
+  });
+
+  it('bleibt auch ohne Geraet bei zwei und drei Tagen ohne Warnung', () => {
+    for(const tage of [2, 3]){
+      for(const sp of ['oben', 'beine']) expect(bilanz(tage, [], 45, sp).warnungen, sp + ' ' + tage).toEqual([]);
+    }
+  });
+
+  it('behaelt beim Oberkoerper einen Beinplatz je Ganzkoerpertag und die Hueftbeuge in der Woche', () => {
+    const p = bauen({ tage: 3, schwerpunkt: 'oben' });
+    const muster = d => d.ex.map(id => EX_BY_ID[id].muster);
+    p.days.forEach(d => expect(muster(d).filter(m => ['kniebeuge', 'huefte'].includes(m)), d.key).toHaveLength(1));
+    expect(p.days.some(d => muster(d).includes('huefte'))).toBe(true);
+  });
+
+  it('verteilt ab vier Tagen die Tagesarten um', () => {
+    const titel = sp => bauen({ tage: 4, schwerpunkt: sp }).days.map(d => d.title);
+    expect(titel('ausgewogen')).toEqual(['Oberkörper', 'Unterkörper & Rumpf', 'Oberkörper', 'Unterkörper & Rumpf']);
+    expect(titel('beine')).toEqual(['Oberkörper', 'Unterkörper & Rumpf', 'Ganzkörper', 'Unterkörper & Rumpf']);
+    expect(titel('oben')).toEqual(['Oberkörper', 'Unterkörper & Rumpf', 'Oberkörper', 'Ganzkörper']);
+  });
+
+  it('behandelt einen unbekannten Schwerpunkt wie ausgewogen', () => {
+    expect(bauen({ schwerpunkt: 'arme' })).toEqual(bauen({}));
+    expect(bauen({ schwerpunkt: 'ausgewogen' })).toEqual(bauen({}));
+  });
+});

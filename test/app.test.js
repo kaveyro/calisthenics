@@ -966,6 +966,23 @@ describe('Plangenerator', () => {
     expect(document.getElementById('pb-minuten').getAttribute('aria-describedby')).toBe('hint-pb-minuten');
   });
 
+  it('verschiebt mit dem Schwerpunkt Beine die Plaetze zu den Beinen', async () => {
+    const { p } = await dialogOeffnen(['bar']);
+    const sp = document.getElementById('pb-schwerpunkt');
+    expect([...sp.options].map(o => o.value)).toEqual(['ausgewogen', 'oben', 'beine']);
+    const tage = document.getElementById('pb-tage');
+    tage.value = '3';
+    tage.dispatchEvent(new Event('change'));
+    sp.value = 'beine';
+    sp.dispatchEvent(new Event('change'));
+    uebernehmen();
+    await p; await ruhe();
+    const { EX_BY_ID } = await import('../js/exercises.js');
+    const beine = gespeichert().customPlan.days.flatMap(d => d.ex).filter(id => EX_BY_ID[id].cat === 'legs');
+    /* Ausgewogen sind es zwei Beinuebungen je Ganzkoerpertag. */
+    expect(beine.length).toBeGreaterThan(6);
+  });
+
   it('sagt nichts zur Dauer ohne gemessene Einheiten', async () => {
     await dialogOeffnen(['bar']);
     expect(document.getElementById('hint-pb-minuten')).toBeNull();

@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -3185,12 +3185,12 @@ function dragDrop(di, ei){
 /* Wie schnell die letzten Einheiten wirklich waren (tempoFaktor() in
    js/domain/planbuilder.js), oder null, solange es zu wenige gibt. */
 const planTempo = () => tempoFaktor(state.log, EXERCISES, cfg('setsMode'));
-function planAusAusruestung(tage, ziel, minuten){
+function planAusAusruestung(tage, ziel, minuten, schwerpunkt){
   const tempo = planTempo();
   return buildPlan({
     exercises: EXERCISES,
     equipment: state.equipment,
-    tage, ziel, minuten,
+    tage, ziel, minuten, schwerpunkt,
     tempo: tempo ? tempo.faktor : 1,
     setsMode: cfg('setsMode'),
     levels: state.levels,
@@ -3627,6 +3627,11 @@ function askPlanBuilder(){
         '<select id="pb-ziel" aria-describedby="hint-pb-ziel">' + ZIELE_HIER.map(z =>
           '<option value="' + z + '">' + esc(__('goal_' + z)) + '</option>').join('') +
         '</select></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-schwerpunkt">' + esc(__('focusGroup')) + '</label>' +
+        '<span class="hint" id="hint-pb-schwerpunkt">' + esc(__('focusGroupHint')) + '</span></span>' +
+        '<select id="pb-schwerpunkt" aria-describedby="hint-pb-schwerpunkt">' + SCHWERPUNKTE.map(s =>
+          '<option value="' + s + '">' + esc(__('focus_' + s)) + '</option>').join('') +
+        '</select></div>' +
       '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label>' +
         (tempoHinweis ? '<span class="hint" id="hint-pb-minuten">' + esc(tempoHinweis) + '</span>' : '') + '</span>' +
         '<select id="pb-minuten"' + (tempoHinweis ? ' aria-describedby="hint-pb-minuten"' : '') + '>' + [30, 45, 60].map(m =>
@@ -3640,6 +3645,7 @@ function askPlanBuilder(){
 
     const tage = modal.querySelector('#pb-tage'), ziel = modal.querySelector('#pb-ziel');
     const minuten = modal.querySelector('#pb-minuten');
+    const schwerpunkt = modal.querySelector('#pb-schwerpunkt');
     const rhythmus = modal.querySelector('#pb-rhythmus');
     const vorschau = modal.querySelector('#pb-vorschau');
     const namen = wochentage();
@@ -3649,7 +3655,7 @@ function askPlanBuilder(){
        bekommen, was er gesehen hat. */
     let plan = null, wochenplan = null;
     const zeichnen = () => {
-      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value));
+      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value), schwerpunkt.value);
       wochenplan = rhythmus.checked ? wochentageVorschlag(plan.days.map(d => d.key)) : null;
       /* Wochentag je Plan-Tag, Montag = 0 in namen[]. */
       const wd = {};
@@ -3664,7 +3670,7 @@ function askPlanBuilder(){
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
     tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
-    rhythmus.onchange = zeichnen;
+    schwerpunkt.onchange = zeichnen; rhythmus.onchange = zeichnen;
     zeichnen();
 
     modal.querySelector('[data-dlg=ok]').onclick = () => finish({ plan, wochenplan });
