@@ -2805,10 +2805,15 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     expect(label('pushup').classList.contains('checked')).toBe(false);
   });
 
-  it('bleibt Handeingabe, solange ein Satz ohne Zahl ist – und sagt es', async () => {
+  it('bleibt Handeingabe, solange ein abgehakter Satz ohne Zahl ist – und sagt es', async () => {
     const app = await einheit();
     const werte = alle('pushup', oben('pushup'));
     werte[0] = null;
+    tippe(app, 'pushup', werte);
+    /* Noch nicht dran gewesen ist nicht dasselbe wie ohne Zahl. */
+    expect(label('pushup').hidden).toBe(true);
+    /* Abgehakt, dann die eingetragene Vorgabe geloescht. */
+    app.actions['set:tap']({ ex: 'pushup', set: '0' });
     tippe(app, 'pushup', werte);
     expect(label('pushup').classList.contains('abgeleitet')).toBe(false);
     expect(label('pushup').querySelector('input').disabled).toBe(false);

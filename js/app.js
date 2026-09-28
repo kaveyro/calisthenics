@@ -1253,10 +1253,12 @@ function limitStand(ex){
 /* Seit ein Tipp auf den Satz die Vorgabe eintraegt, entscheiden fast immer
    die Zahlen. Das Haekchen stand trotzdem als eigener Kasten auf jeder
    Karte – als abgeschaltete Checkbox, die niemand bedienen konnte. Jetzt:
-     Zahlen vollstaendig  eine Zeile, die sagt, was die Zahlen ergeben
-     Zahlen fehlen, aber  das Haekchen zum Selbersetzen, mit dem Hinweis,
-     es wurde trainiert   dass die App es sonst nicht weiss
-     noch nichts getan    nichts (das Element bleibt als Anker stehen)
+     Zahlen vollstaendig    eine Zeile, die sagt, was die Zahlen ergeben
+     ein abgehakter Satz    das Haekchen zum Selbersetzen, mit dem Hinweis,
+     steht ohne Zahl da     dass die App es sonst nicht weiss
+     sonst                  nichts (das Element bleibt als Anker stehen)
+   Saetze, die nur noch nicht dran waren, zaehlen nicht als fehlend – sonst
+   stuende das Haekchen nach dem ersten Satz wieder auf jeder Karte.
    Fehlende Zahlen gibt es, wenn die App keine Vorgabe kennt: Eintraege
    ohne Stufe (vor v15, CSV, nachgetragen) liefern keine. */
 function toplimitHtml(ex){
@@ -1271,11 +1273,11 @@ function toplimitHtml(ex){
       (erreicht ? '<span>' + ikon('levelup') + esc(__('topLimit')) + '</span>' : '') +
       '<small class="toplimit-grund">' + esc(grund) + '</small></div>';
   }
-  const eingetragen = reps.some(n => Number.isInteger(n));
-  if(!eingetragen && !uebungBegonnen(ex.id) && !session.top[ex.id]) return '<div class="toplimit" id="top-' + ex.id + '" hidden></div>';
+  const ohneZahl = reps.some((n, s) => session.sets[ex.id + '-' + s] && !Number.isInteger(n));
+  if(!ohneZahl && !session.top[ex.id]) return '<div class="toplimit" id="top-' + ex.id + '" hidden></div>';
   /* Nur, wenn schon etwas eingetragen ist: dann fehlt wirklich nur der
      Rest. Nach Saetzen ganz ohne Zahlen waere der Hinweis falsch. */
-  const grund = grenze && eingetragen ? __('topLimitMissing') : '';
+  const grund = grenze && reps.some(n => Number.isInteger(n)) ? __('topLimitMissing') : '';
   return '<label class="' + klasse + ' hand" id="top-' + ex.id + '">' +
     '<input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"' + (erreicht ? ' checked' : '') + '>' +
     '<span>' + __('topLimit') +
