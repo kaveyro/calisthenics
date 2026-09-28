@@ -18,7 +18,7 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor } from './domain/planbuilder.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -3182,11 +3182,16 @@ function dragDrop(di, ei){
 
 /* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
    Bezeichnungen hinein. Das Modul selbst bleibt damit ohne Sprachwissen. */
+/* Wie schnell die letzten Einheiten wirklich waren (tempoFaktor() in
+   js/domain/planbuilder.js), oder null, solange es zu wenige gibt. */
+const planTempo = () => tempoFaktor(state.log, EXERCISES, cfg('setsMode'));
 function planAusAusruestung(tage, ziel, minuten){
+  const tempo = planTempo();
   return buildPlan({
     exercises: EXERCISES,
     equipment: state.equipment,
     tage, ziel, minuten,
+    tempo: tempo ? tempo.faktor : 1,
     setsMode: cfg('setsMode'),
     levels: state.levels,
     texte: {
@@ -3603,6 +3608,11 @@ function askChoice(titel, optionen){
 function askPlanBuilder(){
   /* Nur Ziele, die mit der eigenen Ausruestung gehen. */
   const ZIELE_HIER = ['keiner', ...moeglicheZiele(EXERCISES, state.equipment)];
+  /* Steht nur da, wenn der Generator die Schaetzung tatsaechlich anpasst. */
+  const tempo = planTempo();
+  const tempoHinweis = tempo && tempo.faktor !== 1
+    ? __(tempo.faktor > 1 ? 'tempoSlower' : 'tempoFaster', { n: tempo.n, p: Math.round(Math.abs(tempo.faktor - 1) * 100) })
+    : '';
   return askDialog((modal, finish) => {
     const titel = __('buildPlan');
     modal.setAttribute('aria-label', titel);
@@ -3617,8 +3627,9 @@ function askPlanBuilder(){
         '<select id="pb-ziel" aria-describedby="hint-pb-ziel">' + ZIELE_HIER.map(z =>
           '<option value="' + z + '">' + esc(__('goal_' + z)) + '</option>').join('') +
         '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label></span>' +
-        '<select id="pb-minuten">' + [30, 45, 60].map(m =>
+      '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label>' +
+        (tempoHinweis ? '<span class="hint" id="hint-pb-minuten">' + esc(tempoHinweis) + '</span>' : '') + '</span>' +
+        '<select id="pb-minuten"' + (tempoHinweis ? ' aria-describedby="hint-pb-minuten"' : '') + '>' + [30, 45, 60].map(m =>
           '<option value="' + m + '"' + (m === 45 ? ' selected' : '') + '>' + esc(__('minutesN', { n: m })) + '</option>').join('') +
         '</select></div>' +
       '<div class="set-row"><span><label class="lbl2" for="pb-rhythmus">' + esc(__('setWeekdays')) + '</label>' +

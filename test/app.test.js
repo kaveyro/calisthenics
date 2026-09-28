@@ -954,6 +954,23 @@ describe('Plangenerator', () => {
     expect(zaehle().reduce((a, b) => a + b)).toBeLessThan(bei45.reduce((a, b) => a + b));
   });
 
+  it('rechnet mit der gemessenen Dauer und sagt es', async () => {
+    const langsam = [1, 2, 3].map(i => ({
+      d: isoDaysAgo(i * 2), day: 'A', ex: ['pushup', 'squat', 'hollow'], sets: 10, dauer: 3000
+    }));
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, equipment: ['bar'], log: langsam }));
+    const app = await starten();
+    app.actions['plan:build']();
+    await ruhe();
+    expect(document.getElementById('hint-pb-minuten').textContent).toMatch(/letzten 3 Einheiten .* 50 % länger/);
+    expect(document.getElementById('pb-minuten').getAttribute('aria-describedby')).toBe('hint-pb-minuten');
+  });
+
+  it('sagt nichts zur Dauer ohne gemessene Einheiten', async () => {
+    await dialogOeffnen(['bar']);
+    expect(document.getElementById('hint-pb-minuten')).toBeNull();
+  });
+
   it('uebernimmt genau das, was in der Vorschau stand', async () => {
     const { p } = await dialogOeffnen(['rings']);
     const gesehen = [...document.querySelectorAll('#pb-vorschau .pb-day')]

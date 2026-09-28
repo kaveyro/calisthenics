@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit, planPruefen, uebungErsetzen } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit, planPruefen, uebungErsetzen, tempoFaktor, TEMPO_GRENZEN } from '../js/domain/planbuilder.js';
+import { zielAuswerten } from '../js/domain/target.js';
 import { istSkill } from '../js/domain/skills.js';
 import { wochenTage, wochenbilanz } from '../js/domain/bilanz.js';
 import { EQUIP_ALL, exMoeglich, levelMoeglich } from '../js/domain/equipment.js';
@@ -599,5 +600,50 @@ describe('Plan-Check nach Fortschritt', () => {
     /* Steht die neue schon im Tag, faellt die alte nur weg. */
     expect(uebungErsetzen([tag('A', ['pushup', 'archer_push'])], 'pushup', 'archer_push')[0].ex).toEqual(['archer_push']);
     expect(uebungErsetzen(null, 'a', 'b')).toEqual([]);
+  });
+});
+
+describe('Dauer aus echten Einheiten', () => {
+  const EX = ['pushup', 'squat', 'hollow'];
+  const geplant = EX.reduce((s, id) => s + zielAuswerten(EX_BY_ID[id].levels[0]).sets, 0);
+  const proSatz = EX.reduce((s, id) => s + dauerSek(EX_BY_ID[id]), 0) / geplant;
+  /* Eine Einheit, die je Satz f-mal so lange dauerte wie geschaetzt. */
+  const einheit = (f, extra = {}) => ({ d: '2026-09-01', ex: EX, sets: geplant, dauer: Math.round(proSatz * geplant * f), ...extra });
+
+  it('braucht drei gemessene Einheiten', () => {
+    expect(tempoFaktor([einheit(1.4), einheit(1.4)], EXERCISES)).toBeNull();
+    expect(tempoFaktor([einheit(1.4), einheit(1.4), einheit(1.4)], EXERCISES)).toEqual({ faktor: 1.4, n: 3 });
+  });
+
+  it('nimmt den Median und rechnet je Satz, nicht je Einheit', () => {
+    /* Die abgebrochene Einheit – halb so viele Saetze in halber Zeit – ist
+       nicht schnell, sondern kurz. */
+    const halb = { ...einheit(1.3), sets: Math.round(geplant / 2), dauer: Math.round(proSatz * Math.round(geplant / 2) * 1.3) };
+    expect(tempoFaktor([einheit(1.3), halb, einheit(3), einheit(1.3)], EXERCISES).faktor).toBe(1.3);
+  });
+
+  it('laesst ungemessene, Entlastungs- und Kurzeinheiten aus', () => {
+    const log = [einheit(1.3), einheit(1.3), einheit(1, { dauer: 0 }), einheit(0.5, { dl: true }), einheit(0.5, { sets: 3 })];
+    expect(tempoFaktor(log, EXERCISES)).toBeNull();
+  });
+
+  it('bleibt bei kleiner Abweichung bei 1 und deckelt grosse', () => {
+    expect(tempoFaktor([einheit(1.05), einheit(1.05), einheit(1.05)], EXERCISES).faktor).toBe(1);
+    expect(tempoFaktor([einheit(3), einheit(3), einheit(3)], EXERCISES).faktor).toBe(TEMPO_GRENZEN[1]);
+    expect(tempoFaktor([einheit(0.2), einheit(0.2), einheit(0.2)], EXERCISES).faktor).toBe(TEMPO_GRENZEN[0]);
+  });
+
+  it('schaut nur auf die letzten acht', () => {
+    const log = [...Array(8)].map(() => einheit(0.8)).concat([...Array(8)].map(() => einheit(1.3)));
+    expect(tempoFaktor(log, EXERCISES)).toEqual({ faktor: 1.3, n: 8 });
+  });
+
+  it('gibt Langsameren bei gleichem Budget weniger in den Tag', () => {
+    const zahl = tempo => bauen({ minuten: 45, tempo }).days.reduce((s, d) => s + d.ex.length, 0);
+    expect(zahl(1.4)).toBeLessThan(zahl(1));
+    expect(zahl(0.8)).toBeGreaterThanOrEqual(zahl(1));
+    /* Die Vorschau zeigt die angepasste Dauer. */
+    bauen({ minuten: 45, tempo: 1.4 }).days.forEach(d => expect(d.min).toBeLessThanOrEqual(45 + 15));
+    expect(bauen({ tempo: 1.4 }).days[0].min).toBeGreaterThan(bauen({}).days[0].min);
   });
 });

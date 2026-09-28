@@ -92,6 +92,45 @@ export function dauerSek(ex, setsMode = 'standard'){
   const pause = ex.rest || 90;
   return z.sets * arbeit + Math.max(0, z.sets - 1) * pause + 60;
 }
+/* Wie schnell der Nutzer wirklich trainiert, als Faktor auf die Schaetzung.
+
+   Die App misst die Dauer jeder Einheit (log[].dauer, vom ersten Satz bis
+   zum Abschluss), der Generator schaetzte trotzdem aus festen Werten. Wer
+   seine Pausen ueberzieht, bekam einen 45-Minuten-Plan, der eine Stunde
+   dauerte – und strich dann von Hand, meist am Ende, also Rumpf und
+   Hueftbeuge.
+
+   Verglichen wird je Satz: die gemessene Zeit je erledigtem Satz gegen die
+   geschaetzte je geplantem. So zaehlt eine abgebrochene Einheit nicht als
+   schnelle. Ausgelassen werden Einheiten ohne Messung (nachgetragen), die
+   Entlastungswoche (halbe Saetze, andere Pausen) und alles unter vier
+   Saetzen. Der Median der letzten acht, ab drei; zwischen 0,9 und 1,1 bleibt
+   es bei 1 – so wenig Abweichung ist Rauschen, und der Plan soll nicht
+   wegen zwei Minuten anders aussehen. Gedeckelt auf 0,75 bis 1,5. */
+export const TEMPO_GRENZEN = [0.75, 1.5];
+const TEMPO_EINHEITEN = 8;
+export function tempoFaktor(log, exercises, setsMode = 'standard'){
+  const byId = new Map((Array.isArray(exercises) ? exercises : []).map(e => [e.id, e]));
+  const werte = [];
+  const liste = Array.isArray(log) ? log : [];
+  for(let i = liste.length - 1; i >= 0 && werte.length < TEMPO_EINHEITEN; i--){
+    const l = liste[i];
+    if(!l || !(l.dauer > 0) || l.dl || !Array.isArray(l.ex) || !(l.sets >= 4)) continue;
+    const exs = l.ex.map(id => byId.get(id)).filter(e => e && e.levels && e.levels[0]);
+    const geplant = exs.reduce((s, e) => s + zielAuswerten(e.levels[0], setsMode).sets, 0);
+    const schaetzung = exs.reduce((s, e) => s + dauerSek(e, setsMode), 0);
+    if(!geplant || !schaetzung) continue;
+    werte.push((l.dauer / l.sets) / (schaetzung / geplant));
+  }
+  if(werte.length < 3) return null;
+  werte.sort((a, b) => a - b);
+  const mitte = werte.length >> 1;
+  const roh = werte.length % 2 ? werte[mitte] : (werte[mitte - 1] + werte[mitte]) / 2;
+  const [unten, oben] = TEMPO_GRENZEN;
+  const gerundet = Math.round(Math.min(oben, Math.max(unten, roh)) * 20) / 20;
+  return { faktor: Math.abs(gerundet - 1) < 0.1 ? 1 : gerundet, n: werte.length };
+}
+
 /* Die ersten Plaetze eines Tages sind Pflicht, das Budget kuerzt nur die
    Ergaenzungen dahinter. Schon Liegestuetze, Klimmzuege und Kniebeugen
    brauchen mit ihren Pausen rund eine halbe Stunde; ein strenges Budget
@@ -165,6 +204,7 @@ const TITEL_VORGABE = {
 const DRUECK_MUSTER = new Set(['h_druecken', 'dip', 'v_druecken']);
 
 const TAGE_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
 
 /* Mehr passt nicht in eine Einheit, die man auch wirklich zu Ende macht.
    Die Handgelenks-Routine zaehlt nicht mit: sie ist Aufwaermen. Sonst
@@ -282,7 +322,7 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte } = {}){
+export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte, tempo } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
@@ -293,6 +333,9 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
   const titel = { ...TITEL_VORGABE, ...(texts.tage || {}) };
   /* Ohne Angabe gilt kein Budget – dann entscheiden Plaetze und Grenzen. */
   const budget = MINUTEN.includes(Number(minuten)) ? Number(minuten) * 60 : Infinity;
+  /* Aus tempoFaktor(): die Schaetzung je Uebung mal diesem Faktor. */
+  const [tUnten, tOben] = TEMPO_GRENZEN;
+  const faktor = Number.isFinite(tempo) ? Math.min(tOben, Math.max(tUnten, tempo)) : 1;
 
   const stand = levels && typeof levels === 'object' ? levels : {};
   const index = new Map(alle.map((e, i) => [e.id, i]));
@@ -325,7 +368,7 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
       if(ids.includes(e.id) || ids.filter(id => id !== HANDGELENKE).length >= MAX_PRO_TAG) return false;
       const n = kraftsaetze(e);
       if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
-      const d = dauerSek(e, setsMode);
+      const d = dauerSek(e, setsMode) * faktor;
       if(!pflicht && zeit + d > budget) return false;
       saetze[e.cat] = (saetze[e.cat] || 0) + n;
       zeit += d;
