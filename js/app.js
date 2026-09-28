@@ -643,13 +643,14 @@ function nextSuggestedKey(){
 }
 
 /* ================= Kopfbereich ================= */
+const einheitenDieseWoche = () => (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
 function renderStats(){
   /* Echte Level-Ups aus dem Log zaehlen. Frueher wurde die Summe der
      Stufen-Indizes gebildet, sodass jede manuelle Korrektur ueber die
      +/--Buttons den Zaehler mit aufgeblaeht hat. */
   const ups = (state.log || []).reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
   const ms = Object.keys(state.milestones || {}).length;
-  const thisWeek = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
+  const thisWeek = einheitenDieseWoche();
   document.getElementById('stats').innerHTML =
     statBox(state.workouts || 0, __('trainings')) +
     statBox(thisWeek + ' / ' + cfg('weekGoal'), __('thisWeek')) +
@@ -1193,7 +1194,25 @@ function renderHeuteKarte(sug){
     '<span class="hk-titel">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</span>' +
     (daySubOf(d) ? '<span class="hk-sub">' + esc(daySubOf(d)) + '</span>' : '') +
     '<span class="hk-meta">' + esc(meta) + '</span>' +
+    wochenRingHtml(einheitenDieseWoche(), cfg('weekGoal')) +
     '<span class="hk-los" aria-hidden="true">' + esc(__('startDay')) + '</span></button>';
+}
+
+/* Der Wochenring: wie viel vom Wochenziel schon geschafft ist, als Ring
+   ueber dem Start. Die Zahl stand bisher nur klein in der Kennzahlenzeile;
+   am Ring sieht man vor dem Start, ob die Einheit heute das Ziel schliesst.
+   Voll wird er gruen. Ohne Einheit bleibt nur die Bahn – ein Bogen der
+   Laenge 0 zeichnete mit runden Enden einen Punkt. Fuer den Screenreader
+   steht derselbe Stand als Satz im Knopf. */
+function wochenRingHtml(n, ziel){
+  const anteil = ziel > 0 ? Math.min(n / ziel, 1) : 0;
+  const umfang = 2 * Math.PI * 18;
+  return '<span class="hk-ring' + (ziel > 0 && n >= ziel ? ' voll' : '') + '" aria-hidden="true">' +
+    '<svg viewBox="0 0 44 44" focusable="false"><circle class="hk-ring-bahn" cx="22" cy="22" r="18"/>' +
+    (anteil > 0 ? '<circle class="hk-ring-wert" cx="22" cy="22" r="18" stroke-dasharray="' +
+      (anteil * umfang).toFixed(1) + ' ' + umfang.toFixed(1) + '"/>' : '') + '</svg>' +
+    '<span class="hk-ring-zahl">' + n + '/' + ziel + '</span></span>' +
+    '<span class="sr-only">' + esc(__('weekRingSr', { n, ziel })) + '</span>';
 }
 
 /* Was heute ansteht – nur bei eingerichtetem Wochenrhythmus.

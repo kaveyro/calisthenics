@@ -3730,6 +3730,32 @@ describe('Heute-Karte und Kennzahlen', () => {
     app.actions['tab:show']({ tab: 'plan' });
     expect(document.body.dataset.tab).toBe('plan');
   });
+
+  it('zeigt den Wochenring und wird mit dem Ziel voll', async () => {
+    const einheit = { d: isoDaysAgo(0), day: 'A', ex: ['pushup'], sets: 4, reps: {}, dauer: 0 };
+    const mit = async n => {
+      vi.resetModules();
+      document.body.innerHTML = KOERPER;
+      localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, settings: { weekGoal: 3 },
+        log: Array.from({ length: n }, () => ({ ...einheit })) }));
+      await starten();
+      return document.querySelector('#heuteKarte .hk-ring');
+    };
+    let ring = await mit(0);
+    expect(ring.textContent).toBe('0/3');
+    /* Ohne Einheit nur die Bahn, sonst zeichnete ein Bogen der Laenge 0 einen Punkt. */
+    expect(ring.querySelector('.hk-ring-wert')).toBeNull();
+    ring = await mit(2);
+    expect(ring.textContent).toBe('2/3');
+    expect(ring.classList.contains('voll')).toBe(false);
+    expect(document.querySelector('#heuteKarte .sr-only').textContent).toBe('Diese Woche 2 von 3 Einheiten.');
+    ring = await mit(4);
+    expect(ring.textContent).toBe('4/3');
+    expect(ring.classList.contains('voll')).toBe(true);
+    /* Ein voller Ring ist voll, nicht mehr als voll. */
+    const [bogen, umfang] = ring.querySelector('.hk-ring-wert').getAttribute('stroke-dasharray').split(' ');
+    expect(bogen).toBe(umfang);
+  });
 });
 
 describe('Plan-Editor mit Menue je Uebung', () => {
