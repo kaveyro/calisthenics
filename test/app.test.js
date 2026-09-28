@@ -3814,6 +3814,52 @@ describe('Supersaetze', () => {
     expect(gespeichert().customPlan.days[0].ss).toBeUndefined();
   });
 
+  /* Zerfallen war bisher stumm – jetzt mit Hinweis und Rueckgaengig. */
+  it('sagt beim Verschieben, welches Paar zerfaellt, und nimmt es zurueck', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, customPlan: PLAN }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    app.actions['planEx:move']({ day: '0', i: '1', delta: '1' });
+    await ruhe();
+    const toast = document.getElementById('toast');
+    expect(toast.textContent).toMatch(/^Supersatz .+ \+ .+ aufgelöst/);
+    expect(toast.querySelector('[data-action="planEx:pairUndo"]')).not.toBeNull();
+    app.actions['planEx:pairUndo']();
+    await ruhe();
+    expect(gespeichert().customPlan.days[0]).toMatchObject({ ex: PLAN.days[0].ex, ss: PLAN.days[0].ss });
+    expect(toast.textContent).toBe('Supersatz wiederhergestellt');
+    /* Ein zweites Mal gibt es nichts zurueckzunehmen. */
+    app.actions['planEx:pairUndo']();
+    expect(gespeichert().customPlan.days[0].ss).toEqual(PLAN.days[0].ss);
+  });
+
+  it('nimmt nichts zurueck, wenn sich der Tag seither geaendert hat', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, customPlan: PLAN }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    app.actions['planEx:remove']({ day: '0', i: '0' });
+    await ruhe();
+    expect(document.getElementById('toast').textContent).toMatch(/aufgelöst/);
+    app.actions['planEx:move']({ day: '0', i: '0', delta: '1' });
+    await ruhe();
+    const danach = gespeichert().customPlan.days[0];
+    app.actions['planEx:pairUndo']();
+    await ruhe();
+    expect(gespeichert().customPlan.days[0]).toEqual(danach);
+  });
+
+  it('meldet nichts, wenn kein Paar betroffen ist', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, customPlan: PLAN }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    app.actions['planEx:remove']({ day: '0', i: '2' });
+    await ruhe();
+    expect(document.getElementById('toast').textContent).not.toMatch(/Supersatz/);
+  });
+
   it('bietet sie im Generator an und uebernimmt die Paare', async () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, equipment: ['bar'] }));
     const app = await starten();

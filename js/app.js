@@ -3443,13 +3443,15 @@ function dragDrop(di, ei){
   if(dragSrcId === null || dragSrcIdx === null) return;
   if(dragSrcId === di && dragSrcIdx === ei) return;
   const p = ensureCustom();
+  const vorher = tagesStand(p, [dragSrcId, di]);
   const arr = p.days[dragSrcId].ex;
   const item = arr.splice(dragSrcIdx, 1)[0];
   if(dragSrcId === di && dragSrcIdx < ei) ei--;
   p.days[di].ex.splice(ei, 0, item);
-  paareAufraeumen(p.days[dragSrcId]); paareAufraeumen(p.days[di]);
+  const weg = [...paareAufraeumen(p.days[dragSrcId]), ...(di !== dragSrcId ? paareAufraeumen(p.days[di]) : [])];
   dragSrcId = null; dragSrcIdx = null;
   save(); renderPlanTab();
+  paarVerlustAnbieten(p, vorher, weg);
 }
 
 /* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
@@ -3555,14 +3557,59 @@ function addEx(di){
   toast(__('exerciseAdded', { name: exName(EX_BY_ID[id]) }));
 }
 function removeEx(di, ei){
-  const p = ensureCustom(); p.days[di].ex.splice(ei, 1); paareAufraeumen(p.days[di]); save(); renderPlanTab();
+  const p = ensureCustom(), vorher = tagesStand(p, [di]);
+  p.days[di].ex.splice(ei, 1);
+  const weg = paareAufraeumen(p.days[di]);
+  save(); renderPlanTab();
+  paarVerlustAnbieten(p, vorher, weg);
 }
 /* Nach jeder Aenderung an der Reihenfolge: ein Paar, dessen Uebungen nicht
    mehr nebeneinander stehen, ist aufgeloest (js/domain/supersatz.js). */
 function paareAufraeumen(day){
-  if(!day || !day.ss) return;
+  if(!day || !day.ss) return [];
   const ss = gueltigePaare(day);
+  const behalten = new Set(ss.map(p => p.join('|')));
+  /* Gespeichert sind nur gueltige Paare (clampBackup, bisher jeder
+     Schritt) – was jetzt fehlt, ist also eben zerfallen. */
+  const weg = day.ss.filter(p => Array.isArray(p) && !behalten.has(p.join('|')));
   if(ss.length) day.ss = ss; else delete day.ss;
+  return weg;
+}
+
+/* Rueckgaengig fuer einen Supersatz, der beim Verschieben oder Entfernen
+   zerfallen ist. Das Aufloesen war bisher stumm: wer eine Uebung aus dem
+   Paar einen Platz nach unten schob, sah die Klammer im Training nicht
+   mehr und wusste nicht, warum. Jetzt sagt es ein Hinweis, und ein Tipp
+   stellt den Stand vor dem Schritt wieder her – aber nur, solange sich
+   an den betroffenen Tagen seither nichts geaendert hat; sonst ueberschriebe
+   das Rueckgaengig einen spaeteren Schritt. */
+let paarRueckgabe = null;
+function tagesStand(p, tage){
+  return [...new Set(tage)].map(di => p.days[di] ? {
+    di, ex: [...p.days[di].ex], ss: (p.days[di].ss || []).map(x => [...x])
+  } : null);
+}
+function paarVerlustAnbieten(p, vorher, weg){
+  if(!weg.length){ paarRueckgabe = null; return; }
+  paarRueckgabe = { vorher, nachher: JSON.stringify(tagesStand(p, vorher.map(v => v.di))) };
+  const name = id => EX_BY_ID[id] ? exName(EX_BY_ID[id]) : id;
+  const [a, b] = weg[0];
+  toast(__(weg.length > 1 ? 'pairsDissolved' : 'pairDissolved', { a: name(a), b: name(b), n: weg.length }),
+    false, { text: __('undo'), action: 'planEx:pairUndo' });
+}
+function paarRueckgaengig(){
+  const r = paarRueckgabe;
+  paarRueckgabe = null;
+  if(!r) return;
+  const p = ensureCustom();
+  if(JSON.stringify(tagesStand(p, r.vorher.map(v => v.di))) !== r.nachher){ toast(__('pairUndoStale')); return; }
+  r.vorher.forEach(v => {
+    const d = p.days[v.di];
+    d.ex = v.ex;
+    if(v.ss.length) d.ss = v.ss; else delete d.ss;
+  });
+  save(); renderPlanTab();
+  toast(__('pairRestored'));
 }
 function paarSchalten(di, ei){
   const p = ensureCustom(), day = p.days[di];
@@ -3575,9 +3622,11 @@ function paarSchalten(di, ei){
 function moveEx(di, ei, d){
   const p = ensureCustom(), arr = p.days[di].ex;
   const t = ei + d; if(t < 0 || t >= arr.length) return;
+  const vorher = tagesStand(p, [di]);
   [arr[ei], arr[t]] = [arr[t], arr[ei]];
-  paareAufraeumen(p.days[di]);
+  const weg = paareAufraeumen(p.days[di]);
   save(); renderPlanTab();
+  paarVerlustAnbieten(p, vorher, weg);
   /* Das Menue geht an der Uebung wieder auf, die gerade gewandert ist, und
      der Fokus steht auf derselben Richtung: drei Plaetze sind drei Tipps.
      Am Rand ist die Richtung gesperrt, dann die andere. */
@@ -4780,6 +4829,7 @@ export const actions = {
   'planEx:add':         d => addEx(zahl(d.day)),
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
   'planEx:pair':        d => paarSchalten(zahl(d.day), zahl(d.i)),
+  'planEx:pairUndo':    () => paarRueckgaengig(),
   /* Ohne mitFokus(): moveEx() setzt den Fokus selbst, auf die gewanderte
      Uebung statt auf die, die jetzt an ihrem alten Platz steht. */
   'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
