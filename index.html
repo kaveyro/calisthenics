@@ -73,6 +73,7 @@
     <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-7M3 20h18"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
     <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
     <symbol id="i-levelup" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
@@ -261,10 +262,14 @@
         <span><label class="lbl2" for="planSelect" data-i18n="template">Vorlage</label><span class="hint" id="planDesc"></span></span>
         <select id="planSelect" data-action-change="plan:change" aria-describedby="planDesc"></select>
       </div>
+      <!-- Der Generator stand unter dem ganzen Editor, bei vier Tagen gut
+           2000px tiefer als die Vorlage, zu der er die Alternative ist. -->
+      <div class="data-btns data-btns--karte">
+        <button class="btn" data-action="plan:build" data-i18n="buildPlan">Plan aus meiner Ausrüstung</button>
+      </div>
     </div>
     <div id="planEditor" class="raster"></div>
     <div class="data-btns">
-      <button class="btn" data-action="plan:build" data-i18n="buildPlan">Plan aus meiner Ausrüstung</button>
       <button class="btn secondary" data-action="planDay:add" data-i18n="addDay">Trainingstag hinzufügen</button>
       <button class="btn secondary" data-action="plan:reset" data-i18n="resetToTemplate">Auf Vorlage zurücksetzen</button>
     </div>

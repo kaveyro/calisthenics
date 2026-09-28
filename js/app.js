@@ -3239,13 +3239,28 @@ function renderPlanTab(){
            Listener statt ueber die allgemeine Aktionstabelle: dragover feuert
            ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
            gehoert nicht durch einen Namens-Lookup am document. */
+        /* Hoch, runter und entfernen in einem Menue. Als drei Knoepfe
+           nebeneinander liessen sie dem Namen auf dem Handy rund 130px, und
+           fast jeder brach um. Ziehen geht auf dem Handy nicht (HTML-Drag &
+           Drop kennt keine Beruehrung), deshalb bleiben hoch und runter –
+           und das Menue bleibt nach einem Schritt offen (moveEx()). */
+        const name = ex ? exName(ex) : id;
+        const knopf = (aktion, delta, symbol, text, aus, extra = '') =>
+          '<button type="button"' + extra + ' data-action="' + aktion + '" data-day="' + di + '" data-i="' + ei + '"' +
+          (delta ? ' data-delta="' + delta + '"' : '') + (aus ? ' disabled' : '') + '>' + symbol +
+          /* Die Texte sind auch Tooltips und stehen dort klein. */
+          esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</button>';
         return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '"' +
           (ex ? ' data-cat="' + ex.cat + '"' : '') + '>' +
           '<span class="drag-handle">' + ikon('grip') + '</span>' +
-          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
-          '</span><button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="-1" title="' + __('moveUp') + '" aria-label="' + __('moveUp') + '">' + ikon('up') + '</button>' +
-          '<button class="mini-btn" data-action="planEx:move" data-day="' + di + '" data-i="' + ei + '" data-delta="1" title="' + __('moveDown') + '" aria-label="' + __('moveDown') + '">' + ikon('down') + '</button>' +
-          '<button class="mini-btn danger" data-action="planEx:remove" data-day="' + di + '" data-i="' + ei + '" title="' + __('remove') + '" aria-label="' + __('remove') + '">' + ikon('close') + '</button></div>';
+          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') + '</span>' +
+          '<details class="pe-menu" data-day="' + di + '" data-i="' + ei + '">' +
+            '<summary class="mini-btn" aria-label="' + esc(__('exActions', { ex: name })) + '" title="' + esc(__('exActions', { ex: name })) + '">' + ikon('more') + '</summary>' +
+            '<div class="pe-liste">' +
+              knopf('planEx:move', '-1', ikon('up'), __('moveUp'), ei === 0) +
+              knopf('planEx:move', '1', ikon('down'), __('moveDown'), ei === d.ex.length - 1) +
+              knopf('planEx:remove', '', ikon('close'), __('remove'), false, ' class="danger"') +
+            '</div></details></div>';
       }).join('') +
       /* Nicht machbare Uebungen werden gesperrt statt entfernt: ein verkuerztes
          Menue laesst offen, warum eine Uebung fehlt – ein ausgegrauter Eintrag
@@ -3308,6 +3323,25 @@ function bilanzWarnungen(b){
 function installPlanDragAndDrop(){
   const editor = document.getElementById('planEditor');
   const zeile = ev => ev.target.closest('.plan-ex[data-day]');
+
+  /* Die Menues der Plan-Zeilen: immer nur eines offen, ein Tipp daneben
+     oder Escape schliesst es. toggle steigt nicht auf, deshalb capture. */
+  const menues = () => editor.querySelectorAll('details.pe-menu[open]');
+  editor.addEventListener('toggle', ev => {
+    if(ev.target.matches && ev.target.matches('details.pe-menu') && ev.target.open){
+      menues().forEach(m => { if(m !== ev.target) m.open = false; });
+    }
+  }, true);
+  an(document, 'click', ev => {
+    if(!ev.target.closest || !ev.target.closest('details.pe-menu')) menues().forEach(m => { m.open = false; });
+  });
+  an(editor, 'keydown', ev => {
+    const m = ev.key === 'Escape' && ev.target.closest && ev.target.closest('details.pe-menu[open]');
+    if(!m) return;
+    ev.preventDefault();
+    m.open = false;
+    m.querySelector('summary').focus();
+  });
 
   an(editor, 'dragstart', ev => {
     const el = zeile(ev); if(!el) return;
@@ -3454,6 +3488,16 @@ function moveEx(di, ei, d){
   const t = ei + d; if(t < 0 || t >= arr.length) return;
   [arr[ei], arr[t]] = [arr[t], arr[ei]];
   save(); renderPlanTab();
+  /* Das Menue geht an der Uebung wieder auf, die gerade gewandert ist, und
+     der Fokus steht auf derselben Richtung: drei Plaetze sind drei Tipps.
+     Am Rand ist die Richtung gesperrt, dann die andere. */
+  const menu = document.querySelector('#planEditor details.pe-menu[data-day="' + di + '"][data-i="' + t + '"]');
+  if(menu){
+    menu.open = true;
+    const ziel = menu.querySelector('[data-delta="' + d + '"]:not([disabled])') ||
+      menu.querySelector('[data-delta]:not([disabled])') || menu.querySelector('summary');
+    ziel.focus({ preventScroll: true });
+  }
 }
 
 /* ================= Meilensteine & Fahrplan ================= */
@@ -4636,7 +4680,9 @@ export const actions = {
   'planDay:remove':     d => removeDay(zahl(d.day)),
   'planEx:add':         d => addEx(zahl(d.day)),
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
-  'planEx:move':        d => mitFokus(() => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta))),
+  /* Ohne mitFokus(): moveEx() setzt den Fokus selbst, auf die gewanderte
+     Uebung statt auf die, die jetzt an ihrem alten Platz steht. */
+  'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),
 
   /* Ziele */
   'milestone:toggle':   (d, ev, el) => mitFokus(() => toggleMilestone(d.id, el.checked)),

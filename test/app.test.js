@@ -3660,3 +3660,61 @@ describe('Heute-Karte und Kennzahlen', () => {
     expect(document.body.dataset.tab).toBe('plan');
   });
 });
+
+describe('Plan-Editor mit Menue je Uebung', () => {
+  async function planTab(){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    return app;
+  }
+  const menue = (di, i) => document.querySelector('#planEditor details.pe-menu[data-day="' + di + '"][data-i="' + i + '"]');
+  const namen = di => [...document.querySelectorAll('#planEditor .plan-day')[di].querySelectorAll('.plan-ex .nm')].map(n => n.textContent);
+
+  it('hat je Zeile ein Menue statt drei Knoepfen, mit gesperrtem Rand', async () => {
+    await planTab();
+    const zeile = document.querySelector('#planEditor .plan-ex');
+    expect(zeile.querySelectorAll(':scope > .mini-btn')).toHaveLength(0);
+    expect(zeile.querySelector('summary').getAttribute('aria-label')).toMatch(/^Aktionen für /);
+    expect(menue(0, 0).querySelector('[data-delta="-1"]').disabled).toBe(true);
+    const letzte = document.querySelectorAll('#planEditor .plan-day')[0].querySelectorAll('.plan-ex').length - 1;
+    expect(menue(0, letzte).querySelector('[data-delta="1"]').disabled).toBe(true);
+  });
+
+  it('laesst das Menue nach einem Schritt an der gewanderten Uebung offen', async () => {
+    const app = await planTab();
+    const vorher = namen(0);
+    menue(0, 1).open = true;
+    menue(0, 1).querySelector('[data-delta="1"]').click();
+    await ruhe();
+    expect(namen(0)[2]).toBe(vorher[1]);
+    expect(menue(0, 2).open).toBe(true);
+    expect(document.activeElement.dataset.delta).toBe('1');
+    expect(document.activeElement.closest('details')).toBe(menue(0, 2));
+    /* Weiter mit demselben Knopf. */
+    app.actions['planEx:move']({ day: '0', i: '2', delta: '1' });
+    await ruhe();
+    expect(namen(0)[3]).toBe(vorher[1]);
+  });
+
+  it('schliesst mit Escape und haelt nur ein Menue offen', async () => {
+    await planTab();
+    menue(0, 0).open = true;
+    menue(0, 0).dispatchEvent(new Event('toggle'));
+    menue(0, 1).open = true;
+    menue(0, 1).dispatchEvent(new Event('toggle'));
+    expect(menue(0, 0).open).toBe(false);
+    const knopf = menue(0, 1).querySelector('[data-delta="1"]');
+    knopf.focus();
+    knopf.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(menue(0, 1).open).toBe(false);
+    expect(document.activeElement).toBe(menue(0, 1).querySelector('summary'));
+  });
+
+  it('stellt den Generator neben die Vorlage', async () => {
+    await planTab();
+    const karte = document.getElementById('planSelect').closest('.card');
+    expect(karte.querySelector('[data-action="plan:build"]')).not.toBeNull();
+  });
+});
