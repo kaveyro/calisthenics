@@ -77,6 +77,10 @@ let libFilter = 'all';
 let libNurMachbar = false;
 const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
+/* Das Abschlussblatt der zuletzt beendeten Einheit, bis es geschlossen oder
+   ein neuer Tag gewaehlt wird. Kennungen statt Texte: ein Sprachwechsel soll
+   es nicht in der alten Sprache stehen lassen. */
+let abschluss = null;
 
 function cfg(k){
   return (state.settings && state.settings[k] !== undefined) ? state.settings[k] : SETTINGS_DEFAULTS[k];
@@ -461,9 +465,59 @@ function renderAll(){
   /* Ein laufendes Training nicht ueberschreiben. Alle Aufrufer, die eine
      Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
   if(session.dayKey) return;
-  document.getElementById('content').innerHTML =
+  document.getElementById('content').innerHTML = abschlussHtml() +
     '<div class="empty-hint">' + esc(__('selectDay')) + '.<br><br>' +
     esc(__('selectDayHint')) + '</div>';
+}
+
+/* Abschlussblatt: was die Einheit gebracht hat, auf einen Blick.
+
+   Bisher kam nach "Fertig" ein Toast und, je nachdem, zwei weitere im
+   Abstand von 2,6 Sekunden – ein Aufstieg, eine an fehlendem Geraet
+   haengende Stufe, ein erkannter Meilenstein. Wer beim ersten wegsah, bekam
+   den Rest nicht mit, und wie die Einheit im Vergleich zur letzten lief,
+   stand nirgends. Jetzt steht alles zusammen da, bis man es schliesst. */
+function abschlussHtml(){
+  const a = abschluss;
+  if(!a) return '';
+  const day = getDay(a.day);
+  const titel = esc(a.day) + (day ? ' · ' + esc(dayTitleOf(day)) : '');
+  const differenz = (jetzt, vorher) => {
+    if(vorher == null) return '';
+    const d = jetzt - vorher;
+    return '<small>' + esc(__('summaryVsLast', { d: d > 0 ? '+' + d : d < 0 ? '−' + Math.abs(d) : '±0' })) + '</small>';
+  };
+  const v = a.vorher;
+  const kachel = (wert, label, diff) => '<div class="fertig-zahl"><b>' + wert + '</b><span>' + esc(label) + '</span>' + diff + '</div>';
+  const minuten = s => Math.round(s / 60);
+  const kacheln = [
+    a.dauer ? kachel(minuten(a.dauer), __('summaryMinutes'), v && v.dauer ? differenz(minuten(a.dauer), minuten(v.dauer)) : '') : '',
+    kachel(a.sets, __('summarySets'), differenz(a.sets, v && v.sets)),
+    a.reps ? kachel(a.reps, __('summaryReps'), differenz(a.reps, v && v.reps || null))
+      : a.sek ? kachel(a.sek, __('summarySecs'), differenz(a.sek, v && v.sek || null)) : ''
+  ].join('');
+  const punkte = [
+    ...a.ups.map(u => EX_BY_ID[u.id] ? '<li class="fertig-up">' + ikon('levelup') + esc(__('summaryLevelUp', {
+      name: exName(EX_BY_ID[u.id]), stufe: exStage(EX_BY_ID[u.id], u.lvl)
+    })) + '</li>' : ''),
+    ...a.prs.map(id => EX_BY_ID[id] && state.prs[id] ? '<li class="fertig-pr">' + ikon('goals') + esc(__('summaryPR', {
+      name: exName(EX_BY_ID[id]), v: state.prs[id].v
+    })) + '</li>' : ''),
+    ...a.gesperrt.map(g => EX_BY_ID[g.id] ? '<li>' + esc(__('levelBlockedByEquip', {
+      name: exName(EX_BY_ID[g.id]), list: equipListe(g.fehlt)
+    })) + '</li>' : ''),
+    ...a.ms.map(id => { const m = MILESTONES.find(x => x.id === id); return m ? '<li>' + esc(__('msDetectedToast', { name: msName(m) })) + '</li>' : ''; })
+  ].join('');
+  return '<section class="card fertig" id="abschluss" aria-labelledby="abschluss-titel">' +
+    '<div class="fertig-kopf"><h2 id="abschluss-titel" tabindex="-1">' + esc(__('summaryTitle')) + ' <span>' + titel + '</span></h2>' +
+    '<button type="button" class="icon-btn" data-action="summary:close" aria-label="' + esc(__('summaryClose')) + '">' + ikon('close') + '</button></div>' +
+    '<div class="fertig-zahlen">' + kacheln + '</div>' +
+    (punkte ? '<ul class="fertig-liste">' + punkte + '</ul>' : '') +
+    '<div class="fertig-aktionen"></div></section>';
+}
+function abschlussSchliessen(){
+  abschluss = null;
+  renderAll();
 }
 
 /* Setzt alles, was ausserhalb der Render-Funktionen von der Sprache abhaengt. */
@@ -1333,6 +1387,7 @@ function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest
 /* ================= Workout rendern ================= */
 function selectDay(key){
   cancelHold(); stopRest();
+  abschluss = null;
   session = { ...leereSession(), dayKey: key };
   persistSession();
   /* Neue Einheit, neues Aufwaermen: die Haken der vorigen duerfen nicht
@@ -2128,7 +2183,7 @@ async function finishWorkout(){
            dazukommt, steigt die Stufe beim naechsten Abschluss sofort. */
         if(!stufeMachbar(ex, lvl + 1)){
           state.streaks[id] = need;
-          gesperrt.push({ name: exName(ex), fehlt: fehlt(ex, lvl + 1) });
+          gesperrt.push({ id, fehlt: fehlt(ex, lvl + 1) });
         } else {
           state.levels[id] = lvl + 1; state.streaks[id] = 0;
           ups.push(id);
@@ -2181,8 +2236,24 @@ async function finishWorkout(){
   state.workouts = (state.workouts || 0) + 1;
   state.lastDate = now;
 
+  /* Die vorige Einheit desselben Tags, fuer den Vergleich im Abschlussblatt. */
+  const vorige = [...state.log].reverse().find(l => l && l.day === entry.day);
+  const summe = obj => Object.values(obj || {}).reduce((s, n) => s + (Number.isFinite(n) && n > 0 ? n : 0), 0);
   state.log.push(entry);
   if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
+
+  const vorherPRs = lastWorkoutSnapshot.prs;
+  abschluss = {
+    day: entry.day, dauer: entry.dauer, sets, reps: summe(entry.reps), sek: summe(entry.sek),
+    vorher: vorige ? { dauer: vorige.dauer || 0, sets: vorige.sets || 0, reps: summe(vorige.reps), sek: summe(vorige.sek) } : null,
+    ups: ups.map(id => ({ id, lvl: state.levels[id] })),
+    /* Nur, was einen bestehenden Rekord verbessert: in der ersten Einheit
+       waere sonst jede Uebung eine Bestleistung. */
+    prs: exIds.filter(id => state.prs[id] && vorherPRs[id] && JSON.stringify(state.prs[id]) !== JSON.stringify(vorherPRs[id])),
+    gesperrt,
+    /* Nur der erste – sonst stehen nach dem Einstieg drei untereinander. */
+    ms: erkannteMs().slice(0, 1)
+  };
 
   /* clearSession() VOR save(): es nullt state.activeSession nur im
      Arbeitsspeicher, und danach folgte kein weiterer Schreibvorgang. Im
@@ -2196,30 +2267,16 @@ async function finishWorkout(){
   document.getElementById('finishBar').style.display = 'none';
   renderAll();
 
+  /* Der Aufstieg bleibt zusaetzlich ein Toast mit Signal – er ist das, was
+     man auch aus dem Augenwinkel mitbekommen soll. Alles andere steht im
+     Abschlussblatt, das renderAll() gerade gezeichnet hat. Die Ueberschrift
+     bekommt den Fokus: der Knopf "Fertig" ist weg, und ein Screenreader
+     liest so vor, was die Einheit gebracht hat. */
   if(upsText.length){ signal(true); toast(__('levelUpToast', { list: upsText.join(' · ') }), true); }
-  /* "1 Einheiten insgesamt" – im Browser aufgefallen, dieselbe Stelle wie
-     die Verlaufszeile. Die erste Einheit ist ohnehin eine eigene Meldung
-     wert. */
-  else if(state.workouts === 1) toast(__('workoutSavedOne'), true);
-  else toast(__('workoutSaved', { n: state.workouts }));
-
-  /* Nach dem eigentlichen Ergebnis, nicht statt seiner: der Abschluss soll
-     zuerst den Erfolg melden. Verzoegert, damit der erste Toast lesbar bleibt. */
-  if(gesperrt.length){
-    const g = gesperrt[0];
-    setTimeout(() => toast(__('levelBlockedByEquip', {
-      name: g.name, list: equipListe(g.fehlt)
-    }), true), 2600);
-  }
-
-  /* Ein Meilenstein, dessen Bedingung jetzt erfuellt ist. Nur ein Hinweis –
-     abgehakt wird im Ziele-Tab, und zwar von Hand. Nur der erste, sonst
-     stapeln sich nach dem Einstieg drei Toaste uebereinander. */
-  const neuErkannt = erkannteMs();
-  if(neuErkannt.length){
-    const m = MILESTONES.find(x => x.id === neuErkannt[0]);
-    if(m) setTimeout(() => toast(__('msDetectedToast', { name: msName(m) }), true),
-      gesperrt.length ? 5200 : 2600);
+  const kopf = document.getElementById('abschluss-titel');
+  if(kopf){
+    kopf.focus({ preventScroll: true });
+    kopf.closest('#abschluss').scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   }
 
   /* Offer undo for 5 seconds */
@@ -2228,7 +2285,7 @@ async function finishWorkout(){
   undoBtn.className = 'undo-btn';
   undoBtn.innerHTML = ikon('undo') + ' ' + esc(__('undo'));
   undoBtn.dataset.action = 'workout:undo';
-  document.getElementById('content').appendChild(undoBtn);
+  (document.querySelector('#abschluss .fertig-aktionen') || document.getElementById('content')).appendChild(undoBtn);
   /* Den Button zusammen mit dem Snapshot entfernen – sonst bleibt eine
      Schaltflaeche stehen, die nach 5 s wortlos nichts mehr tut. */
   undoTimeout = setTimeout(() => {
@@ -2254,6 +2311,7 @@ function undoWorkout(){
   if(idx >= 0) state.log.splice(idx, 1);
   clearTimeout(undoTimeout);
   lastWorkoutSnapshot = null;
+  abschluss = null;
   document.querySelector('.undo-btn')?.remove();
 
   /* Die Einheit zurueckholen statt sie wegzuwerfen. Der Snapshot enthaelt
@@ -4469,6 +4527,7 @@ export const actions = {
   'exHistory:close':    () => closeExHistory(),
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
+  'summary:close':      () => abschlussSchliessen(),
   'rest:stop':          () => { stopRest(); persistSession(); },
   'rest:extend':        d => restVerlaengern(zahl(d.sec) || 30),
   'sw:update':          () => updateAnwenden(),

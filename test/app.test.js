@@ -3500,3 +3500,82 @@ describe('Ist-Bilanz im Verlauf', () => {
     expect(document.getElementById('istPanel').hidden).toBe(true);
   });
 });
+
+describe('Abschlussblatt', () => {
+  async function einheit(app, n = 3){
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    wiederholungsPunkte().slice(0, n).forEach(d => d.click());
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+  }
+
+  it('fasst die Einheit zusammen und holt den Fokus', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    await einheit(app);
+    const blatt = document.getElementById('abschluss');
+    expect(blatt).not.toBeNull();
+    expect(blatt.querySelector('h2').textContent).toMatch(/^Geschafft: A · /);
+    expect(blatt.textContent).toMatch(/3Sätze/);
+    /* Beim ersten Mal gibt es nichts zu vergleichen. */
+    expect(blatt.textContent).not.toContain('zum letzten Mal');
+    expect(document.activeElement.id).toBe('abschluss-titel');
+    /* Rueckgaengig steht im Blatt, nicht darunter. */
+    expect(blatt.querySelector('.undo-btn')).not.toBeNull();
+    /* Beim ersten Mal ist alles eine Bestleistung – das waere Rauschen. */
+    expect(blatt.querySelector('.fertig-pr')).toBeNull();
+  });
+
+  it('vergleicht mit der letzten Einheit desselben Tags', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    await einheit(app, 3);
+    await einheit(app, 5);
+    const blatt = document.getElementById('abschluss');
+    expect(blatt.textContent).toContain('+2 zum letzten Mal');
+    /* Die Vorgabe steigt von Einheit zu Einheit – das ist ein neuer Rekord. */
+    expect(blatt.querySelector('.fertig-pr').textContent).toMatch(/^Bestleistung: /);
+  });
+
+  it('verschwindet beim Schliessen und beim naechsten Tag', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    await einheit(app);
+    document.querySelector('[data-action="summary:close"]').click();
+    await ruhe();
+    expect(document.getElementById('abschluss')).toBeNull();
+
+    await einheit(app);
+    expect(document.getElementById('abschluss')).not.toBeNull();
+    app.actions['day:select']({ key: 'B' });
+    await ruhe();
+    expect(document.getElementById('abschluss')).toBeNull();
+  });
+
+  it('bleibt nach einem Rueckgaengig nicht stehen', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    await einheit(app);
+    await app.actions['workout:undo']();
+    await ruhe();
+    expect(document.getElementById('abschluss')).toBeNull();
+  });
+
+  it('meldet eine an fehlendem Geraet haengende Stufe im Blatt statt als spaeten Toast', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      /* Mit Stuhl allein: Dips-Stufe 2 braucht Parallettes oder Ringe. */
+      v: 17, onboarded: true, equipment: ['chair'], levels: { dips: 1 }, streaks: { dips: 1 }, settings: { streak: 2 }
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
+    document.querySelector('.ex[data-exid="dips"] .set-dot').click();
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(document.getElementById('abschluss').textContent).toMatch(/Nächste Stufe von .* braucht/);
+  });
+});
