@@ -191,7 +191,7 @@ export const LANG = {
     lastRepsOtherStage: 'Letztes Mal auf Stufe {n} („{stage}“, {target}): {reps} ({date})',
     setTarget: 'Ziel {n}',
     todayAllTop: 'Heute: noch einmal alle Sätze oben',
-    todayEntry: 'Heute: {reps} – Einstieg in diese Stufe',
+    todayEntry: 'Einstieg in diese Stufe',
     tooHard: '{n} Einheiten in jedem Satz unter {min} – vielleicht ist eine leichtere Stufe gerade besser.',
     easierStage: 'Eine Stufe leichter',
 
@@ -615,7 +615,7 @@ export const LANG = {
     lastRepsOtherStage: 'Last time on stage {n} (“{stage}”, {target}): {reps} ({date})',
     setTarget: 'Goal {n}',
     todayAllTop: 'Today: every set at the top once more',
-    todayEntry: 'Today: {reps} – starting this stage',
+    todayEntry: 'Starting this stage',
     tooHard: '{n} sessions below {min} in every set – an easier stage may suit you better for now.',
     easierStage: 'One stage easier',
 

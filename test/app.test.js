@@ -2782,16 +2782,15 @@ describe('Oberes Limit aus den Wiederholungen', () => {
   const label = id => document.getElementById('top-' + id);
   const alle = (id, n) => Array(saetze(id)).fill(n);
 
-  it('setzt das Haekchen selbst, wenn jeder Satz oben ist', async () => {
+  it('meldet selbst, wenn jeder Satz oben ist', async () => {
     const app = await einheit();
     tippe(app, 'pushup', alle('pushup', oben('pushup')));
     expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
     expect(label('pushup').classList.contains('checked')).toBe(true);
-    const box = label('pushup').querySelector('input');
-    expect(box.checked).toBe(true);
     /* Eine Anzeige, keine Eingabe: gegen die Zahlen laesst es sich nicht
-       setzen oder wegnehmen. */
-    expect(box.disabled).toBe(true);
+       setzen oder wegnehmen – deshalb gar keine Checkbox mehr. */
+    expect(label('pushup').querySelector('input')).toBeNull();
+    expect(label('pushup').textContent).toContain('Oberes Limit');
     expect(label('pushup').querySelector('.toplimit-grund').textContent).toContain(String(oben('pushup')));
   });
 
@@ -2801,7 +2800,7 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     werte[werte.length - 1] = oben('pushup') - 1;
     tippe(app, 'pushup', werte);
     expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
-    expect(label('pushup').querySelector('input').checked).toBe(false);
+    expect(label('pushup').classList.contains('checked')).toBe(false);
   });
 
   it('bleibt Handeingabe, solange ein Satz ohne Zahl ist – und sagt es', async () => {
@@ -2864,7 +2863,23 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     app = await starten();
     await ruhe();
     expect(label('pushup').classList.contains('abgeleitet')).toBe(true);
-    expect(label('pushup').querySelector('input').checked).toBe(false);
+    expect(label('pushup').classList.contains('checked')).toBe(false);
+  });
+
+  it('zeigt vor dem ersten Satz kein Haekchen und nach Saetzen ohne Zahlen das zum Selbersetzen', async () => {
+    /* Ein Eintrag ohne Stufe: die App kennt keine Vorgabe, ein Tipp traegt
+       also keine Zahl ein. */
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 17, onboarded: true, log: [{ d: '2026-01-10', day: 'A', ex: ['pushup'], sets: 4, reps: { 'pushup-0': 8 } }]
+    }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    expect(label('pushup').hidden).toBe(true);
+    app.actions['set:tap']({ ex: 'pushup', set: '0' });
+    await ruhe();
+    expect(label('pushup').hidden).toBe(false);
+    expect(label('pushup').querySelector('input').disabled).toBe(false);
   });
 });
 
@@ -2914,8 +2929,9 @@ describe('Tagesziel auf der Karte', () => {
      statt "11 · 11 · 11 · 11" steht dort die Untergrenze der neuen Stufe. */
   it('nennt nach einem Stufenwechsel die Untergrenze als Einstieg', async () => {
     await mitLetzter({ reps: reps(10, 10, 10, 10), lv: { pushup: 0 } }, { pushup: 1 });
-    /* Stufe 1 der Liegestuetze: 4 x 6-10. */
-    expect(heute().textContent).toContain('6 · 6 · 6 · 6');
+    /* Stufe 1 der Liegestuetze: 4 x 6-10. Die Zahlen stehen als Vorgabe in
+       den Feldern, die Zeile sagt nur noch, dass es der Einstieg ist. */
+    expect([...karte().querySelectorAll('.rep-input')].map(f => f.placeholder)).toEqual(['6', '6', '6', '6']);
     expect(heute().textContent).toContain('Einstieg');
   });
 
@@ -3577,5 +3593,44 @@ describe('Abschlussblatt', () => {
     await app.actions['workout:finish']();
     await ruhe();
     expect(document.getElementById('abschluss').textContent).toMatch(/Nächste Stufe von .* braucht/);
+  });
+});
+
+describe('Kompakte Uebungskarte', () => {
+  async function einheit(){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const karte = id => document.querySelector('.ex[data-exid="' + id + '"]');
+
+  it('fragt bei Mobility nicht nach der Anstrengung', async () => {
+    await einheit();
+    expect(karte('wrist_prep').querySelector('.effort')).toBeNull();
+    expect(karte('pushup').querySelector('.effort')).not.toBeNull();
+  });
+
+  it('markiert die Karte nach dem ersten Satz als begonnen – auch nach dem Neuzeichnen', async () => {
+    const app = await einheit();
+    expect(karte('pushup').classList.contains('begonnen')).toBe(false);
+    karte('pushup').querySelector('.set-dot').click();
+    await ruhe();
+    expect(karte('pushup').classList.contains('begonnen')).toBe(true);
+    app.actions['level:adjust']({ ex: 'squat', delta: '1' });
+    await ruhe();
+    expect(karte('pushup').classList.contains('begonnen')).toBe(true);
+  });
+
+  it('steht mit Leiter und Stufe in einer Kopfzeile und nennt die Pause neben der Stufe', async () => {
+    await einheit();
+    const kopf = karte('pushup').querySelector('.ex-top');
+    expect(kopf.querySelector('.rungs')).not.toBeNull();
+    expect(kopf.querySelector('.rung-label').textContent).toMatch(/^\d+\/\d+$/);
+    expect(karte('pushup').querySelector('.ex-stage .ex-rest').textContent).toMatch(/Pause \d+/);
+    /* Der Halte-Hinweis nur bei Halteuebungen. */
+    expect(karte('pushup').querySelector('.hold-hint')).toBeNull();
+    expect(karte('wall_hs').querySelector('.hold-hint')).not.toBeNull();
   });
 });

@@ -309,7 +309,9 @@ details.acc li{margin-bottom:5px}
 .ex .rung.current{border-color:var(--kat,var(--accent));background:var(--kat,var(--accent));box-shadow:0 0 0 4px color-mix(in srgb,var(--kat,var(--accent)) 22%,transparent)}
 .lib-item[data-cat]{border-left:3px solid var(--kat);padding-left:var(--abstand-3)}
 .plan-ex[data-cat] .nm::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--kat);margin-right:var(--abstand-2);vertical-align:1px}
-.ex-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
+.ex-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.ex-top .rungs{flex:1;min-width:0;margin:0 4px}
+.ex-top .lvl-adjust{margin-left:auto}
 .rung-label{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .cat-chip{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
 .cat-chip.warn{border-color:var(--warn);color:var(--warn)}
@@ -319,7 +321,11 @@ details.acc li{margin-bottom:5px}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-name{font-weight:700;font-size:var(--text-lg)}
 .ex-target{font-family:var(--mono);font-size:var(--text-md);font-weight:600;color:var(--accent);white-space:nowrap}
-.ex-stage{font-size:var(--text-md);color:var(--ink-soft);margin-top:2px}
+.ex-stage{font-size:var(--text-md);color:var(--ink-soft);margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ex-rest{font-family:var(--mono);font-size:var(--text-xs);white-space:nowrap}
+.ex.begonnen .hold-hint{display:none}
+.toplimit[hidden]{display:none}
+.ex:not(.begonnen) .effort{display:none}
 .ex-stage b{color:var(--ink)}
 .last-note{font-size:var(--text-sm);color:var(--ink-soft);margin-top:6px;font-style:italic}
 .pr-line{font-family:var(--mono);font-size:var(--text-xs);color:var(--success);margin-top:4px}
@@ -395,7 +401,11 @@ details.acc li{margin-bottom:5px}
 .toplimit-grund{display:block;margin-top:2px;font-family:var(--mono);font-size:var(--text-xs);font-weight:400}
 /* Aus den Zahlen abgeleitet: eine Anzeige, keine Eingabe. Ohne diese Regel
    stünde der Zeiger als Hand über etwas, das nicht reagiert. */
-.toplimit.abgeleitet,.toplimit.abgeleitet input{cursor:default}
+.toplimit.abgeleitet{display:block;cursor:default;padding:0;background:none;border:none;margin-top:8px}
+.toplimit.abgeleitet span{display:flex;align-items:center;gap:6px}
+.toplimit.abgeleitet .i{width:16px;height:16px;flex:none}
+.toplimit.abgeleitet .toplimit-grund{color:var(--ink-soft)}
+.toplimit.abgeleitet.checked{background:none}
 .streak-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);margin-top:6px;display:block}
 .streak-hint.hot{color:var(--success);font-weight:600}
 

@@ -1221,25 +1221,41 @@ function limitStand(ex){
 /* Das Haekchen samt Begruendung. Als eigene Funktion, weil es sich bei jeder
    eingetippten Zahl aendern kann – neu gebaut wird dann nur dieses Label,
    nicht die Karte, sonst verloere das Eingabefeld den Fokus. */
+/* Seit ein Tipp auf den Satz die Vorgabe eintraegt, entscheiden fast immer
+   die Zahlen. Das Haekchen stand trotzdem als eigener Kasten auf jeder
+   Karte – als abgeschaltete Checkbox, die niemand bedienen konnte. Jetzt:
+     Zahlen vollstaendig  eine Zeile, die sagt, was die Zahlen ergeben
+     Zahlen fehlen, aber  das Haekchen zum Selbersetzen, mit dem Hinweis,
+     es wurde trainiert   dass die App es sonst nicht weiss
+     noch nichts getan    nichts (das Element bleibt als Anker stehen)
+   Fehlende Zahlen gibt es, wenn die App keine Vorgabe kennt: Eintraege
+   ohne Stufe (vor v15, CSV, nachgetragen) liefern keine. */
 function toplimitHtml(ex){
   const { t, reps, abgeleitet, erreicht } = limitStand(ex);
-  let grund = '';
   const grenze = t.isHold ? t.holdSecs : t.maxReps;
+  const klasse = 'toplimit' + (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' abgeleitet' : '');
   if(abgeleitet !== null){
-    grund = __('topLimitDerived', {
+    const grund = __('topLimitDerived', {
       reps: reps.join(' · '), max: t.isHold ? grenze + ' ' + __('secShort') : grenze
     });
-  } else if(grenze && reps.some(n => Number.isInteger(n))){
-    /* Nur, wenn schon etwas eingetragen ist: dann fehlt wirklich nur der
-       Rest. Vor dem ersten Satz waere der Hinweis Laerm. */
-    grund = __('topLimitMissing');
+    return '<div class="' + klasse + '" id="top-' + ex.id + '">' +
+      (erreicht ? '<span>' + ikon('levelup') + esc(__('topLimit')) + '</span>' : '') +
+      '<small class="toplimit-grund">' + esc(grund) + '</small></div>';
   }
-  return '<label class="toplimit' + (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' abgeleitet' : '') +
-      '" id="top-' + ex.id + '">' +
-    '<input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"' +
-      (erreicht ? ' checked' : '') + (abgeleitet !== null ? ' disabled' : '') + '>' +
+  const eingetragen = reps.some(n => Number.isInteger(n));
+  if(!eingetragen && !uebungBegonnen(ex.id) && !session.top[ex.id]) return '<div class="toplimit" id="top-' + ex.id + '" hidden></div>';
+  /* Nur, wenn schon etwas eingetragen ist: dann fehlt wirklich nur der
+     Rest. Nach Saetzen ganz ohne Zahlen waere der Hinweis falsch. */
+  const grund = grenze && eingetragen ? __('topLimitMissing') : '';
+  return '<label class="' + klasse + ' hand" id="top-' + ex.id + '">' +
+    '<input type="checkbox" data-action-change="set:top" data-ex="' + ex.id + '"' + (erreicht ? ' checked' : '') + '>' +
     '<span>' + __('topLimit') +
       (grund ? '<small class="toplimit-grund">' + esc(grund) + '</small>' : '') + '</span></label>';
+}
+/* Ob schon ein Satz dieser Uebung abgehakt ist. Die Uebung ist der Teil des
+   Schluessels vor dem LETZTEN Bindestrich. */
+function uebungBegonnen(id){
+  return Object.keys(session.sets).some(k => session.sets[k] && k.slice(0, k.lastIndexOf('-')) === id);
 }
 
 /* Was letztes Mal ging, und was heute ansteht.
@@ -1308,7 +1324,8 @@ function letzteZeilen(ex, lvl, t, letzte){
   if(heute && (heute.allesOben || heute.einstieg)){
     html += '<div class="last-reps heute">' + esc(heute.allesOben
       ? __('todayAllTop')
-      : __('todayEntry', { reps: mitEinheit(heute.werte, t.isHold) })) + '</div>';
+      /* Ohne Zahlen: die stehen als Vorgabe in den Feldern darunter. */
+      : __('todayEntry')) + '</div>';
   } else if(heute && (heute.an === 'l' || heute.an === 'h')){
     /* Warum die Vorgabe heute anders steigt als sonst. */
     html += '<div class="last-reps heute">' + esc(__(heute.an === 'l' ? 'effortEasyNext' : 'effortHardNext')) + '</div>';
@@ -1478,8 +1495,12 @@ function renderWorkout(){
           (ziel !== null ? ' aria-describedby="' + zielId + '"' : '') +
           ' value="' + (session.sek[repKey] ?? '') + '" data-action-input="set:sek" data-key="' + repKey + '">';
       }
+      /* Sichtbar steht die Vorgabe als Platzhalter im Feld, und ein Tipp auf
+         den Satz traegt sie ein. Die Zeile "Ziel 8" darunter wiederholte
+         sie; sie bleibt fuer den Screenreader, der den Platzhalter nicht
+         zuverlaessig ansagt. */
       if(ziel !== null){
-        dots += '<span class="satz-ziel" id="' + zielId + '">' +
+        dots += '<span class="satz-ziel sr-only" id="' + zielId + '">' +
           esc(__('setTarget', { n: ziel + (t.isHold ? ' ' + __('secShort') : '') })) + '</span>';
       }
       dots += '</div>';
@@ -1493,18 +1514,25 @@ function renderWorkout(){
     const note = (state.notes || {})[ex.id];
     const pr = (state.prs || {})[ex.id];
 
-    html += '<div class="ex" data-exid="' + ex.id + '" data-cat="' + ex.cat + '">' +
-      '<div class="ex-top"><span class="rung-label">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length +
-        ' <span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span></span>' +
+    /* begonnen: mindestens ein Satz ist abgehakt. Daran haengen der
+       Halte-Hinweis (nur davor) und "Wie war's?" (erst danach) – beides
+       per CSS, damit markDone() die Karte nicht neu zeichnen muss. */
+    html += '<div class="ex' + (uebungBegonnen(ex.id) ? ' begonnen' : '') + '" data-exid="' + ex.id + '" data-cat="' + ex.cat + '">' +
+      /* Kategorie, Leiter, Stufe und ± in einer Zeile. Die Leiter stand
+         darunter in einer eigenen; bei hoechstens sieben Sprossen passt sie
+         auch auf 320px neben den Rest. */
+      '<div class="ex-top"><span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span>' +
+        '<div class="rungs" role="img" aria-label="' +
+          esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
+          '">' + rungs + '</div>' +
+        '<span class="rung-label" aria-hidden="true">' + (lvl + 1) + '/' + ex.levels.length + '</span>' +
         '<span class="lvl-adjust"><button data-action="level:adjust" data-ex="' + ex.id +
         '" data-delta="-1" title="' + esc(__('levelDown')) + '" aria-label="' + esc(__('levelDown')) + '">−</button>' +
         '<button data-action="level:adjust" data-ex="' + ex.id +
         '" data-delta="1" title="' + esc(__('levelUp')) + '" aria-label="' + esc(__('levelUp')) + '">+</button></span></div>' +
-      '<div class="rungs" role="img" aria-label="' +
-        esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
-        '">' + rungs + '</div>' +
       '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
-      '<div class="ex-stage">' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></div>' +
+      '<div class="ex-stage"><span>' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></span>' +
+        '<span class="ex-rest">' + esc(__('restOf', { sec: restFor(ex) })) + '</span></div>' +
       /* Nur ein Hinweis, keine Sperre – der Ersetzen-Knopf steht weiter
          unten in derselben Karte. Wer sein Gerät heute nicht dabei hat,
          soll die Übung sehen und selbst entscheiden. */
@@ -1515,12 +1543,12 @@ function renderWorkout(){
       zuSchwerHtml(ex, lvl, t, verlauf[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets" style="--saetze:' + t.sets + '">' + dots + '</div>' +
-      '<span class="hold-hint">' +
-        (t.isHold ? esc(__('holdHint')) + ' · ' : '') +
-        esc(__('restOf', { sec: restFor(ex) })) + '</span>' +
+      (t.isHold ? '<span class="hold-hint">' + esc(__('holdHint')) + '</span>' : '') +
       toplimitHtml(ex) +
       hint +
-      anstrengungHtml(ex) +
+      /* Bei Mobility gibt es nichts zu steigern, also auch nichts zu
+         bewerten – die Handgelenks-Routine hatte "Wie war's?" trotzdem. */
+      (ex.cat === 'mobility' ? '' : anstrengungHtml(ex)) +
       /* Alles, was man nicht in jedem Satz braucht, hinter "Mehr". Die Karte
          hatte 17 Zeilen und war auf dem Handy 528px hoch; bei sieben Uebungen
          lag die letzte ueber 3500px tief. Offen bleibt der Bereich, solange
@@ -1890,6 +1918,7 @@ function dauerJetzt(){
 function markDone(key, el, s, ex){
   zeitNehmen();
   session.sets[key] = true;
+  el.closest('.ex')?.classList.add('begonnen');
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
   /* Die kurze Bestaetigung nur hier, nicht in restoreSession(): sonst
      huepften nach jedem Neuzeichnen alle erledigten Saetze. */
@@ -1898,6 +1927,9 @@ function markDone(key, el, s, ex){
   /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
      Schreibvorgang mitgeht statt einen zweiten zu erzwingen. */
   if(cfg('autoRest')) startRest(restFor(ex));
+  /* Der erste Satz kann das Haekchen erst sichtbar machen – dann, wenn die
+     App keine Vorgabe eintragen konnte (siehe toplimitHtml()). */
+  topLimitAktualisieren(ex.id);
   updateFinish(); persistSession();
 }
 /* Traegt eine Haltezeit in die Einheit und ins Feld daneben ein (null
