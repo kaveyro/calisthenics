@@ -17,6 +17,7 @@ import { exMoeglich, levelMoeglich } from './equipment.js';
 import { istSkill } from './skills.js';
 import { zielAuswerten } from './target.js';
 import { GRUPPEN } from './bilanz.js';
+import { gueltigePaare } from './supersatz.js';
 
 /* Tagesarten als Liste von Plaetzen, in der Reihenfolge ihrer Wichtigkeit.
    Jeder Platz ist ein Bewegungsmuster und wird mit der besten machbaren
@@ -93,6 +94,24 @@ export function dauerSek(ex, setsMode = 'standard'){
   const pause = ex.rest || 90;
   return z.sets * arbeit + Math.max(0, z.sets - 1) * pause + 60;
 }
+/* Was ein Supersatz an Zeit spart: je Runde nach der ersten entfaellt die
+   kuerzere der beiden Pausen – gewartet wird nur noch einmal, und zwar die
+   laengere. Bei 4 × 90 Sekunden sind das viereinhalb Minuten. Runden gibt
+   es so viele, wie die Uebung mit weniger Saetzen hat. */
+export function supersatzErsparnis(a, b, setsMode = 'standard'){
+  const la = a && a.levels && a.levels[0], lb = b && b.levels && b.levels[0];
+  if(!la || !lb) return 0;
+  const runden = Math.min(zielAuswerten(la, setsMode).sets, zielAuswerten(lb, setsMode).sets);
+  return Math.max(0, runden - 1) * Math.min(a.rest || 90, b.rest || 90);
+}
+
+/* Geschaetzte Dauer eines Plan-Tags in Sekunden, mit den Supersaetzen. */
+export function tagesDauerSek(day, exById = {}, setsMode = 'standard'){
+  const ex = Array.isArray(day && day.ex) ? day.ex : [];
+  const summe = ex.reduce((s, id) => s + (exById[id] ? dauerSek(exById[id], setsMode) : 0), 0);
+  return summe - gueltigePaare(day).reduce((s, [a, b]) => s + supersatzErsparnis(exById[a], exById[b], setsMode), 0);
+}
+
 /* Wie schnell der Nutzer wirklich trainiert, als Faktor auf die Schaetzung.
 
    Die App misst die Dauer jeder Einheit (log[].dauer, vom ersten Satz bis
@@ -402,7 +421,16 @@ export function vorlageAufloesen(plan, exercises, equipment){
   return { ...plan, days };
 }
 
-export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte, schwerpunkt, tempo } = {}){
+/* Supersaetze im Generator: Druecken mit Ziehen, Beine mit Rumpf. Das sind
+   Gegenspieler oder zumindest verschiedene Muskeln – zwei Druckuebungen im
+   Wechsel waeren keine Erholung. Gepaart wird, waehrend der Tag gefuellt
+   wird: kommt eine Uebung dazu, deren Gegenstueck schon ungepaart im Tag
+   steht, zaehlt fuer das Zeitbudget nur, was sie zusaetzlich kostet. So
+   passt bei 45 Minuten mehr in den Tag, statt dass die Einheit nur kuerzer
+   wird. Danach rueckt die zweite Uebung jedes Paares hinter die erste. */
+const PAAR_GRUPPE = { druecken: 'ziehen', ziehen: 'druecken', beine: 'rumpf', rumpf: 'beine' };
+
+export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode, levels, texte, schwerpunkt, tempo, supersaetze } = {}){
   const alle = Array.isArray(exercises) ? exercises : [];
   /* Nicht  Number(tage) || 3 : eine 0 waere damit eine 3 statt der 2, auf die
      sie gehoert. Gemeint ist "keine Zahl", nicht "keine Wahrheit". */
@@ -448,15 +476,21 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
     const ids = [];
     const saetze = {};
     let zeit = 0, plaetze = 0;
+    const offen = { druecken: [], ziehen: [], beine: [], rumpf: [] };
+    const paare = [];
     const nimm = (e, pflicht = true) => {
       if(ids.includes(e.id) || ids.filter(id => id !== HANDGELENKE).length >= MAX_PRO_TAG) return false;
       const n = kraftsaetze(e);
       if(n && (saetze[e.cat] || 0) + n > KRAFTSAETZE_JE_KATEGORIE) return false;
-      const d = dauerSek(e, setsMode) * faktor;
+      const gruppe = supersaetze && !istSkill(e) ? GRUPPE_VON.get(e.muster) : null;
+      const partner = gruppe ? offen[PAAR_GRUPPE[gruppe]][0] : null;
+      const d = (dauerSek(e, setsMode) - (partner ? supersatzErsparnis(byId.get(partner), e, setsMode) : 0)) * faktor;
       if(!pflicht && zeit + d > budget) return false;
       saetze[e.cat] = (saetze[e.cat] || 0) + n;
       zeit += d;
       ids.push(e.id);
+      if(partner){ offen[PAAR_GRUPPE[gruppe]].shift(); paare.push([partner, e.id]); }
+      else if(gruppe) offen[gruppe].push(e.id);
       return true;
     };
 
@@ -494,11 +528,24 @@ export function buildPlan({ exercises, equipment, tage, ziel, minuten, setsMode,
     const ersatz = !ids.some(id => id !== HANDGELENKE);
     if(ersatz) machbare.forEach(e => { if(e.cat !== 'mobility') nimm(e); });
 
+    if(paare.length){
+      const zweite = new Map(paare);
+      const nachgestellt = new Set(paare.map(p => p[1]));
+      const reihe = [];
+      ids.forEach(id => {
+        if(nachgestellt.has(id)) return;
+        reihe.push(id);
+        if(zweite.has(id)) reihe.push(zweite.get(id));
+      });
+      ids.splice(0, ids.length, ...reihe);
+    }
+
     return {
       key: TAGE_KEYS[di],
       title: ersatz ? (texts.ganzkoerper || titel.gk) : titel[tag.titel],
       sub: texts.sub || '',
       ex: ids,
+      ...(paare.length ? { ss: paare } : {}),
       /* Geschaetzte Dauer fuer die Vorschau. Beim Laden faellt das Feld weg
          (migrateState kennt es nicht), gebraucht wird es nur dort. */
       min: Math.round(zeit / 60)
@@ -571,6 +618,13 @@ export function uebungErsetzen(days, alt, neu){
   return (Array.isArray(days) ? days : []).map(d => {
     const ex = Array.isArray(d.ex) ? d.ex : [];
     if(!ex.includes(alt)) return d;
-    return { ...d, ex: ex.includes(neu) ? ex.filter(id => id !== alt) : ex.map(id => id === alt ? neu : id) };
+    const neuerTag = { ...d, ex: ex.includes(neu) ? ex.filter(id => id !== alt) : ex.map(id => id === alt ? neu : id) };
+    /* Ein Supersatz geht mit: die neue Uebung steht im Paar der alten. Stand
+       sie schon im Tag, faellt das Paar weg – gueltigePaare() sieht dann
+       keine Nachbarn mehr. */
+    if(Array.isArray(d.ss)){
+      neuerTag.ss = gueltigePaare({ ex: neuerTag.ex, ss: d.ss.map(p => Array.isArray(p) ? p.map(id => id === alt ? neu : id) : p) });
+    }
+    return neuerTag;
   });
 }

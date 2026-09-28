@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit, planPruefen, uebungErsetzen, tempoFaktor, TEMPO_GRENZEN } from '../js/domain/planbuilder.js';
+import { buildPlan, KRAFTSAETZE_JE_KATEGORIE, kraftsaetze, MUSTER_NAMEN, vorlageAufloesen, ersatzFuer, dauerSek, MINUTEN, moeglicheZiele, VORSTUFEN, NUR_BIS, bereit, planPruefen, uebungErsetzen, tempoFaktor, TEMPO_GRENZEN, supersatzErsparnis, tagesDauerSek } from '../js/domain/planbuilder.js';
 import { zielAuswerten } from '../js/domain/target.js';
 import { istSkill } from '../js/domain/skills.js';
 import { wochenTage, wochenbilanz } from '../js/domain/bilanz.js';
@@ -698,5 +698,58 @@ describe('Schwerpunkt Muskelgruppe', () => {
   it('behandelt einen unbekannten Schwerpunkt wie ausgewogen', () => {
     expect(bauen({ schwerpunkt: 'arme' })).toEqual(bauen({}));
     expect(bauen({ schwerpunkt: 'ausgewogen' })).toEqual(bauen({}));
+  });
+});
+
+describe('Supersaetze im Generator', () => {
+  const GRUPPE = {
+    h_druecken: 'd', dip: 'd', v_druecken: 'd', v_ziehen: 'z', h_ziehen: 'z', schulter: 'z',
+    kniebeuge: 'b', huefte: 'b', wade: 'b', rumpf_vorn: 'r', rumpf_seite: 'r'
+  };
+  const GEGEN = { d: 'z', z: 'd', b: 'r', r: 'b' };
+
+  it('spart je Runde nach der ersten die kuerzere Pause', () => {
+    const a = EX_BY_ID.pushup, b = EX_BY_ID.prone_ytw;
+    const runden = Math.min(zielAuswerten(a.levels[0]).sets, zielAuswerten(b.levels[0]).sets);
+    expect(supersatzErsparnis(a, b)).toBe((runden - 1) * Math.min(a.rest, b.rest));
+    expect(supersatzErsparnis(a, undefined)).toBe(0);
+    const tag = { ex: ['pushup', 'prone_ytw'], ss: [['pushup', 'prone_ytw']] };
+    expect(tagesDauerSek(tag, EX_BY_ID)).toBe(dauerSek(a) + dauerSek(b) - supersatzErsparnis(a, b));
+    expect(tagesDauerSek({ ex: ['pushup', 'prone_ytw'] }, EX_BY_ID)).toBe(dauerSek(a) + dauerSek(b));
+  });
+
+  it('paart nur Gegenspieler, direkt hintereinander', () => {
+    for(const tage of [2, 3, 4, 5]){
+      bauen({ tage, supersaetze: true }).days.forEach(d => {
+        (d.ss || []).forEach(([a, b]) => {
+          expect(d.ex.indexOf(b), d.key).toBe(d.ex.indexOf(a) + 1);
+          expect(GEGEN[GRUPPE[EX_BY_ID[a].muster]], a + '/' + b).toBe(GRUPPE[EX_BY_ID[b].muster]);
+        });
+      });
+    }
+    expect(bauen({ tage: 3 }).days.some(d => d.ss)).toBe(false);
+  });
+
+  it('bringt bei gleichem Zeitbudget mehr Saetze unter, ohne Warnung der Wochenbilanz', () => {
+    const summe = p => { const b = wochenbilanz(wochenTage(p.days, {}, p.days.length), EX_BY_ID); return { n: Object.values(b.gruppen).reduce((s, g) => s + g.saetze, 0), w: b.warnungen }; };
+    for(const tage of [2, 3]){
+      for(const equipment of [['bar'], ['rings'], EQUIP_ALL]){
+        const ohne = summe(bauen({ tage, equipment, minuten: 45 }));
+        const mit = summe(bauen({ tage, equipment, minuten: 45, supersaetze: true }));
+        expect(mit.w, tage + ' ' + equipment).toEqual([]);
+        expect(mit.n, tage + ' ' + equipment).toBeGreaterThan(ohne.n);
+      }
+    }
+    /* Ohne Budget dieselben Uebungen, nur kuerzer. */
+    const lang = bauen({ tage: 3, equipment: ['bar'] }), kurz = bauen({ tage: 3, equipment: ['bar'], supersaetze: true });
+    kurz.days.forEach((d, i) => expect(d.min).toBeLessThan(lang.days[i].min));
+    kurz.days.forEach(d => expect(d.min).toBe(Math.round(tagesDauerSek(d, EX_BY_ID) / 60)));
+  });
+
+  it('nimmt beim Ersetzen das Paar mit', () => {
+    const days = [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'row', 'squat'], ss: [['pushup', 'row']] }];
+    expect(uebungErsetzen(days, 'pushup', 'archer_push')[0].ss).toEqual([['archer_push', 'row']]);
+    /* Steht die neue schon im Tag, faellt die alte weg – und mit ihr das Paar. */
+    expect(uebungErsetzen(days, 'pushup', 'squat')[0].ss).toEqual([]);
   });
 });

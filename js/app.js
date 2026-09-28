@@ -18,7 +18,8 @@ import {
 } from './domain/state.js';
 import { mergeStates } from './domain/merge.js';
 import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE, dauerSek } from './domain/planbuilder.js';
+import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE, tagesDauerSek } from './domain/planbuilder.js';
+import { gueltigePaare, partnerVon, paarUmschalten, pauseNachSatz } from './domain/supersatz.js';
 import { einstiegsFragen, startStufen } from './domain/einstieg.js';
 import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
 import { wochenplanAlsIcs } from './domain/ics.js';
@@ -1169,7 +1170,7 @@ function renderHeuteKarte(sug){
   const d = !session.dayKey && sug ? getDay(sug) : null;
   if(!d){ el.innerHTML = ''; return; }
   const tempo = planTempo();
-  const sek = d.ex.reduce((s, id) => s + (EX_BY_ID[id] ? dauerSek(EX_BY_ID[id], cfg('setsMode')) : 0), 0) * (tempo ? tempo.faktor : 1);
+  const sek = tagesDauerSek(d, EX_BY_ID, cfg('setsMode')) * (tempo ? tempo.faktor : 1);
   const meta = [__('exercisesCount', { n: d.ex.length }), sek ? __('aboutMinutes', { n: Math.round(sek / 60) }) : ''].filter(Boolean).join(' · ');
   el.innerHTML = '<button class="heute-karte" data-action="day:select" data-key="' + esc(d.key) + '">' +
     '<span class="hk-label">' + esc(__(heutigerPlanTag() === d.key ? 'todayPlanned' : 'upNextLong')) + '</span>' +
@@ -1462,7 +1463,14 @@ function renderWorkout(){
   const verlauf = verlaufJeUebung(state.log, heute.map(h => h.id), ZU_SCHWER_NACH, getDay);
   const letzte = Object.fromEntries(Object.keys(verlauf).map(id => [id, verlauf[id][0]]));
 
-  heute.forEach(({ origId, id }) => {
+  /* Supersaetze: die beiden Karten eines Paares in einer Klammer. Das Paar
+     haengt an den Plan-Kennungen, eine Ersetzung fuer heute bleibt also im
+     Paar. */
+  const paare = gueltigePaare(day);
+  const oeffnen = new Map(paare.map(p => [p[0], p[1]]));
+  const schliessen = new Set(paare.map(p => p[1]));
+  const angezeigt = o => EX_BY_ID[session.subs[o] || o];
+  const karteZeichnen = ({ origId, id }) => {
     const ex = EX_BY_ID[id];
     if(!ex) return;
 
@@ -1553,7 +1561,9 @@ function renderWorkout(){
          darunter in einer eigenen; bei hoechstens sieben Sprossen passt sie
          auch auf 320px neben den Rest. */
       '<div class="ex-top"><span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span>' +
-        '<div class="rungs" role="img" aria-label="' +
+        /* --sprossen: so breit muss die Leiter mindestens sein (14px je
+           Sprosse plus 2px Linie), sonst bricht die Zeile um. */
+        '<div class="rungs" style="--sprossen:' + ex.levels.length + '" role="img" aria-label="' +
           esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
           '">' + rungs + '</div>' +
         '<span class="rung-label" aria-hidden="true">' + (lvl + 1) + '/' + ex.levels.length + '</span>' +
@@ -1603,6 +1613,17 @@ function renderWorkout(){
       '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
       '</details>' +
       '</div>';
+  };
+  heute.forEach(h => {
+    if(oeffnen.has(h.origId)){
+      const a = angezeigt(h.origId), b = angezeigt(oeffnen.get(h.origId));
+      html += '<div class="supersatz" role="group" aria-label="' + esc(__('supersetGroupAria', {
+        a: a ? exName(a) : h.origId, b: b ? exName(b) : oeffnen.get(h.origId)
+      })) + '"><div class="ss-kopf"><span class="cat-chip">' + esc(__('supersetLabel')) + '</span>' +
+        '<span>' + esc(__('supersetHint')) + '</span></div>';
+    }
+    karteZeichnen(h);
+    if(schliessen.has(h.origId)) html += '</div>';
   });
 
   const content = document.getElementById('content');
@@ -1957,12 +1978,40 @@ function markDone(key, el, s, ex){
   el.addEventListener('animationend', () => el.classList.remove('eben'), { once: true });
   /* Die Pause vor dem Speichern starten, damit ihr Zielzeitpunkt im selben
      Schreibvorgang mitgeht statt einen zweiten zu erzwingen. */
-  if(cfg('autoRest')) startRest(restFor(ex));
+  if(cfg('autoRest')){
+    /* Im Supersatz geht es ohne Pause zum Partner; erst wenn die Runde durch
+       ist, kommt die Pause – die laengere der beiden, weil sie fuer beide
+       Uebungen reichen muss. Eine noch laufende Pause der letzten Runde
+       endet, sobald man weitermacht. */
+    const ss = supersatzNachSatz(ex, s);
+    if(ss && ss.weiter){
+      stopRest();
+      melde(__('supersetNext', { ex: exName(ss.partnerEx) }));
+      document.querySelector('#content .ex[data-exid="' + ss.partnerEx.id + '"]')?.scrollIntoView?.({
+        block: 'nearest', behavior: wenigerBewegung() ? 'auto' : 'smooth'
+      });
+    } else startRest(ss && ss.gemeinsam ? Math.max(restFor(ex), restFor(ss.partnerEx)) : restFor(ex));
+  }
   /* Der erste Satz kann das Haekchen erst sichtbar machen – dann, wenn die
      App keine Vorgabe eintragen konnte (siehe toplimitHtml()). */
   topLimitAktualisieren(ex.id);
   updateFinish(); persistSession();
 }
+/* Wie es nach Satz s dieser Uebung im Supersatz weitergeht, oder null,
+   wenn sie heute in keinem steht (oder der Partner ausgelassen ist). */
+function supersatzNachSatz(ex, s){
+  const day = getDay(session.dayKey);
+  if(!day) return null;
+  const origId = day.ex.find(o => (session.subs[o] || o) === ex.id);
+  const pp = origId && partnerVon(gueltigePaare(day), origId);
+  if(!pp || session.skip[pp.partner]) return null;
+  const partnerEx = EX_BY_ID[session.subs[pp.partner] || pp.partner];
+  if(!partnerEx) return null;
+  const r = pauseNachSatz(partnerEx.id, s, (id, k) => !!session.sets[id + '-' + k],
+    id => zielVon(EX_BY_ID[id].levels[lvlOf(EX_BY_ID[id])]).sets);
+  return { ...r, partnerEx };
+}
+
 /* Traegt eine Haltezeit in die Einheit und ins Feld daneben ein (null
    loescht sie) und rechnet das obere Limit nach. */
 function halteZeitEintragen(key, sek){
@@ -3223,8 +3272,9 @@ function renderPlanTab(){
   const meiste = Math.max(0, ...days.map(d => proTag[d.key] || 0));
   const gesamt = days.reduce((a, d) => a + (proTag[d.key] || 0), 0);
 
-  document.getElementById('planEditor').innerHTML = days.map((d, di) =>
-    '<div class="plan-day">' +
+  document.getElementById('planEditor').innerHTML = days.map((d, di) => {
+    const paare = gueltigePaare(d);
+    return '<div class="plan-day">' +
       '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) +
         /* Erst ab zwei Einheiten: sonst haengt der zweite Tag schon hinterher,
            bevor er ueberhaupt an der Reihe war. */
@@ -3247,20 +3297,24 @@ function renderPlanTab(){
            Drop kennt keine Beruehrung), deshalb bleiben hoch und runter –
            und das Menue bleibt nach einem Schritt offen (moveEx()). */
         const name = ex ? exName(ex) : id;
+        const pp = partnerVon(paare, id);
+        const naechsteFrei = ei < d.ex.length - 1 && !partnerVon(paare, d.ex[ei + 1]);
         const knopf = (aktion, delta, symbol, text, aus, extra = '') =>
           '<button type="button"' + extra + ' data-action="' + aktion + '" data-day="' + di + '" data-i="' + ei + '"' +
           (delta ? ' data-delta="' + delta + '"' : '') + (aus ? ' disabled' : '') + '>' + symbol +
           /* Die Texte sind auch Tooltips und stehen dort klein. */
           esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</button>';
-        return '<div class="plan-ex" draggable="true" data-day="' + di + '" data-i="' + ei + '"' +
+        return '<div class="plan-ex' + (pp ? (pp.erster ? ' ss-erster' : ' ss-zweiter') : '') + '" draggable="true" data-day="' + di + '" data-i="' + ei + '"' +
           (ex ? ' data-cat="' + ex.cat + '"' : '') + '>' +
           '<span class="drag-handle">' + ikon('grip') + '</span>' +
-          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') + '</span>' +
+          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
+            (pp && pp.erster ? ' <span class="cat-chip ss-chip">' + esc(__('supersetLabel')) + '</span>' : '') + '</span>' +
           '<details class="pe-menu" data-day="' + di + '" data-i="' + ei + '">' +
             '<summary class="mini-btn" aria-label="' + esc(__('exActions', { ex: name })) + '" title="' + esc(__('exActions', { ex: name })) + '">' + ikon('more') + '</summary>' +
             '<div class="pe-liste">' +
               knopf('planEx:move', '-1', ikon('up'), __('moveUp'), ei === 0) +
               knopf('planEx:move', '1', ikon('down'), __('moveDown'), ei === d.ex.length - 1) +
+              knopf('planEx:pair', '', ikon('swap'), __(pp ? 'pairDissolve' : 'pairWithNext'), !pp && !naechsteFrei) +
               knopf('planEx:remove', '', ikon('close'), __('remove'), false, ' class="danger"') +
             '</div></details></div>';
       }).join('') +
@@ -3276,7 +3330,8 @@ function renderPlanTab(){
           }).join('') +
           '</optgroup>').join('') +
       '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
-    '</div>').join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
+    '</div>';
+  }).join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
 
   renderWeekPlan();
   renderBilanz();
@@ -3376,6 +3431,7 @@ function dragDrop(di, ei){
   const item = arr.splice(dragSrcIdx, 1)[0];
   if(dragSrcId === di && dragSrcIdx < ei) ei--;
   p.days[di].ex.splice(ei, 0, item);
+  paareAufraeumen(p.days[dragSrcId]); paareAufraeumen(p.days[di]);
   dragSrcId = null; dragSrcIdx = null;
   save(); renderPlanTab();
 }
@@ -3385,12 +3441,12 @@ function dragDrop(di, ei){
 /* Wie schnell die letzten Einheiten wirklich waren (tempoFaktor() in
    js/domain/planbuilder.js), oder null, solange es zu wenige gibt. */
 const planTempo = () => tempoFaktor(state.log, EXERCISES, cfg('setsMode'));
-function planAusAusruestung(tage, ziel, minuten, schwerpunkt){
+function planAusAusruestung(tage, ziel, minuten, schwerpunkt, supersaetze = false){
   const tempo = planTempo();
   return buildPlan({
     exercises: EXERCISES,
     equipment: state.equipment,
-    tage, ziel, minuten, schwerpunkt,
+    tage, ziel, minuten, schwerpunkt, supersaetze,
     tempo: tempo ? tempo.faktor : 1,
     setsMode: cfg('setsMode'),
     levels: state.levels,
@@ -3483,12 +3539,28 @@ function addEx(di){
   toast(__('exerciseAdded', { name: exName(EX_BY_ID[id]) }));
 }
 function removeEx(di, ei){
-  const p = ensureCustom(); p.days[di].ex.splice(ei, 1); save(); renderPlanTab();
+  const p = ensureCustom(); p.days[di].ex.splice(ei, 1); paareAufraeumen(p.days[di]); save(); renderPlanTab();
+}
+/* Nach jeder Aenderung an der Reihenfolge: ein Paar, dessen Uebungen nicht
+   mehr nebeneinander stehen, ist aufgeloest (js/domain/supersatz.js). */
+function paareAufraeumen(day){
+  if(!day || !day.ss) return;
+  const ss = gueltigePaare(day);
+  if(ss.length) day.ss = ss; else delete day.ss;
+}
+function paarSchalten(di, ei){
+  const p = ensureCustom(), day = p.days[di];
+  if(!day || ei < 0 || ei >= day.ex.length) return;
+  const ss = paarUmschalten(day, ei);
+  if(ss.length) day.ss = ss; else delete day.ss;
+  save(); renderPlanTab();
+  document.querySelector('#planEditor details.pe-menu[data-day="' + di + '"][data-i="' + ei + '"] summary')?.focus({ preventScroll: true });
 }
 function moveEx(di, ei, d){
   const p = ensureCustom(), arr = p.days[di].ex;
   const t = ei + d; if(t < 0 || t >= arr.length) return;
   [arr[ei], arr[t]] = [arr[t], arr[ei]];
+  paareAufraeumen(p.days[di]);
   save(); renderPlanTab();
   /* Das Menue geht an der Uebung wieder auf, die gerade gewandert ist, und
      der Fokus steht auf derselben Richtung: drei Plaetze sind drei Tipps.
@@ -3850,6 +3922,9 @@ function askPlanBuilder(){
       '<div class="set-row"><span><label class="lbl2" for="pb-rhythmus">' + esc(__('setWeekdays')) + '</label>' +
         '<span class="hint" id="hint-pb-rhythmus">' + esc(__(rhythmusAktiv() ? 'setWeekdaysReplace' : 'setWeekdaysHint')) + '</span></span>' +
         '<input type="checkbox" id="pb-rhythmus" checked aria-describedby="hint-pb-rhythmus"></div>' +
+      '<div class="set-row"><span><label class="lbl2" for="pb-supersaetze">' + esc(__('setSupersets')) + '</label>' +
+        '<span class="hint" id="hint-pb-supersaetze">' + esc(__('setSupersetsHint')) + '</span></span>' +
+        '<input type="checkbox" id="pb-supersaetze" aria-describedby="hint-pb-supersaetze"></div>' +
       '<div id="pb-vorschau" class="pb-preview"></div>' +
       dialogFuss(__('apply'));
 
@@ -3857,6 +3932,7 @@ function askPlanBuilder(){
     const minuten = modal.querySelector('#pb-minuten');
     const schwerpunkt = modal.querySelector('#pb-schwerpunkt');
     const rhythmus = modal.querySelector('#pb-rhythmus');
+    const supersaetze = modal.querySelector('#pb-supersaetze');
     const vorschau = modal.querySelector('#pb-vorschau');
     const namen = wochentage();
     /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
@@ -3865,7 +3941,7 @@ function askPlanBuilder(){
        bekommen, was er gesehen hat. */
     let plan = null, wochenplan = null;
     const zeichnen = () => {
-      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value), schwerpunkt.value);
+      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value), schwerpunkt.value, supersaetze.checked);
       wochenplan = rhythmus.checked ? wochentageVorschlag(plan.days.map(d => d.key)) : null;
       /* Wochentag je Plan-Tag, Montag = 0 in namen[]. */
       const wd = {};
@@ -3873,14 +3949,18 @@ function askPlanBuilder(){
       vorschau.innerHTML = plan.days.map(d =>
         '<div class="pb-day"><b>' + (wd[d.key] ? esc(wd[d.key]) + ' · ' : '') + esc(d.key) + ' · ' + esc(d.title) +
         ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
-        esc(d.ex.map(id => exName(EX_BY_ID[id])).join(' · ')) + '</span></div>').join('') +
+        /* Ein Supersatz als "A + B", damit man die Paare vor dem Uebernehmen sieht. */
+        esc(d.ex.filter(id => !(d.ss || []).some(p => p[1] === id)).map(id => {
+          const p = (d.ss || []).find(x => x[0] === id);
+          return exName(EX_BY_ID[id]) + (p ? ' + ' + exName(EX_BY_ID[p[1]]) : '');
+        }).join(' · ')) + '</span></div>').join('') +
         /* Die Woche des neuen Plans: so viele Einheiten, wie Tage gewaehlt
            sind – der alte Rhythmus gehoert zum alten Plan. */
         bilanzWarnungen(wochenbilanz(wochenTage(plan.days, {}, plan.days.length), EX_BY_ID, state.levels, cfg('setsMode'))) ||
         '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
     };
     tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
-    schwerpunkt.onchange = zeichnen; rhythmus.onchange = zeichnen;
+    schwerpunkt.onchange = zeichnen; rhythmus.onchange = zeichnen; supersaetze.onchange = zeichnen;
     zeichnen();
 
     modal.querySelector('[data-dlg=ok]').onclick = () => finish({ plan, wochenplan });
@@ -4682,6 +4762,7 @@ export const actions = {
   'planDay:remove':     d => removeDay(zahl(d.day)),
   'planEx:add':         d => addEx(zahl(d.day)),
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
+  'planEx:pair':        d => paarSchalten(zahl(d.day), zahl(d.i)),
   /* Ohne mitFokus(): moveEx() setzt den Fokus selbst, auf die gewanderte
      Uebung statt auf die, die jetzt an ihrem alten Platz steht. */
   'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),

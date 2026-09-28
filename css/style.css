@@ -320,8 +320,11 @@ details.acc li{margin-bottom:5px}
 .ex .rung.current{border-color:var(--kat,var(--accent));background:var(--kat,var(--accent));box-shadow:0 0 0 4px color-mix(in srgb,var(--kat,var(--accent)) 22%,transparent)}
 .lib-item[data-cat]{border-left:3px solid var(--kat);padding-left:var(--abstand-3)}
 .plan-ex[data-cat] .nm::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--kat);margin-right:var(--abstand-2);vertical-align:1px}
-.ex-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.ex-top .rungs{flex:1;min-width:0;margin:0 4px}
+.ex-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-bottom:9px}
+/* Wird es zu eng – sieben Sprossen im Supersatz-Rahmen bei 320px –, bricht
+   die Zeile um, statt dass die Leiter über Stufe und ± läuft. */
+.ex-top .rungs{flex:1;min-width:min(calc(var(--sprossen,7) * 16px),100%);margin:0 4px}
+.ex-top .rung-line{min-width:2px}
 .ex-top .lvl-adjust{margin-left:auto}
 .rung-label{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
 .cat-chip{font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--ink-soft)}
@@ -632,6 +635,17 @@ details.acc li{margin-bottom:5px}
 .pe-liste button.danger{color:var(--warn)}
 .pe-liste .i{width:18px;height:18px;flex:none}
 .data-btns--karte{margin:var(--abstand-3) 0 0}
+/* Supersatz: im Editor eine Klammer am Rand, im Training ein Rahmen um
+   beide Karten mit einer Kopfzeile. */
+.plan-ex.ss-erster,.plan-ex.ss-zweiter{border-left:3px solid var(--accent);padding-left:8px;margin-left:-11px}
+.plan-ex.ss-erster{border-bottom-style:dashed;margin-top:4px}
+.plan-ex.ss-zweiter{margin-bottom:4px}
+.ss-chip{color:var(--accent);border-color:var(--accent);margin-left:6px;vertical-align:1px}
+.supersatz{border:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);border-radius:calc(var(--radius) + 6px);padding:4px;margin-bottom:var(--abstand-5)}
+.supersatz > .ex{margin-bottom:var(--abstand-2)}
+.supersatz > .ex:last-child{margin-bottom:0}
+.ss-kopf{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 4px 8px;font-size:var(--text-sm);color:var(--ink-soft)}
+.ss-kopf .cat-chip{color:var(--accent);border-color:var(--accent)}
 /* Auswahl und Hinzufügen in einer Zeile: der Knopf brach unter die
    Auswahl und stand dort als schmale Pille. */
 #planEditor .inline-row{flex-wrap:nowrap}
@@ -803,6 +817,11 @@ footer small{display:block;margin-top:4px;opacity:.6}
 @media(min-width:1040px){
   .raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--spalte),1fr));
     gap:var(--abstand-4);align-items:start}
+  /* Ein Supersatz nimmt die ganze Zeile und legt seine zwei Karten darin
+     nebeneinander – sonst stünden sie in einer Spalte übereinander. */
+  .raster > .supersatz{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--spalte),1fr));gap:var(--abstand-4);align-items:start;margin-bottom:0}
+  .raster > .supersatz > .ss-kopf{grid-column:1/-1;padding-bottom:0}
+  .raster > .supersatz > .ex{margin-bottom:0}
   /* Was keine Kachel ist, läuft über die ganze Breite: der Ladehinweis, der
      Leerzustand ohne gewählten Tag und der Rückgängig-Knopf nach dem
      Abschluss. Sonst stünden sie als halbe Zelle links. */

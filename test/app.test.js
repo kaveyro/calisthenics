@@ -3723,3 +3723,77 @@ describe('Plan-Editor mit Menue je Uebung', () => {
     expect(karte.querySelector('[data-action="plan:build"]')).not.toBeNull();
   });
 });
+
+describe('Supersaetze', () => {
+  const PLAN = { name: 'Meiner', desc: '', days: [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'prone_ytw', 'squat'], ss: [['pushup', 'prone_ytw']] }] };
+  async function einheit(){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, customPlan: PLAN }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const pause = () => document.getElementById('restChip').style.display === 'flex' ? document.getElementById('restTime').textContent : null;
+  const tippe = id => document.querySelector('.ex[data-exid="' + id + '"] .set-dot:not(.done)').click();
+
+  it('klammert die beiden Karten im Training', async () => {
+    await einheit();
+    const gruppe = document.querySelector('#content .supersatz');
+    expect([...gruppe.querySelectorAll('.ex')].map(e => e.dataset.exid)).toEqual(['pushup', 'prone_ytw']);
+    expect(gruppe.getAttribute('aria-label')).toMatch(/^Supersatz: .* und .* im Wechsel$/);
+    expect(document.querySelector('#content > .ex[data-exid="squat"]')).not.toBeNull();
+  });
+
+  it('geht ohne Pause zum Partner und pausiert nach der Runde so lang wie die laengere', async () => {
+    await einheit();
+    tippe('pushup');
+    /* melde() setzt den Text mit 30 ms Verzoegerung. */
+    await new Promise(r => setTimeout(r, 50));
+    expect(pause()).toBeNull();
+    expect(document.getElementById('srStatus').textContent).toMatch(/weiter mit/);
+    tippe('prone_ytw');
+    await ruhe();
+    /* Y-T-W hat 45 Sekunden, Liegestuetze 90 – die Runde braucht die 90. */
+    expect(pause()).toBe('1:30');
+    tippe('pushup');
+    await ruhe();
+    expect(pause()).toBeNull();
+  });
+
+  it('bildet und loest ein Paar im Plan-Editor und loest es beim Verschieben', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, customPlan: PLAN }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    const zeilen = () => [...document.querySelectorAll('#planEditor .plan-ex')];
+    expect(zeilen()[0].classList.contains('ss-erster')).toBe(true);
+    expect(zeilen()[0].querySelector('.ss-chip')).not.toBeNull();
+    expect(zeilen()[1].querySelector('[data-action="planEx:pair"]').textContent).toBe('Supersatz lösen');
+    /* Die letzte Zeile hat keine naechste. */
+    expect(zeilen()[2].querySelector('[data-action="planEx:pair"]').disabled).toBe(true);
+    app.actions['planEx:pair']({ day: '0', i: '1' });
+    await ruhe();
+    expect(gespeichert().customPlan.days[0].ss).toBeUndefined();
+    app.actions['planEx:pair']({ day: '0', i: '1' });
+    await ruhe();
+    expect(gespeichert().customPlan.days[0].ss).toEqual([['prone_ytw', 'squat']]);
+    app.actions['planEx:move']({ day: '0', i: '2', delta: '-1' });
+    await ruhe();
+    expect(gespeichert().customPlan.days[0].ss).toBeUndefined();
+  });
+
+  it('bietet sie im Generator an und uebernimmt die Paare', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, equipment: ['bar'] }));
+    const app = await starten();
+    const p = app.actions['plan:build']();
+    await ruhe();
+    const haken = document.getElementById('pb-supersaetze');
+    expect(haken.checked).toBe(false);
+    haken.checked = true;
+    haken.dispatchEvent(new Event('change'));
+    expect(document.querySelector('#pb-vorschau .pb-day span').textContent).toContain(' + ');
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await p; await ruhe();
+    expect(gespeichert().customPlan.days.some(d => d.ss && d.ss.length)).toBe(true);
+  });
+});

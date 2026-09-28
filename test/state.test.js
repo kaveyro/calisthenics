@@ -660,3 +660,18 @@ describe('migrateState – Trainingserinnerung', () => {
     });
   });
 });
+
+describe('clampBackup – Supersaetze im eigenen Plan', () => {
+  it('behaelt gueltige Paare und wirft die ungueltigen weg', () => {
+    const tag = (ex, ss) => ({ key: 'A', title: 'A', sub: '', ex, ss });
+    const out = clampBackup({ customPlan: { name: 'x', desc: '', days: [
+      tag(['pushup', 'dips'], [['pushup', 'dips']]),
+      /* dips gibt es, gibtsnicht nicht: nach dem Kappen kein Nachbar mehr. */
+      tag(['pushup', 'gibtsnicht', 'dips'], [['pushup', 'gibtsnicht']]),
+      tag(['pushup'], 'kaputt')
+    ] } }, EX);
+    expect(out.customPlan.days[0].ss).toEqual([['pushup', 'dips']]);
+    expect('ss' in out.customPlan.days[1]).toBe(false);
+    expect('ss' in out.customPlan.days[2]).toBe(false);
+  });
+});

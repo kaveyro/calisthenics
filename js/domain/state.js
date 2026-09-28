@@ -11,6 +11,7 @@
 
 import { sanitizeDayKey } from './escape.js';
 import { EQUIP, EQUIP_ALL } from './equipment.js';
+import { gueltigePaare } from './supersatz.js';
 
 export const SETTINGS_DEFAULTS = {
   rest: 90, perExRest: true, autoRest: true, sound: true, vibrate: true,
@@ -425,12 +426,18 @@ export function clampBackup(data, exById = {}){
     const days = Array.isArray(out.customPlan.days) ? out.customPlan.days : [];
     out.customPlan = {
       ...out.customPlan,
-      days: days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => ({
-        key: sanitizeDayKey(d.key) || '?',
-        title: String(d.title == null ? '' : d.title).slice(0, 40),
-        sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
-        ex: (Array.isArray(d.ex) ? d.ex : []).filter(id => exById[id]).slice(0, 30)
-      }))
+      days: days.filter(d => d && typeof d === 'object').slice(0, 20).map(d => {
+        const ex = (Array.isArray(d.ex) ? d.ex : []).filter(id => exById[id]).slice(0, 30);
+        /* Supersaetze nur, wenn sie zu den verbliebenen Uebungen passen. */
+        const ss = gueltigePaare({ ex, ss: d.ss });
+        return {
+          key: sanitizeDayKey(d.key) || '?',
+          title: String(d.title == null ? '' : d.title).slice(0, 40),
+          sub: String(d.sub == null ? '' : d.sub).slice(0, 60),
+          ex,
+          ...(ss.length ? { ss } : {})
+        };
+      })
     };
   }
   if(Array.isArray(out.warmupCustom)){
