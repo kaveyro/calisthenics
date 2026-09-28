@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { DEFAULT_STATE, SETTINGS_DEFAULTS } from '../js/domain/state.js';
 
@@ -31,7 +31,10 @@ const ROOT = join(process.cwd(), '.');
 /* Kommentare raus: sie nennen Felder, die es nicht (mehr) gibt, und genau
    das sollen sie duerfen. */
 const ohneKommentare = t => t.replace(/\/\*[\s\S]*?\*\//g, '');
-const APP = ohneKommentare(readFileSync(join(ROOT, 'js/app.js'), 'utf8'));
+/* app.js und die Module, in die es aufgeteilt ist – alles ausser domain/. */
+const APP = ohneKommentare(['js/app.js', ...['core', 'ui', 'features'].flatMap(d =>
+  readdirSync(join(ROOT, 'js', d)).filter(f => f.endsWith('.js')).map(f => 'js/' + d + '/' + f))]
+  .map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n'));
 const HTML = readFileSync(join(ROOT, 'index.html'), 'utf8');
 
 const treffer = (text, muster) => new Set([...text.matchAll(muster)].map(m => m[1]));

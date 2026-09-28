@@ -1,72 +1,41 @@
 /* =========================================================
-   PROGRESSION – App-Logik
+   PROGRESSION – Start, Training und Aktionstabelle
+   Die Tabs Verlauf, Uebungen, Plan und Ziele, Einstellungen, Sicherung und
+   Einstieg liegen unter js/features/, Dialoge und Rueckmeldungen unter
+   js/ui/, der gemeinsame Zustand in js/core/kern.js (README, Abschnitt 5).
    ========================================================= */
 
-import { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP, WARMUP_PFLICHT, WARMUP_WANN, EX_BY_ID } from './exercises.js';
-import { store, STORAGE_KEY } from './storage.js';
-import { today, fmtDate as fmtDatePure, isoWeek, tageZwischen, calcGlobalStreak as streakOf } from './domain/dates.js';
-import { esc, sanitizeDayKey } from './domain/escape.js';
-import { zielAuswerten, zielText as zielTextPure, limitErreicht, tagesziel, einstiegsziel, halteziel, zuSchwer, ZU_SCHWER_NACH } from './domain/target.js';
-import { serializeLog, parseLog } from './domain/csv.js';
-import { detectPlateaus as plateausOf } from './domain/plateau.js';
-import { istSkill } from './domain/skills.js';
-import { entryHasExercise, repsOf, sekOf, verlaufJeUebung, letztesDatumJeUebung, zaehleJeTag } from './domain/log.js';
 import { backupFaellig } from './domain/backup.js';
-import {
-  SETTINGS_DEFAULTS, STATE_VERSION, MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES, MAX_WORKOUT_SECS,
-  DEFAULT_STATE, migrateState, besserePR, clampBackup as clampBackupPure
-} from './domain/state.js';
-import { mergeStates } from './domain/merge.js';
-import { EQUIP, exMoeglich, levelMoeglich, fehlendeGeraete } from './domain/equipment.js';
-import { buildPlan, vorlageAufloesen, moeglicheZiele, planPruefen, uebungErsetzen, tempoFaktor, SCHWERPUNKTE, tagesDauerSek } from './domain/planbuilder.js';
-import { gueltigePaare, partnerVon, paarUmschalten, pauseNachSatz } from './domain/supersatz.js';
-import { einstiegsFragen, startStufen } from './domain/einstieg.js';
-import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain/plan.js';
-import { wochenplanAlsIcs } from './domain/ics.js';
-import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
-import { volumenJeGruppe } from './domain/volume.js';
-import { wochenTage, wochenbilanz, istBilanz, istLuecken } from './domain/bilanz.js';
-import { tagesMerkmale, passtZumTag, anlaufSatz } from './domain/warmup.js';
+import { fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf, today } from './domain/dates.js';
+import { esc } from './domain/escape.js';
+import { fokusNachSatz, fokusStart } from './domain/fokus.js';
+import { entryHasExercise, repsOf, sekOf, verlaufJeUebung } from './domain/log.js';
+import { tagFuerWochentag } from './domain/plan.js';
+import { planPruefen, tagesDauerSek, uebungErsetzen, vorlageAufloesen } from './domain/planbuilder.js';
+import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { wochenRueckblick } from './domain/rueckblick.js';
-import { fokusStart, fokusNachSatz } from './domain/fokus.js';
+import { MAX_LOG_ENTRIES, MAX_WORKOUT_SECS, STATE_VERSION, besserePR, migrateState } from './domain/state.js';
+import { gueltigePaare, partnerVon, pauseNachSatz } from './domain/supersatz.js';
+import { ZU_SCHWER_NACH, einstiegsziel, halteziel, limitErreicht, tagesziel, zielAuswerten, zielText as zielTextPure, zuSchwer } from './domain/target.js';
+import { anlaufSatz, passtZumTag, tagesMerkmale } from './domain/warmup.js';
+import { CATS, EXERCISES, EX_BY_ID, MILESTONES, PLAN_TEMPLATES, WARMUP, WARMUP_PFLICHT, WARMUP_WANN } from './exercises.js';
+import { LANGS, __, applyStaticTexts, catName, daySub, dayTitle, exName, exStage, exTips, getLang, msName, planName, setLang, warmupText } from './i18n/index.js';
+import { STORAGE_KEY, store } from './storage.js';
 import { installDelegation, zahl } from './ui/delegate.js';
-import {
-  __, setLang, getLang, LANGS, applyStaticTexts,
-  catName, exName, exStage, exTips, msName, warmupText,
-  planName, planDesc, dayTitle, daySub
-} from './i18n/index.js';
+import { an, cfg, lauf, leereSession, session, setSession, setState, state } from './core/kern.js';
+import { equipListe, fehlt, machbar, stufeMachbar, toggleEquipment } from './features/ausruestung.js';
+import { exportCSV, exportICS, exportJSON, exportText, importCSV, importJSON, resetAll, shareJSON } from './features/backup.js';
+import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR, setLibFilter, setLibSort, toggleLib } from './features/bibliothek.js';
+import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungErlauben, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
+import { einstiegBeenden, einstiegLaufen } from './features/einstieg.js';
+import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanDragAndDrop, moveEx, paarRueckgaengig, paarSchalten, planTempo, removeDay, removeEx, renameDay, renderPlanTab, resetPlan, setWeekPlan } from './features/planeditor.js';
+import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
+import { addCustomMilestone, erkannteMs, removeCustomMilestone, renderBests, renderMilestones, renderRoadmap, toggleMilestone } from './features/ziele.js';
+import { FOCUSABLE, askChoice, askConfirm, askText, closeDialog, openDialog, openDialogEl } from './ui/dialoge.js';
+import { ikon, melde, mitFokus, toast, toastTimer, wenigerBewegung } from './ui/hinweise.js';
 
-let state = DEFAULT_STATE();
-/* Alles, was zur laufenden Einheit gehoert – an einer Stelle, damit keine
-   Sammlung beim Zuruecksetzen vergessen wird. */
-const leereSession = () => ({
-  dayKey: null, sets: {}, top: {}, reps: {}, sek: {}, notes: {},
-  /* Nur fuer heute: origId -> ersatzId bzw. origId -> true. Beides steht
-     bewusst in der Session und nicht im Plan – wer eine Uebung heute nicht
-     machen kann, will deswegen nicht seinen Plan umbauen. */
-  subs: {}, skip: {},
-  /* Abgehakte Aufwaermpunkte, nach Position in der Liste. */
-  warm: {},
-  /* Wie sich jede Uebung angefuehlt hat: id -> 'l' | 'p' | 'h'. */
-  an: {},
-  /* Zeitstempel des ERSTEN Hakens, nicht der Tagesauswahl: zwischen "Tag
-     angetippt" und "erster Satz" liegen Umziehen und Aufwaermen, und beides
-     ist keine Trainingszeit. null, solange nichts geschafft ist. */
-  start: null
-});
-let session = leereSession();
 let holdTimer = null, restTimer = null, wakeLock = null;
-
-/* Lebensdauer dieser Instanz. Jeder Listener an document und window haengt
-   an diesem Signal, damit stop() alle auf einmal abhaengen kann. Im Browser
-   gibt es genau eine Instanz, und stop() wird nie gerufen. Die Tests starten
-   die App aber je Test neu, und ohne Abraeumen hoerten die Instanzen
-   frueherer Tests weiter mit: ein Klick erreichte alle, ein entprelltes
-   Speichern schrieb 500 ms spaeter den alten Stand in den naechsten Test.
-   Das war der Fehler, der nur in CI auftrat. */
-const lauf = new AbortController();
 let gestoppt = false;
-const an = (ziel, typ, fn, opts = {}) => ziel.addEventListener(typ, fn, { ...opts, signal: lauf.signal });
 /* Beide Timer richten sich nach einem absoluten Zielzeitpunkt statt nach
    heruntergezaehlten Ticks. Browser drosseln setInterval im Hintergrund auf
    mindestens eine Sekunde und frieren ihn auf Mobilgeraeten ganz ein: eine
@@ -84,18 +53,11 @@ let restStart = 0;
 let fokusIdx = null;
 /* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
 let restLetzteSek = 0;
-let libFilter = 'all';
-let libNurMachbar = false;
-const libOpen = {};
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
 /* Das Abschlussblatt der zuletzt beendeten Einheit, bis es geschlossen oder
    ein neuer Tag gewaehlt wird. Kennungen statt Texte: ein Sprachwechsel soll
    es nicht in der alten Sprache stehen lassen. */
 let abschluss = null;
-
-function cfg(k){
-  return (state.settings && state.settings[k] !== undefined) ? state.settings[k] : SETTINGS_DEFAULTS[k];
-}
 
 /* ================= Start =================
    Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
@@ -108,7 +70,7 @@ export async function start(){
     const loaded = await store.load();
     if(loaded){
       const wasLegacy = store.loadedFrom && store.loadedFrom !== STORAGE_KEY;
-      state = migrateState(loaded);
+      setState(migrateState(loaded));
       if(wasLegacy || loaded.v !== STATE_VERSION){
         /* Sofort im aktuellen Schluessel und Format ablegen, danach die
            Altschluessel entfernen – sonst werden sie bei jedem Kaltstart
@@ -190,7 +152,7 @@ async function speicherSichern(){
   zeigeSpeicherinfo();
 }
 
-async function zeigeSpeicherinfo(){
+export async function zeigeSpeicherinfo(){
   const el = document.getElementById('storageInfo');
   if(!el) return;
   const teile = [__('storageLocation', { mode: __('storageLocal') })];
@@ -207,7 +169,7 @@ function byteText(bytes){
     (mb >= 1 ? ' MB' : 'B');
 }
 
-function zeigeInstallSchalter(){
+export function zeigeInstallSchalter(){
   const b = document.getElementById('installBtn');
   if(b) b.hidden = !installAngebot;
 }
@@ -216,7 +178,7 @@ function zeigeInstallSchalter(){
    nicht nur nach dem Vorhandensein von navigator.share: Desktop-Browser
    kennen share() haeufig, canShare({files}) aber nicht – ein Knopf, der
    dort ins Leere liefe, waere schlimmer als keiner. */
-function kannTeilen(){
+export function kannTeilen(){
   try{
     return !!(navigator.canShare && navigator.share &&
       navigator.canShare({ files: [new File(['{}'], 'p.json', { type: 'application/json' })] }));
@@ -224,7 +186,7 @@ function kannTeilen(){
     return false;
   }
 }
-function zeigeTeilenSchalter(){
+export function zeigeTeilenSchalter(){
   const b = document.getElementById('shareBtn');
   if(b) b.hidden = !kannTeilen();
 }
@@ -238,7 +200,7 @@ async function appInstallieren(){
   zeigeInstallSchalter();
 }
 
-async function save(){
+export async function save(){
   /* Eine abgeraeumte Instanz schreibt nichts mehr – auch kein Speichern,
      das vor stop() angestossen wurde und erst danach dran ist. */
   if(gestoppt) return;
@@ -331,12 +293,12 @@ function flushSession(){
   save();
 }
 
-function clearSession(){
+export function clearSession(){
   /* Verwerfen, nicht ausspuelen: der Zustand wird ohnehin gleich ersetzt,
      ein ausstehender Schreibvorgang wuerde die alte Session zurueckholen. */
   clearTimeout(schreibTimer);
   schreibTimer = null;
-  session = leereSession();
+  setSession(leereSession());
   state.activeSession = null;
 }
 function restoreActiveSession(){
@@ -345,7 +307,7 @@ function restoreActiveSession(){
   /* Eine Einheit von gestern ist keine laufende Einheit mehr. */
   if(a.d && a.d !== today()){ state.activeSession = null; return false; }
   if(!getDay(a.dayKey)) { state.activeSession = null; return false; }
-  session = {
+  setSession({
     dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
     reps: a.reps || {}, sek: a.sek || {}, notes: a.notes || {},
     subs: a.subs || {}, skip: a.skip || {},
@@ -354,7 +316,7 @@ function restoreActiveSession(){
     /* Ein verbogener Zeitstempel wuerde eine absurde Dauer ergeben; die
        Plausibilitaet prueft dauerJetzt() beim Abschliessen. */
     start: Number.isFinite(Number(a.start)) ? Number(a.start) : null
-  };
+  });
   renderWarmup();
   renderDaySelect(); renderWorkout(); restoreSession(session.reps);
 
@@ -466,7 +428,7 @@ function swPruefen(){
   }).catch(() => {});
 }
 
-function renderAll(){
+export function renderAll(){
   /* Auch die Aufwaermliste: ihre Haken gehoeren zur Einheit, und die endet
      hier (Abschluss, Rueckgaengig, Import, Zuruecksetzen). Ohne das blieben
      sie nach dem Abschluss stehen und die naechste Einheit begaenne mit
@@ -534,7 +496,7 @@ function abschlussSchliessen(){
 }
 
 /* Setzt alles, was ausserhalb der Render-Funktionen von der Sprache abhaengt. */
-function applyLanguage(){
+export function applyLanguage(){
   document.documentElement.lang = getLang();
   document.title = __('appName') + ' – ' + __('appTagline');
   applyStaticTexts();
@@ -560,17 +522,12 @@ function applyLanguage(){
    Systemwechsel bei geoeffneter App ankommt statt bis zum Neuladen zu warten. */
 const THEMES = [null, 'light', 'dark'];
 const THEME_ZEICHEN = { null: 'auto', light: 'sun', dark: 'moon' };
-
-/* Ein Symbol aus dem Sprite in index.html. Immer aria-hidden: die
-   Bedeutung traegt die Beschriftung daneben oder das aria-label des
-   Knopfs. */
-const ikon = name => '<svg class="i" aria-hidden="true" focusable="false"><use href="#i-' + name + '"/></svg>';
 const THEME_TEXT = { null: 'themeSystem', light: 'themeLight', dark: 'themeDark' };
 
 const systemDunkel = () =>
   !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
 
-function applyTheme(){
+export function applyTheme(){
   const wunsch = state.theme === 'light' || state.theme === 'dark' ? state.theme : null;
   const t = wunsch || (systemDunkel() ? 'dark' : 'light');
   document.documentElement.dataset.theme = t;
@@ -606,7 +563,7 @@ function getPlan(){
    Uebungen sind durch solche mit demselben Muster ersetzt. Gemerkt je Plan
    und Ausruestung – getPlan() laeuft bei jedem Rendern. */
 let vorlageCache = { schluessel: null, plan: null };
-function vorlageFuerAusruestung(planId){
+export function vorlageFuerAusruestung(planId){
   const vorlage = PLAN_TEMPLATES[planId] || PLAN_TEMPLATES.ab4;
   const schluessel = planId + '|' + (state.equipment || []).join(',');
   if(vorlageCache.schluessel !== schluessel){
@@ -614,17 +571,17 @@ function vorlageFuerAusruestung(planId){
   }
   return vorlageCache.plan;
 }
-function getDays(){ return getPlan().days || []; }
-function getDay(key){ return getDays().find(d => d.key === key); }
+export function getDays(){ return getPlan().days || []; }
+export function getDay(key){ return getDays().find(d => d.key === key); }
 
 /* Anzeigename des Plans. Ein eigener Plan traegt einen vom Nutzer gewaehlten
    bzw. uebernommenen Namen und wird nicht uebersetzt. */
-function planLabel(){
+export function planLabel(){
   return state.customPlan ? __('customPlan') : planName(state.planId, getPlan().name);
 }
 /* Titel und Untertitel eines Vorlagen-Tages. Bei einem eigenen Plan stammen
    sie vom Nutzer und bleiben unveraendert. */
-function dayTitleOf(d){
+export function dayTitleOf(d){
   return state.customPlan ? d.title : dayTitle(state.planId, d.key, d.title);
 }
 function daySubOf(d){
@@ -634,11 +591,11 @@ function daySubOf(d){
 /* Der Plan-Tag von heute laut Wochenrhythmus, oder null. Null heisst
    entweder "kein Rhythmus eingerichtet" oder "heute ist Ruhetag" – fuer die
    Anzeige unterscheidet das heuteIstRuhetag(). */
-function heutigerPlanTag(){
+export function heutigerPlanTag(){
   const key = tagFuerWochentag(state.wochenplan, today());
   return (key && getDay(key)) ? key : null;
 }
-const rhythmusAktiv = () => Object.keys(state.wochenplan || {}).length > 0;
+export const rhythmusAktiv = () => Object.keys(state.wochenplan || {}).length > 0;
 
 function nextSuggestedKey(){
   const days = getDays();
@@ -656,7 +613,7 @@ function nextSuggestedKey(){
 
 /* ================= Kopfbereich ================= */
 const einheitenDieseWoche = () => (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
-function renderStats(){
+export function renderStats(){
   /* Echte Level-Ups aus dem Log zaehlen. Frueher wurde die Summe der
      Stufen-Indizes gebildet, sodass jede manuelle Korrektur ueber die
      +/--Buttons den Zaehler mit aufgeblaeht hat. */
@@ -785,7 +742,7 @@ function beendeDeloadUmstellung(){
   renderAll();
 }
 
-function renderBanners(){
+export function renderBanners(){
   const el = document.getElementById('banners');
   let html = '';
   deloadAufraeumen();
@@ -869,7 +826,7 @@ function hinweis(art, titel, text, knoepfe){
     (text ? ' <span class="banner-body">' + text + '</span>' : '') + '</div>' +
     (knoepfe ? '<div class="banner-actions">' + knoepfe + '</div>' : '') + '</div>';
 }
-function knopf(aktion, beschriftung, haupt = false, extra = ''){
+export function knopf(aktion, beschriftung, haupt = false, extra = ''){
   return '<button data-action="' + aktion + '"' + extra + (haupt ? ' class="haupt"' : '') + '>' +
     esc(beschriftung) + '</button>';
 }
@@ -896,7 +853,7 @@ function planCheckAblehnen(alt, neu){
 function dismissDeload(n){ state.deloadDismissed = n; save(); renderBanners(); }
 function backupSpaeter(){ state.backupDismissed = state.workouts || 0; save(); renderBanners(); }
 
-function renderWarmup(){
+export function renderWarmup(){
   /* Nur die Standardliste wird übersetzt – eigene Einträge des Nutzers
      stehen in state.warmupCustom und bleiben so, wie er sie geschrieben hat. */
   const items = state.warmupCustom || WARMUP.map((w, i) => warmupText(i, w));
@@ -1000,7 +957,7 @@ let aktiverTab = 'train';
    Ohne diese Eintraege schloss die Zurueck-Geste auf Android die ganze App,
    statt einen Tab zurueckzugehen – bei einer installierten PWA ist das der
    erwartete Weg. */
-function showTab(t, ausHistory = false){
+export function showTab(t, ausHistory = false){
   if(!TABS.includes(t)) t = 'train';
   if(!ausHistory && t !== aktiverTab) history.pushState({ tab: t }, '', '#' + t);
   aktiverTab = t;
@@ -1169,7 +1126,7 @@ function addKeyboardShortcuts(){
 }
 
 /* ================= Trainingstag wählen ================= */
-function renderDaySelect(){
+export function renderDaySelect(){
   const sug = nextSuggestedKey();
   renderRueckblick();
   renderHeuteKarte(sug);
@@ -1305,7 +1262,7 @@ function renderHeute(){
 /* Der einzige Ort, an dem der Satz-Modus angewandt wird – und damit auch der
    richtige fuer die Entlastungswoche. Bekommt die Stufe selbst, nicht mehr
    ihren Zieltext: die Zahlen stehen seit der Umstellung als Daten darin. */
-function zielVon(level){
+export function zielVon(level){
   const t = zielAuswerten(level, cfg('setsMode'));
   if(!deloadAktiv()) return t;
   /* Halbe Saetze, unveraenderte Wiederholungen und Haltezeiten: im Deload
@@ -1320,7 +1277,7 @@ function zielVon(level){
    zerlegt. Also wurde erst beim Ausgeben ersetzt. Seit die Einheit ein Feld
    ist, baut zielText() den Text aus den Zahlen, und uebersetzt werden nur
    noch die beiden Woerter, die hier hineingehen. */
-function zielText(level){
+export function zielText(level){
   return zielTextPure(level, { sek: __('secShort'), versuche: __('attempts') });
 }
 
@@ -1512,7 +1469,7 @@ function topLimitAktualisieren(id){
 }
 
 /* Wochentagskuerzel in der Sprache der Oberflaeche, Montag zuerst. */
-function wochentage(){
+export function wochentage(){
   const f = new Intl.DateTimeFormat(getLang(), { weekday: 'short' });
   /* 2024-01-01 war ein Montag. */
   return Array.from({ length: 7 }, (_, i) => f.format(new Date(Date.UTC(2024, 0, 1 + i))));
@@ -1520,19 +1477,19 @@ function wochentage(){
 
 /* Datum in der Sprache der Oberflaeche. Die Domaenenschicht kennt die
    aktuelle Sprache nicht, also wird sie hier hereingereicht. */
-function fmtDate(iso){ return fmtDatePure(iso, getLang()); }
+export function fmtDate(iso){ return fmtDatePure(iso, getLang()); }
 
 /* Sekunden als lesbare Dauer. Unter einer Stunde nur Minuten, darueber
    Stunden und Minuten – "78 Min" liest sich schlechter als "1 Std 18 Min".
    Aufgerundet auf die nächste Minute: eine Einheit von 40 Sekunden ist
    "1 Min" und nicht "0 Min". */
-function dauerText(sek){
+export function dauerText(sek){
   const min = Math.max(1, Math.round(sek / 60));
   if(min < 60) return __('durationMin', { n: min });
   return __('durationHours', { h: Math.floor(min / 60), m: min % 60 });
 }
 
-function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
+export function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
 /* ================= Workout rendern ================= */
@@ -1540,7 +1497,7 @@ function selectDay(key){
   cancelHold(); stopRest();
   abschluss = null;
   fokusIdx = null;
-  session = { ...leereSession(), dayKey: key };
+  setSession({ ...leereSession(), dayKey: key });
   persistSession();
   /* Neue Einheit, neues Aufwaermen: die Haken der vorigen duerfen nicht
      stehen bleiben. */
@@ -1550,7 +1507,7 @@ function selectDay(key){
   renderDaySelect(); renderWorkout(); requestWakeLock();
 }
 
-function renderWorkout(){
+export function renderWorkout(){
   const day = getDay(session.dayKey);
   if(!day) return;
   const need = cfg('streak');
@@ -1851,7 +1808,7 @@ function fokusUmschalten(){
    Markup steckt. Notizen brauchen das nicht mehr: sie stehen in
    session.notes und werden von renderWorkout() direkt ausgegeben – das
    fruehere snapshotNotes() ist damit ueberfluessig geworden. */
-function restoreSession(reps){
+export function restoreSession(reps){
   Object.keys(session.sets).forEach(k => {
     if(session.sets[k]){
       const el = document.getElementById('set-' + k);
@@ -2240,7 +2197,7 @@ function halteZeitEintragen(key, sek){
   topLimitAktualisieren(key.slice(0, key.lastIndexOf('-')));
 }
 
-function cancelHold(){
+export function cancelHold(){
   if(!holdTimer) return;
   clearInterval(holdTimer.interval);
   holdTimer.el.classList.remove('running');
@@ -2340,7 +2297,7 @@ function pauseOrt(){
   const fp = document.getElementById('fokusPause');
   if(fp) fp.hidden = !(laeuft && ring);
 }
-function stopRest(){
+export function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
   restEnde = 0;
   restLetzteSek = 0;
@@ -2366,7 +2323,7 @@ function zeitgeberAbgleichen(){
 
 /* ================= Signal (Ton + Vibration) ================= */
 let audioCtx = null;
-function signal(double){
+export function signal(double){
   if(cfg('vibrate') && navigator.vibrate){
     /* Vibration ist auf Desktop und in manchen Browsern nicht verfuegbar –
        ein Fehlschlag darf das Signal nicht abbrechen. */
@@ -2673,7 +2630,7 @@ function undoWorkout(){
      Haken, jede Wiederholung und jede Notiz und musste die ganze Einheit von
      Hand neu eintragen. Genau das soll "Rueckgaengig" verhindern. */
   if(snap.session && snap.session.dayKey){
-    session = snap.session;
+    setSession(snap.session);
     persistSession();
     renderAll();                   /* kehrt vor dem Leeren von #content zurueck */
     renderWorkout(); restoreSession(session.reps);
@@ -2684,2280 +2641,6 @@ function undoWorkout(){
     renderAll();
   }
   toast(__('undoWorkout'));
-}
-
-/* Wie sich die Saetze der letzten Woche auf die Kategorien verteilen –
-   Saetze, nicht Wiederholungen, siehe js/domain/volume.js.
-
-   Ein Streifen mit Zahlen daneben, kein reines Farbdiagramm: die Aufteilung
-   ist die eigentliche Aussage ("zu viel Drücken, zu wenig Ziehen") und muss
-   auch dann ankommen, wenn die Farben nicht unterscheidbar sind. */
-function renderVolSplit(woche, monat = false){
-  const el = document.getElementById('volSplit');
-  if(!el) return;
-  const jeKat = (woche && woche.jeKat) || {};
-  const summe = Object.values(jeKat).reduce((a, b) => a + b, 0);
-  if(!summe){ el.innerHTML = ''; return; }
-
-  const teile = Object.keys(CATS).filter(k => jeKat[k] > 0);
-  el.innerHTML = '<div class="vol-legend">' + esc(__(monat ? 'volumeSplitMonth' : 'volumeSplit')) + '</div>' +
-    '<div class="vol-split" role="img" aria-label="' + esc(__('volumeSplitAria', {
-      data: teile.map(k => catName(k, CATS[k].name) + ' ' + jeKat[k]).join(', ')
-    })) + '">' +
-    teile.map(k => '<span class="vol-part vol-' + k + '" style="flex:' + jeKat[k] + '"></span>').join('') +
-    '</div>' +
-    '<div class="vol-keys" aria-hidden="true">' + teile.map(k =>
-      '<span><i class="vol-' + k + '"></i>' + esc(catName(k, CATS[k].name)) + ' ' + jeKat[k] + '</span>').join('') +
-    '</div>';
-}
-
-/* Ist-Bilanz: gemachte Kraftsaetze je Gruppe in den letzten Wochen, daneben
-   der Schnitt der abgeschlossenen und die Saetze, die der Plan vorsieht
-   (dieselbe Woche wie in der Wochenbilanz im Plan-Tab). Fest vier volle
-   Wochen plus die laufende, unabhaengig vom Zeitraum oben: die Frage ist,
-   ob der Plan gerade so trainiert wird. */
-const IST_WOCHEN = 5;
-function renderIstBilanz(){
-  const panel = document.getElementById('istPanel');
-  const el = document.getElementById('istBilanz');
-  if(!panel || !el) return;
-  const ist = istBilanz(state.log, EX_BY_ID, { wochen: IST_WOCHEN, levels: state.levels, setsMode: cfg('setsMode') });
-  if(!ist.wochen.length){ panel.hidden = true; el.innerHTML = ''; return; }
-  panel.hidden = false;
-  const woche = wochenTage(getDays(), state.wochenplan, cfg('weekGoal'));
-  const soll = woche.length ? wochenbilanz(woche, EX_BY_ID, state.levels, cfg('setsMode')).gruppen : null;
-  const luecken = new Set(istLuecken(ist.schnitt, soll));
-  const laufend = ist.wochen.find(w => w.laufend);
-  /* Nur die Wochennummer im Kopf, "KW" einmal vorn: mit "KW38" in jeder
-     Spalte war die Tabelle auf dem Handy breiter als die Karte. */
-  const kopf = '<tr><th scope="col" class="ist-kw"><span aria-hidden="true">' + esc(__('weekShort')) + '</span>' +
-    '<span class="sr-only">' + esc(__('istGruppe')) + '</span></th>' +
-    ist.wochen.map(w => '<th scope="col"' + (w.laufend ? ' class="ist-laufend"' : '') + ' aria-label="' + esc(weekLabel(w.key)) + '">' +
-      esc(w.key.split('KW')[1]) + (w.laufend ? '*' : '') + '</th>').join('') +
-    '<th scope="col">' + esc(__('istSchnitt')) + '</th><th scope="col">' + esc(__('istPlan')) + '</th></tr>';
-  const zeilen = Object.keys(BILANZ_KAT).map(g =>
-    '<tr' + (luecken.has(g) ? ' class="warn"' : '') + '><th scope="row"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' +
-      esc(bilanzGruppe(g)) + '</th>' +
-      ist.wochen.map(w => '<td' + (w.laufend ? ' class="ist-laufend"' : '') + '>' + w.gruppen[g] + '</td>').join('') +
-      '<td class="ist-schnitt">' + (ist.schnitt ? ist.schnitt[g] : '–') + '</td>' +
-      '<td>' + (soll ? soll[g].saetze : '–') + '</td></tr>').join('');
-  const hinweise = [];
-  if(!ist.schnitt) hinweise.push('<p class="bil-kopf">' + esc(__('istErsteWoche')) + '</p>');
-  else if(luecken.size){
-    hinweise.push('<ul class="bil-warn">' + [...luecken].map(g => '<li>' + esc(__('istLuecke', {
-      g: bilanzGruppe(g), n: ist.schnitt[g], soll: soll[g].saetze
-    })) + '</li>').join('') + '</ul>');
-  } else if(soll) hinweise.push('<p class="bil-ok">' + esc(__('istOk')) + '</p>');
-  if(laufend) hinweise.push('<p class="bil-kopf">' + esc(__('istLaufend', { w: weekLabel(laufend.key) })) + '</p>');
-  if(ist.geschaetzt) hinweise.push('<p class="bil-kopf">' + esc(__('istGeschaetzt')) + '</p>');
-  el.innerHTML = '<p class="bil-kopf">' + esc(__('istKopf')) + '</p>' +
-    '<div class="ist-scroll"><table class="ist-tab"><caption class="sr-only">' + esc(__('istAria')) + '</caption>' +
-    '<thead>' + kopf + '</thead><tbody>' + zeilen + '</tbody></table></div>' + hinweise.join('');
-}
-
-/* ================= Verlauf ================= */
-/* '2026-KW31' -> 'KW31' bzw. 'W31'. Der Schluessel bleibt deutsch, weil er
-   in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
-function weekLabel(w){ return __('weekShort') + w.split('-')[1].replace('KW', ''); }
-
-/* '2026-07-14' -> '2026-07'. Gegenstueck zu isoWeek() fuer lange Zeitraeume. */
-const isoMonat = iso => /^\d{4}-\d{2}/.test(String(iso)) ? String(iso).slice(0, 7) : '';
-function monatLabel(m){
-  const [j, mo] = m.split('-').map(Number);
-  return new Date(j, mo - 1, 1).toLocaleDateString(getLang(), { month: 'short', year: '2-digit' });
-}
-const spaltenLabel = k => k.includes('KW') ? weekLabel(k) : monatLabel(k);
-
-/* Der gezeigte Zeitraum.
-
-   Die Diagramme standen fest auf den letzten acht Wochen, die Liste auf den
-   letzten 25 Eintraegen. Nach einem Jahr Training war damit genau die Sicht
-   unerreichbar, fuer die man ein Jahr lang mitschreibt – die Daten lagen
-   vollstaendig im Speicher und liessen sich nur nicht ansehen.
-
-   Ab einem Jahr wird nach Monaten gruppiert: drei Jahre waeren sonst ueber
-   150 Balken auf der Breite eines Handys. */
-const HIST_RANGES = {
-  '8w':  { spalten: 8,        monatlich: false },
-  '26w': { spalten: 26,       monatlich: false },
-  '12m': { spalten: 12,       monatlich: true },
-  all:   { spalten: Infinity, monatlich: true }
-};
-/* Obergrenze der Liste. Anders als die frueheren 25 ist sie keine stille
-   Kappung: wird sie erreicht, sagt eine Zeile darunter, wie viele Eintraege
-   der Zeitraum insgesamt hat. */
-const LOG_MAX_ZEILEN = 100;
-let histRange = '8w';
-const histBereich = () => HIST_RANGES[histRange] || HIST_RANGES['8w'];
-const histMonatlich = () => histBereich().monatlich;
-const histSpalten = () => histBereich().spalten;
-function setHistRange(v){
-  histRange = HIST_RANGES[v] ? v : '8w';
-  renderHistory();
-}
-
-function renderHistory(){
-  /* Week chart */
-  const gruppe = histMonatlich() ? isoMonat : isoWeek;
-  const byWeek = {};
-  (state.log || []).forEach(l => {
-    const k = gruppe(l.d);
-    if(k) byWeek[k] = (byWeek[k] || 0) + 1;
-  });
-  /* Volumen sind jetzt die Wiederholungen, nicht die Haekchen: 4 × 5 und
-     4 × 15 sahen im alten Diagramm gleich aus. */
-  const volWeek = volumenJeGruppe(state.log || [], EX_BY_ID, gruppe);
-  const weeks = Object.keys(byWeek).sort().slice(-histSpalten());
-  const goal = histMonatlich() ? cfg('weekGoal') * 4 : cfg('weekGoal');
-
-  const wc = document.getElementById('weekChart');
-  const vcLeer = document.getElementById('volChart');
-  wc.classList.toggle('leer', !weeks.length);
-  vcLeer.classList.toggle('leer', !weeks.length);
-  if(!weeks.length){
-    /* Ohne Einheit gibt es nichts zu zeigen, aber etwas zu tun. Rolle und
-       Beschriftung des Diagramms gehen mit weg – sonst sagte ein
-       Screenreader nach dem Loeschen der letzten Einheit noch die alten
-       Balken an. */
-    [wc, vcLeer].forEach(el => { el.removeAttribute('role'); el.removeAttribute('aria-label'); });
-    wc.innerHTML = leerHtml(ikon('train'), __('noHistory') + __('noHistoryHint'),
-      { text: __('startFirst'), action: 'tab:show', tab: 'train' });
-    document.getElementById('weekLegend').textContent = '';
-    vcLeer.innerHTML = '<p class="leer-klein">' + esc(__('volumeEmpty')) + '</p>';
-    renderVolSplit(null);
-  } else {
-    /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
-       steckte allein in der Balkenfarbe. Jeder Balken bekommt daher ein
-       sprechendes Label, das Diagramm selbst eine Rolle und Beschriftung. */
-    const monat = histMonatlich();
-    const max = Math.max(goal, ...weeks.map(w => byWeek[w]));
-    wc.setAttribute('role', 'img');
-    wc.setAttribute('aria-label', __('chartWorkoutsAria', {
-      range: monat
-        ? (weeks.length === 1 ? __('lastMonthSingular') : __('lastMonthsPlural', { n: weeks.length }))
-        : (weeks.length === 1 ? __('lastWeekSingular') : __('lastWeeksPlural', { n: weeks.length })),
-      data: weeks.map(w => spaltenLabel(w) + ' ' + byWeek[w] + (byWeek[w] >= goal ? __('goalMet') : '')).join(', ')
-    }));
-    wc.innerHTML = weeks.map(w => {
-      const n = byWeek[w];
-      return '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + n + '</span>' +
-        '<div class="bar' + (n >= goal ? ' goal-met' : '') + '" style="height:' + Math.round(n / max * 100) + '%"></div>' +
-        '<span class="bar-lbl">' + esc(spaltenLabel(w)) + '</span></div>';
-    }).join('');
-    /* Bei Monaten ist das Wochenziel hochgerechnet – sonst waere jeder
-       Balken gruen und die Farbe saegte nichts mehr aus. */
-    document.getElementById('weekLegend').textContent =
-      __(monat ? 'monthLegend' : 'weekLegend', { n: goal });
-
-    const reps = w => (volWeek[w] || {}).reps || 0;
-    const vmax = Math.max(...weeks.map(reps), 1);
-    const vc = document.getElementById('volChart');
-    vc.setAttribute('role', 'img');
-    vc.setAttribute('aria-label', __('chartVolumeAria', {
-      data: weeks.map(w => spaltenLabel(w) + ' ' + reps(w)).join(', ')
-    }));
-    vc.innerHTML = weeks.map(w =>
-      '<div class="bar-col" aria-hidden="true"><span class="bar-num">' + reps(w) + '</span>' +
-      '<div class="bar" style="height:' + Math.round(reps(w) / vmax * 100) + '%"></div>' +
-      '<span class="bar-lbl">' + esc(spaltenLabel(w)) + '</span></div>').join('');
-
-    renderVolSplit(volWeek[weeks[weeks.length - 1]], monat);
-  }
-
-  renderIstBilanz();
-  renderWeight();
-  renderMeasurements();
-  renderYearReview();
-
-  const list = document.getElementById('logList');
-  /* Mit dem echten Index, nicht dem der Ansicht: geloescht wird in state.log,
-     angezeigt wird eine gefilterte und umgekehrte Auswahl. */
-  const abGruppe = weeks.length ? weeks[0] : null;
-  const imZeitraum = (state.log || []).map((l, i) => ({ l, i }))
-    /* Dieselbe Grenze wie im Diagramm: was oben zu sehen ist, steht auch
-       unten. Frueher zeigte die Liste 25 Eintraege, egal welcher Zeitraum. */
-    .filter(({ l }) => !abGruppe || gruppe(l.d) >= abGruppe);
-  const log = imZeitraum.slice(-LOG_MAX_ZEILEN).reverse();
-  list.innerHTML = log.length ? log.map(({ l, i }) => {
-    const d = getDay(l.day);
-    return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
-      '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
-      /* Die Dauer nur, wenn sie gemessen wurde: Eintraege von vor v9, CSV-
-         Importe und nachgetragene Einheiten haben keine, und "0 Min" waere
-         eine Behauptung. */
-      /* Nicht Zahl und Wort zusammenstueckeln: "1 Sätze" stand hier zwei
-         Runden lang. */
-      '<span class="muted">' + esc(__(l.sets === 1 ? 'setsCountOne' : 'setsCountMany', { n: l.sets })) +
-        ' · ' + l.tops + '× Top' +
-        (l.dauer ? ' · ' + esc(dauerText(l.dauer)) : '') + '</span>' +
-      '<span class="log-ups">' + (l.ups && l.ups.length
-        ? '<span class="aufstieg" title="' + esc(__('colLevelUp')) + '">' + ikon('levelup') + l.ups.length + '</span>' : '') + '</span>' +
-      '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
-      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">' + ikon('close') + '</button></div>';
-  }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
-
-  renderLogSummary(imZeitraum.length, log.length);
-
-  /* Calendar view */
-  renderCalendar();
-}
-
-/* Die durchschnittliche Trainingsdauer.
-
-   Gemittelt wird nur ueber Einheiten, die eine Dauer tragen – die anderen
-   sind nicht "0 Minuten lang", sondern ungemessen, und sie einzurechnen
-   wuerde den Schnitt mit jedem alten Eintrag nach unten ziehen. Deshalb
-   steht auch dabei, aus wie vielen Einheiten er stammt. */
-function renderLogSummary(imZeitraum = 0, gezeigt = 0){
-  const el = document.getElementById('logSummary');
-  if(!el) return;
-  const teile = [];
-  const dauern = (state.log || []).map(l => l.dauer).filter(d => d > 0);
-  if(dauern.length){
-    const schnitt = Math.round(dauern.reduce((a, b) => a + b, 0) / dauern.length);
-    teile.push(__('avgDuration', { v: dauerText(schnitt), n: dauern.length }));
-  }
-  /* Keine stille Kappung: wer 300 Einheiten im Zeitraum hat, soll nicht
-     glauben, es waeren 100. */
-  if(gezeigt < imZeitraum) teile.push(__('logShowing', { n: gezeigt, gesamt: imZeitraum }));
-  el.textContent = teile.join(' ');
-  el.hidden = !teile.length;
-}
-
-/* ================= Jahresrueckblick =================
-   Alle Daten liegen im Log. Eine Zusammenfassung des laufenden Jahres ist
-   reine Auswertung – motivierend, ohne dass irgendetwas neu erfasst wird. */
-function renderYearReview(){
-  const el = document.getElementById('yearReview');
-  if(!el) return;
-  const jahr = today().slice(0, 4);
-  const log = (state.log || []).filter(l => l.d && l.d.slice(0, 4) === jahr);
-  if(!log.length){ el.innerHTML = '<div class="muted">' + esc(__('yearReviewEmpty')) + '</div>'; return; }
-
-  const workouts = log.length;
-  const ups = log.reduce((a, l) => a + ((l.ups && l.ups.length) || 0), 0);
-  /* Nur die Meilensteine DIESES Jahres. Gezaehlt wurden alle, die es je gab –
-     am 1. Januar stand im Rueckblick auf ein Jahr mit null Erfolgen die
-     Gesamtzahl, neben Werten, die sehr wohl auf das Jahr gefiltert waren.
-     Der Wert je Meilenstein ist das Datum des ersten Mals. */
-  const alleMs = state.milestones || {};
-  const ms = Object.keys(alleMs)
-    .filter(id => typeof alleMs[id] === 'string' && alleMs[id].slice(0, 4) === jahr).length;
-  /* Wiederholungen: nur die, die wirklich trainiert wurden. Daneben die
-     gehaltene Zeit, seit v16 erfasst – ein Jahr mit viel Handstand sah
-     hier sonst nach wenig Arbeit aus. */
-  let reps = 0, gehalten = 0;
-  log.forEach(l => {
-    Object.values(l.reps || {}).forEach(v => { if(v > 0) reps += v; });
-    Object.values(l.sek || {}).forEach(v => { if(v > 0) gehalten += v; });
-  });
-  /* Meistgeuebte Uebung: aus den Log-Eintraegen, nicht aus dem Plan. Ohne
-     Mobility – dort stand sonst die Handgelenks-Routine, also das
-     Aufwaermen, das an jedem Drucktag dabei ist. */
-  const zaehler = {};
-  log.forEach(l => (l.ex || []).forEach(id => {
-    const ex = EX_BY_ID[id];
-    if(ex && ex.cat !== 'mobility') zaehler[id] = (zaehler[id] || 0) + 1;
-  }));
-  const topId = Object.keys(zaehler).sort((a, b) => zaehler[b] - zaehler[a])[0];
-  const top = topId && EX_BY_ID[topId] ? exName(EX_BY_ID[topId]) : null;
-
-  const teile = [
-    __('yearReviewWorkouts', { n: workouts }),
-    __('yearReviewLevelUps', { n: ups }),
-    __('yearReviewMilestones', { n: ms }),
-    __('yearReviewReps', { n: reps })
-  ];
-  if(gehalten) teile.push(__('yearReviewHold', { min: Math.round(gehalten / 60) }));
-  if(top) teile.push(__('yearReviewTop', { name: top }));
-  /* Die Ueberschrift steht schon im Markup – zwei gestapelte Titel waren
-     einer zu viel, und der Inline-Stil, der den Abstand dazwischen
-     wegrechnete, damit auch. */
-  el.innerHTML = '<div class="muted">' + esc(teile.join(' · ')) + '</div>';
-}
-
-/* ================= Eine Einheit nachtragen =================
-   Der Verlauf konnte Eintraege nur loeschen. Wer ohne Handy trainiert hat,
-   bekam die Einheit nur ueber eine von Hand gebaute CSV wieder hinein, und
-   ein falsches Datum liess sich gar nicht korrigieren – nur loeschen und
-   neu anlegen, was ebenfalls nicht ging.
-
-   Bewusst schmal: Datum, Trainingstag, Satzzahl. Stufen, Serien und
-   Bestleistungen bleiben unberuehrt, wie schon beim Loeschen – aus einer
-   nachgetragenen Satzzahl laesst sich nicht ableiten, was an dem Tag am
-   oberen Limit lag. Der Dialog sagt das. */
-function geplanteSaetze(key){
-  const day = getDay(key);
-  if(!day) return 0;
-  return day.ex.reduce((summe, id) => {
-    const ex = EX_BY_ID[id];
-    return ex ? summe + zielVon(ex.levels[lvlOf(ex)]).sets : summe;
-  }, 0);
-}
-
-function askLogEntry(){
-  const tage = getDays();
-  return askDialog((modal, finish) => {
-    const titel = __('addLogEntry');
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<p class="dlg-text">' + esc(__('addLogEntryBody')) + '</p>' +
-      '<div class="set-row"><span><label class="lbl2" for="le-datum">' + esc(__('logDate')) + '</label></span>' +
-        '<input type="date" id="le-datum" max="' + today() + '" value="' + today() + '"></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="le-tag">' + esc(__('logDay')) + '</label></span>' +
-        '<select id="le-tag">' + tage.map(d =>
-          '<option value="' + esc(d.key) + '">' + esc(d.key + ' · ' + dayTitleOf(d)) + '</option>').join('') +
-        '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="le-saetze">' + esc(__('logSets')) + '</label></span>' +
-        '<input type="number" id="le-saetze" min="1" max="99" inputmode="numeric"></div>' +
-      dialogFuss(__('save'));
-
-    const datum = modal.querySelector('#le-datum');
-    const tag = modal.querySelector('#le-tag');
-    const saetze = modal.querySelector('#le-saetze');
-    /* Vorbelegt mit dem, was der Plan fuer diesen Tag vorsieht – in aller
-       Regel ist genau das die Antwort, und der Rest ist ein Tippen. */
-    const vorbelegen = () => { saetze.value = String(geplanteSaetze(tag.value) || 1); };
-    tag.onchange = vorbelegen;
-    vorbelegen();
-
-    modal.querySelector('[data-dlg=ok]').onclick = () => finish({
-      d: datum.value, day: tag.value, sets: parseInt(saetze.value, 10)
-    });
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-  });
-}
-
-async function addLogEntry(){
-  if(!getDays().length){ toast(__('noPlanDays')); return; }
-  const eingabe = await askLogEntry();
-  if(!eingabe) return;
-
-  /* Ein leeres Datumsfeld liefert '' – und ein Datum in der Zukunft laesst
-     sich trotz max-Attribut eintippen. */
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(eingabe.d) || eingabe.d > today()){
-    toast(__('logDateInvalid')); return;
-  }
-  const day = getDay(eingabe.day);
-  if(!day) return;
-  const sets = Math.min(99, Math.max(1, Number.isFinite(eingabe.sets) ? eingabe.sets : 1));
-
-  const doppelt = (state.log || []).some(l => l.d === eingabe.d && l.day === eingabe.day);
-  if(doppelt && !await askConfirm(__('logDuplicateTitle'),
-    __('logDuplicateBody', { date: fmtDate(eingabe.d), day: eingabe.day }), __('save'))) return;
-
-  /* ex aus dem Plan: eine Vermutung, aber die bestmoegliche. Ohne sie waere
-     der Eintrag fuer "zuletzt trainiert" und die Uebungshistorie unsichtbar,
-     und der Rueckfall in domain/log.js kaeme spaeter zum selben Ergebnis –
-     nur dann anhand des DANN gueltigen Plans. Lieber jetzt festhalten.
-     dauer bleibt 0: nachgetragen heisst nicht gemessen. */
-  const entry = {
-    d: eingabe.d, day: eingabe.day, ex: [...day.ex],
-    sets, tops: 0, ups: [], reps: {}, dauer: 0
-  };
-  state.log.push(entry);
-  /* Nach Datum einsortieren wie beim CSV-Import: der Verlauf zeigt die
-     letzten Eintraege ueber die Position in der Liste. */
-  state.log.sort((a, b) => a.d.localeCompare(b.d));
-  if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
-
-  state.workouts = (state.workouts || 0) + 1;
-  /* Das groesste Datum, nicht das neueste Element – nachgetragen wird meist
-     rueckwaerts. */
-  state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
-
-  await save();
-  renderAll(); renderHistory();
-  toast(__('logAdded', { date: fmtDate(eingabe.d) }));
-}
-
-/* Einen einzelnen Eintrag entfernen.
-
-   Das Undo nach "Fertig" lebt fuenf Sekunden; danach war ein Fehleintrag nur
-   noch ueber ein von Hand bearbeitetes JSON-Backup loszuwerden.
-
-   Zurueckgerechnet werden Zaehler, Tagesstatistik und das Datum der letzten
-   Einheit. Stufen, Serien und Bestleistungen bleiben, wie sie sind: aus einem
-   Log-Eintrag laesst sich nicht ableiten, welcher Stand vor ihm galt. Der
-   Bestaetigungsdialog sagt das ausdruecklich. */
-async function removeLogEntry(i){
-  const l = (state.log || [])[i];
-  if(!l) return;
-  const ok = await askConfirm(__('logRemoveTitle'),
-    __('logRemoveBody', { date: fmtDate(l.d), day: l.day }), __('remove'), true);
-  if(!ok) return;
-
-  state.log.splice(i, 1);
-  state.workouts = Math.max(0, (state.workouts || 0) - 1);
-  /* Das groesste verbliebene Datum, nicht das letzte Element: ein CSV-Import
-     kann aeltere Eintraege hinten angehaengt haben. */
-  state.lastDate = state.log.reduce((a, e) => (!a || e.d > a) ? e.d : a, null);
-
-  await save();
-  renderAll(); renderHistory();
-  toast(__('logRemoved'));
-}
-
-/* Angezeigter Monat, relativ zum laufenden. 0 = dieser Monat. */
-let kalenderVersatz = 0;
-
-function renderCalendar(){
-  const cal = document.getElementById('calendarView') || (() => {
-    const el = document.createElement('div');
-    el.id = 'calendarView';
-    document.getElementById('view-history').appendChild(el);
-    return el;
-  })();
-  if(!state.log || !state.log.length){ cal.innerHTML = ''; return; }
-
-  /* Der Kalender stand fest auf new Date() – zurueckblaettern ging nicht,
-     und ein mehrjaehriger Verlauf war damit im laufenden Monat eingesperrt. */
-  const now = new Date();
-  const gezeigt = new Date(now.getFullYear(), now.getMonth() + kalenderVersatz, 1);
-  const year = gezeigt.getFullYear(), month = gezeigt.getMonth();
-  const first = gezeigt.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const workoutDays = new Set(state.log.map(l => l.d));
-
-  /* Vorwaerts endet die Reise im laufenden Monat, rueckwaerts beim ersten
-     aufgezeichneten Training – dahinter gibt es nichts zu sehen. */
-  const erster = state.log.reduce((a, e) => (!a || e.d < a) ? e.d : a, null) || '';
-  const grenzeZurueck = erster.slice(0, 7) >= (year + '-' + String(month + 1).padStart(2, '0'));
-
-  /* Monatsname und Wochentage aus Intl statt fest verdrahtet – sonst steht
-     im englischen Kalender "Juli" und darueber "Mo Di Mi". */
-  const monatsName = gezeigt.toLocaleDateString(getLang(), { month: 'long', year: 'numeric' });
-  let html = '<div class="section-title cal-title"><span>' + esc(__('calendar')) + ' ' + esc(monatsName) + '</span>' +
-    /* aria-disabled statt disabled: die Schaltflaeche wird an der Grenze
-       unwirksam, aber genau dann liegt der Fokus auf ihr. Ein deaktiviertes
-       Element kann keinen Fokus halten – er fiele auf <body>, und die
-       Tastaturnavigation risse ab. Die Sperre prueft der Handler. */
-    '<span class="cal-nav">' +
-      '<button class="mini-btn" data-action="calendar:shift" data-delta="-1"' +
-      (grenzeZurueck ? ' aria-disabled="true"' : '') +
-      ' aria-label="' + esc(__('calPrev')) + '">‹</button> ' +
-      '<button class="mini-btn" data-action="calendar:shift" data-delta="1"' +
-      (kalenderVersatz >= 0 ? ' aria-disabled="true"' : '') +
-      ' aria-label="' + esc(__('calNext')) + '">›</button>' +
-    '</span></div>' +
-    '<div class="calendar-grid" role="list" aria-label="' + esc(__('calendarAria', { month: monatsName })) + '">';
-  wochentage().forEach(d => { html += '<div class="cal-header" aria-hidden="true">' + esc(d) + '</div>'; });
-  /* Die geplanten Termine des gezeigten Monats, einmal fuer das ganze Gitter.
-     Ab heute, denn vergangene Tage erzaehlt das Log selbst. 40 Tage reichen:
-     vorwaerts endet die Reise im laufenden Monat, weiter als bis zu dessen
-     Ende kann hier also nichts sichtbar werden. */
-  const geplanteTage = new Map(
-    naechsteTermine(state.wochenplan, today(), 40)
-      .filter(t => t.d.slice(0, 7) === year + '-' + String(month + 1).padStart(2, '0'))
-      .map(t => [t.d, t.key]));
-
-  const offset = (first + 6) % 7;
-  for(let i = 0; i < offset; i++) html += '<div class="cal-day empty" aria-hidden="true"></div>';
-  for(let d = 1; d <= daysInMonth; d++){
-    const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-    const isWorkout = workoutDays.has(dateStr);
-    const isToday = dateStr === today();
-    /* Geplant, aber noch nicht gewesen: der Kalender zeigte bisher
-       ausschliesslich Vergangenheit. Nur in der Zukunft und nur, wenn ein
-       Rhythmus eingerichtet ist – sonst waere jeder leere Tag markiert. */
-    const isGeplant = !isWorkout && dateStr >= today() && geplanteTage.has(dateStr);
-    /* Trainingstage waren nur gruen eingefaerbt – ohne Datum, ohne Label.
-       Jetzt tragen sie den vollen Tag samt Zustand als Textalternative. */
-    const label = __('calendarDay', { d, month: monatsName }) +
-      (isWorkout ? __('calendarTrained') : '') +
-      (isGeplant ? __('calendarPlanned', { day: geplanteTage.get(dateStr) }) : '') +
-      (isToday ? __('calendarToday') : '');
-    html += '<div class="cal-day' + (isWorkout ? ' workout' : '') + (isGeplant ? ' geplant' : '') +
-      (isToday ? ' today' : '') + '"' +
-      ' role="listitem" aria-label="' + esc(label) + '"><span aria-hidden="true">' + d + '</span></div>';
-  }
-  html += '</div>';
-  cal.innerHTML = html;
-}
-
-/* ================= Body Measurements ================= */
-async function addMeasurement(){
-  const parts = ['chest', 'waist', 'arm', 'thigh'];
-  const m = state.measurements || {};
-  if(!m._dates) m._dates = [];
-  const entry = { d: today() };
-  parts.forEach(p => {
-    const el = document.getElementById('meas-' + p);
-    const v = parseFloat(el?.value);
-    if(v && v > 0 && v < 200) entry[p] = v;
-  });
-  if(Object.keys(entry).length < 2){ toast(__('measurementEmpty')); return; }
-  m._dates.push(entry);
-  if(m._dates.length > MAX_SERIES_ENTRIES) m._dates = m._dates.slice(-MAX_SERIES_ENTRIES);
-  state.measurements = m;
-  parts.forEach(p => { const el = document.getElementById('meas-' + p); if(el) el.value = ''; });
-  await save(); renderMeasurements(); toast(__('addMeasurement') + '.');
-}
-
-function renderMeasurements(){
-  const container = document.getElementById('measContainer') || (() => {
-    const el = document.createElement('div');
-    el.id = 'measContainer';
-    const parent = document.getElementById('weightSpark')?.parentElement;
-    if(parent) parent.after(el);
-    return el;
-  })();
-  const m = state.measurements || {};
-  const dates = m._dates || [];
-  const parts = ['chest', 'waist', 'arm', 'thigh'];
-  const labels = { chest: __('chest'), waist: __('waist'), arm: __('arm'), thigh: __('thigh') };
-
-  let html = '<div class="section-title">' + __('measurements') + '</div><div class="card">';
-  html += '<div class="inline-row">';
-  parts.forEach(p => {
-    const last = dates.length ? (dates[dates.length - 1][p] || '') : '';
-    /* <small> ist keine Beschriftung – ein Screenreader las hier bisher
-       nur "Eingabefeld". */
-    html += '<div class="meas-col"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
-      '<input id="meas-' + p + '" type="number" step="0.5" min="0" max="200"' +
-      ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '" class="meas-input"></div>';
-  });
-  html += '<button class="btn btn--standalone meas-save" data-action="measurement:add">' + __('save') + '</button>';
-  html += '</div>';
-
-  if(dates.length){
-    html += '<div class="meas-meta">';
-    const last = dates[dates.length - 1];
-    parts.forEach(p => {
-      if(last[p]) html += esc(labels[p]) + ': <b>' + last[p] + ' ' + __('cm') + '</b> · ';
-    });
-    html += fmtDate(last.d);
-    html += '</div>';
-    if(dates.length > 1){
-      /* Die Zahlen stehen direkt darüber im Text – die Kurve ist reine
-         Dekoration und wird deshalb ausgeblendet statt doppelt vorgelesen. */
-      html += '<svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">';
-      parts.forEach((p, pi) => {
-        const vals = dates.map(d => d[p]).filter(v => v);
-        if(vals.length < 2) return;
-        const min = Math.min(...vals) - 2, max = Math.max(...vals) + 2;
-        const pts = vals.map((v, i) =>
-          (i / (vals.length - 1) * 296 + 2).toFixed(1) + ',' + (66 - (v - min) / (max - min) * 62).toFixed(1)).join(' ');
-        const colors = ['var(--accent)', 'var(--success)', 'var(--warn)', 'var(--ink-soft)'];
-        html += '<polyline points="' + pts + '" fill="none" stroke="' + colors[pi % 4] + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>';
-      });
-      html += '</svg>';
-    }
-  }
-  html += '</div>';
-  container.innerHTML = html;
-}
-
-/* ================= Weight ================= */
-async function addWeight(){
-  const inp = document.getElementById('weightInput');
-  const v = parseFloat(String(inp.value).replace(',', '.'));
-  if(!v || v < 30 || v > 250){ toast(__('weightImplausible')); return; }
-  state.weights.push({ d: today(), kg: Math.round(v * 10) / 10 });
-  if(state.weights.length > MAX_SERIES_ENTRIES) state.weights = state.weights.slice(-MAX_SERIES_ENTRIES);
-  inp.value = '';
-  await save(); renderWeight(); toast(__('weightSaved'));
-}
-function renderWeight(){
-  const svg = document.getElementById('weightSpark'), meta = document.getElementById('weightMeta');
-  const ws = state.weights || [];
-  /* Unter zwei Eintraegen gibt es keine Kurve; die 70 px dafuer standen
-     bisher leer zwischen Eingabe und Text. */
-  svg.classList.toggle('leer', ws.length < 2);
-  if(!ws.length){
-    svg.innerHTML = '';
-    meta.textContent = __('weightEmpty');
-    return;
-  }
-  if(ws.length === 1){
-    svg.innerHTML = '';
-    meta.innerHTML = __('weightFirst', { kg: ws[0].kg, date: fmtDate(ws[0].d) });
-    return;
-  }
-  const kgs = ws.map(w => w.kg);
-  const min = Math.min(...kgs) - 1, max = Math.max(...kgs) + 1;
-  const pts = ws.map((w, i) =>
-    (i / (ws.length - 1) * 296 + 2).toFixed(1) + ',' + (66 - (w.kg - min) / (max - min) * 62).toFixed(1)).join(' ');
-  /* var(--accent) statt des aufgeloesten Wertes: sonst bleibt die Kurve nach
-     einem Theme-Wechsel in der alten Farbe, bis zufaellig neu gerendert wird.
-     Die Messwert-Kurve daneben macht es bereits so. */
-  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  const delta = Math.round((kgs[kgs.length - 1] - kgs[0]) * 10) / 10;
-  meta.innerHTML = __('weightMeta', { kg: kgs[kgs.length - 1], delta: (delta > 0 ? '+' : '') + delta, n: ws.length });
-}
-
-/* Leerer Zustand: ein Symbol, ein Satz, was als Naechstes kommt, und wo
-   es einen gibt, der Knopf dorthin. Das Symbol kommt fertig herein –
-   ikon('…') steht damit woertlich beim Aufrufer, wo der Test auf tote
-   Symbole es findet. */
-function leerHtml(symbol, text, knopf){
-  return '<div class="leer-zustand">' + symbol + '<p>' + esc(text) + '</p>' +
-    (knopf ? '<button class="leer-los" data-action="' + knopf.action + '"' +
-      (knopf.tab ? ' data-tab="' + knopf.tab + '"' : '') + '>' + esc(knopf.text) + '</button>' : '') + '</div>';
-}
-
-/* ================= Bibliothek ================= */
-function renderCatFilter(){
-  const cats = ['all'].concat(Object.keys(CATS));
-  document.getElementById('catFilter').innerHTML = cats.map(c =>
-    '<button class="chip' + (libFilter === c ? ' active' : '') + '" data-action="library:filter" data-cat="' + c + '">' +
-    esc(c === 'all' ? __('all') : catName(c, CATS[c].name)) + '</button>').join('');
-}
-function setLibFilter(c){ libFilter = c; renderCatFilter(); renderLibrary(); }
-
-/* Ab wann eine Uebung als liegen geblieben gilt. Zwei Wochen sind bei zwei
-   bis vier Einheiten pro Woche eine Luecke, die kein Plan mehr erklaert. */
-const LIB_STALE_TAGE = 14;
-
-/* Sortierung der Bibliothek. Die Reihenfolge nach Kategorie und Datei ist
-   die bisherige und bleibt die Vorgabe; sie beantwortet aber nicht die
-   Frage, die sich nach ein paar Monaten stellt – was faellt hinten runter?
-
-   Vergleichsfunktionen bekommen { ex, i, lvl, zuletzt } und fallen bei
-   Gleichstand immer auf die Dateireihenfolge zurueck, damit die Liste bei
-   gleichen Werten nicht bei jedem Aufbau anders aussieht. */
-const LIB_SORT = {
-  standard: (a, b) => a.i - b.i,
-  /* Nie trainiert zuerst: das ist die groesste Luecke, nicht die kleinste. */
-  alt: (a, b) => String(a.zuletzt || '').localeCompare(String(b.zuletzt || '')) || (a.i - b.i),
-  fortschritt: (a, b) => (anteil(b) - anteil(a)) || (a.i - b.i)
-};
-const anteil = e => e.ex.levels.length > 1 ? e.lvl / (e.ex.levels.length - 1) : 0;
-let libSort = 'standard';
-function setLibSort(v){ libSort = LIB_SORT[v] ? v : 'standard'; renderLibrary(); }
-
-/* Aufbau und Suche sind getrennt.
-
-   renderLibrary() baute frueher bei JEDEM Tastendruck im Suchfeld alle 36
-   Uebungen mit ihren 141 Stufen neu auf. Wer bei einer Uebung eine
-   Bestleistung halb eingetippt hatte und dann suchte, fand sie danach nicht
-   mehr vor – das Feld war ein anderes. Gesucht wird jetzt, indem vorhandene
-   Eintraege aus- und wieder eingeblendet werden. */
-function renderLibrary(){
-  /* Einmal fuer die ganze Liste, nicht je Uebung: der Log fasst bis zu 2000
-     Eintraege, und 42 Einzelabfragen liefen ihn 42-mal durch. */
-  const zuletztAlle = letztesDatumJeUebung(state.log || [], getDay);
-  const list = EXERCISES
-    .map((ex, i) => ({ ex, i, lvl: lvlOf(ex), zuletzt: zuletztAlle[ex.id] || null }))
-    .filter(e => libFilter === 'all' || e.ex.cat === libFilter)
-    .sort(LIB_SORT[libSort] || LIB_SORT.standard);
-
-  const planIds = new Set(getDays().flatMap(d => d.ex));
-
-  document.getElementById('libList').innerHTML = list.length ? list.map(({ ex, lvl, zuletzt }) => {
-    const open = libOpen[ex.id];
-    const herTage = zuletzt ? tageZwischen(zuletzt, today()) : null;
-    /* Nur melden, was auffaellt: eine Uebung von vorgestern braucht keinen
-       Hinweis, und ein Chip an jeder der 42 Zeilen waere keiner mehr. */
-    const liegt = herTage === null || herTage >= LIB_STALE_TAGE;
-    const pr = (state.prs || {})[ex.id];
-    /* Der Suchtext wird beim Aufbau festgeschrieben, damit filterLibrary()
-       weder die Uebungsdaten noch die Uebersetzung erneut durchgehen muss.
-       Ein Sprachwechsel laeuft ueber renderAll() und baut ohnehin neu auf. */
-    const suchtext = [exName(ex), ...ex.levels.map((l, i) => exStage(ex, i))]
-      .join(' ').toLowerCase();
-    /* Nicht machbare Uebungen verschwinden nicht von selbst: sie bekommen
-       einen Hinweis und lassen sich ueber das Kontrollkaestchen ausblenden.
-       Wer die Ausruestung gerade erst eingetragen hat, soll nicht raten
-       muessen, warum die Haelfte der Bibliothek fehlt. */
-    const geht = machbar(ex);
-    return '<div class="lib-item" data-exid="' + ex.id + '" data-cat="' + ex.cat + '" data-such="' + esc(suchtext) +
-      '" data-eqok="' + (geht ? '1' : '0') + '">' +
-      /* Echter Button statt eines klickbaren div: der Kopf ist die
-         Hauptinteraktion dieses Tabs und war per Tastatur unerreichbar. */
-      '<button type="button" class="lib-head" data-action="library:toggle" data-ex="' + ex.id + '"' +
-        ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="libbody-' + ex.id + '">' +
-        '<span class="lib-name">' + esc(exName(ex)) +
-          (planIds.has(ex.id) ? ' <span class="cat-chip">' + esc(__('inPlan')) + '</span>' : '') +
-          (geht ? '' : ' <span class="cat-chip warn">' + esc(__('equipMissing')) + '</span>') +
-          (liegt ? ' <span class="cat-chip stale">' + esc(herTage === null
-            ? __('neverTrained')
-            : __('staleDays', { n: herTage })) + '</span>' : '') + '</span>' +
-        '<span class="lib-meta">' + __('level') + ' ' + (lvl + 1) + '/' + ex.levels.length + ' <span aria-hidden="true">' + (open ? '−' : '+') + '</span></span>' +
-      '</button>' +
-      '<div class="lib-body' + (open ? ' open' : '') + '" id="libbody-' + ex.id + '">' +
-        '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(equipListe(ex.equip)) +
-          (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') +
-          ' · ' + esc(zuletzt ? __('lastTrainedOn', { date: fmtDate(zuletzt) }) : __('neverTrained')) + '</div>' +
-        /* Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen
-           an der Bank machbar und erst die spaeteren brauchen Parallettes.
-           Genau das soll hier ablesbar sein. */
-        '<ul class="lvl-list">' + ex.levels.map((l, i) => {
-          const luecke = fehlt(ex, i);
-          return '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + (luecke.length ? ' gesperrt' : '') + '">' +
-            '<span>' + (i + 1) + '. ' + esc(exStage(ex, i)) +
-            (luecke.length ? ' <small>(' + esc(__('needsEquip', { list: equipListe(luecke) })) + ')</small>' : '') +
-            '</span><span class="t">' + esc(zielText(l)) + '</span></li>';
-        }).join('') + '</ul>' +
-        '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
-          '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
-        /* Der Platzhalter war die einzige Beschriftung; er verschwindet beim
-           Tippen und wird nicht von jedem Screenreader angesagt. */
-        '<div class="inline-row"><input id="pr-' + ex.id + '" placeholder="' + esc(__('bestPlaceholder')) + '"' +
-          ' aria-label="' + esc(__('bestAria', { name: exName(ex) })) + '"' +
-          ' value="' + (pr ? esc(pr.v) : '') + '">' +
-          '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
-        (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
-        '<ul class="tips open tips--inline">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
-      '</div></div>';
-  }).join('') : '';
-  filterLibrary();
-}
-
-/* Blendet aus, was nicht zur Suche passt – ohne die Liste anzufassen. Damit
-   ueberleben halb getippte Bestleistungen in anderen Eintraegen, der auf- und
-   zugeklappte Zustand bleibt, und pro Tastendruck faellt kein Neuaufbau an. */
-function filterLibrary(){
-  const q = (document.getElementById('libSearch').value || '').toLowerCase().trim();
-  const eintraege = document.querySelectorAll('#libList .lib-item');
-  let sichtbar = 0;
-  eintraege.forEach(el => {
-    const passt = (!q || (el.dataset.such || '').includes(q)) &&
-      (!libNurMachbar || el.dataset.eqok === '1');
-    el.hidden = !passt;
-    if(passt) sichtbar++;
-  });
-  const leer = document.getElementById('libEmpty');
-  if(leer) leer.hidden = sichtbar > 0;
-}
-
-const EQUIP_KEYS = {
-  none: 'equipNone', chair: 'equipChair', bar: 'equipBar',
-  parallettes: 'equipParallettes', rings: 'equipRings', band: 'equipBand'
-};
-const equipName = eq => EQUIP_KEYS[eq] ? __(EQUIP_KEYS[eq]) : eq;
-/* Eine Kombination wie 'bar+band' wird als "Klimmzugstange + Widerstandsband"
-   gelesen – im Datenformat trennt das Pluszeichen, in der Anzeige verbindet es. */
-const equipLabel = eq => String(eq).split('+').map(equipName).join(' + ');
-const equipListe = arr => (arr || []).map(equipLabel).join(', ');
-
-/* Kurzform fuer die vielen Aufrufstellen: geprueft wird immer gegen das, was
-   der Nutzer in den Einstellungen angehakt hat. */
-const machbar = ex => exMoeglich(ex, state.equipment);
-const stufeMachbar = (ex, i) => levelMoeglich(ex, i, state.equipment);
-const fehlt = (ex, i) => fehlendeGeraete(ex, i, state.equipment);
-
-function toggleEquipment(eq){
-  if(!EQUIP.includes(eq) || eq === 'none') return;
-  const da = new Set(state.equipment || []);
-  if(da.has(eq)) da.delete(eq); else da.add(eq);
-  /* In der Reihenfolge des Vokabulars ablegen, nicht in Klickreihenfolge –
-     sonst sieht ein Backup je nach Bedienweg anders aus. */
-  state.equipment = EQUIP.filter(e => e !== 'none' && da.has(e));
-  save();
-  /* Der Filter wirkt in mehreren Ansichten gleichzeitig; die verborgenen
-     Tabs behielten sonst ihren alten Stand, bis man sie zufaellig neu baut. */
-  renderLibrary(); renderPlanTab();
-  if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
-}
-function toggleLib(id){ libOpen[id] = !libOpen[id]; renderLibrary(); }
-
-async function savePR(id){
-  const v = (document.getElementById('pr-' + id).value || '').trim().slice(0, 40);
-  if(!v){
-    delete state.prs[id];
-  } else {
-    const n = parseInt(v, 10);
-    /* Eine Handeingabe gewinnt immer – sie ist ausdruecklich gewollt. art und
-       lvl gehoeren trotzdem dazu, sonst bewertet besserePR() den naechsten
-       automatischen Eintrag falsch: ohne Stufe stuende die Eingabe auf 0 und
-       jede Masseinheit-Aenderung wuerde sie sofort ueberschreiben. */
-    const ex = EX_BY_ID[id];
-    const art = /\bsek|\bsec/i.test(v) ? 'sek' : 'reps';
-    const lvl = ex ? lvlOf(ex) : 0;
-    state.prs[id] = Number.isFinite(n)
-      ? { v, n, d: today(), art, lvl }
-      : { v, d: today(), art, lvl };
-  }
-  await save(); renderLibrary(); toast(v ? __('bestSaved') : __('bestDeleted'));
-}
-
-/* Der Wochenrhythmus: je Wochentag ein Plan-Tag oder nichts.
-
-   Gerufen aus renderPlanTab() und nicht aus showTab(): die Auswahl listet
-   die Trainingstage, und die aendern sich beim Umbenennen, Hinzufuegen,
-   Entfernen und beim Vorlagenwechsel. Aus einer Stelle heraus kann das
-   nicht auseinanderlaufen.
-
-   Angezeigt wird Montag zuerst, gespeichert nach Date.getDay() (0 = Sonntag).
-   Die Reihenfolge kommt aus wochentage(), damit die Namen und die Anordnung
-   dieselbe Quelle haben wie im Kalender. */
-const WOCHENTAG_REIHENFOLGE = [1, 2, 3, 4, 5, 6, 0];
-
-function renderWeekPlan(){
-  const el = document.getElementById('weekPlan');
-  if(!el) return;
-  const namen = wochentage();
-  const days = getDays();
-  el.innerHTML = WOCHENTAG_REIHENFOLGE.map((wd, i) =>
-    '<div class="set-row"><span><label class="lbl2" for="wp-' + wd + '">' + esc(namen[i]) + '</label></span>' +
-    '<select id="wp-' + wd + '" data-action-change="weekplan:set" data-wd="' + wd + '">' +
-      '<option value="">' + esc(__('noDay')) + '</option>' +
-      days.map(d => '<option value="' + esc(d.key) + '"' +
-        ((state.wochenplan || {})[wd] === d.key ? ' selected' : '') + '>' +
-        esc(d.key + ' · ' + dayTitleOf(d)) + '</option>').join('') +
-    '</select></div>').join('');
-}
-
-function setWeekPlan(wd, key){
-  if(!/^[0-6]$/.test(String(wd))) return;
-  const plan = { ...(state.wochenplan || {}) };
-  if(key && getDay(key)) plan[wd] = key; else delete plan[wd];
-  state.wochenplan = plan;
-  save();
-  renderBilanz();
-  /* Der Rhythmus entscheidet ueber den Vorschlag und die Zeile darueber –
-     beides liegt im Trainings-Tab und wird sonst erst zufaellig neu gebaut. */
-  renderDaySelect(); renderHistory();
-}
-
-/* ================= Plan-Editor mit Drag & Drop ================= */
-let dragSrcId = null, dragSrcIdx = null;
-
-function renderPlanTab(){
-  const sel = document.getElementById('planSelect');
-  sel.innerHTML = Object.entries(PLAN_TEMPLATES).map(([k, v]) =>
-    '<option value="' + k + '"' + (!state.customPlan && state.planId === k ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') +
-    (state.customPlan ? '<option value="custom" selected>' + __('customPlan') + '</option>' : '');
-  document.getElementById('planDesc').textContent = state.customPlan
-    /* Die eigene Beschreibung, wenn es eine gibt: ein erzeugter Plan sagt
-       damit, woher er kommt, statt pauschal "von dir angepasst". */
-    ? (state.customPlan.desc || __('customPlanDesc'))
-    : planDesc(state.planId, (PLAN_TEMPLATES[state.planId] || {}).desc || '');
-
-  const days = getDays();
-  /* Wie oft jeder Tag wirklich dran war. Eine schiefe Rotation – "A 30×,
-     B 12×" – heisst, dass die Zugtage regelmaessig ausfallen, und das sieht
-     man sonst nirgends. Gezaehlt wird im Log und nicht in einem Zaehler
-     daneben: Importe, Nachtraege und Loeschungen stehen dort ohnehin alle. */
-  const proTag = zaehleJeTag(state.log || []);
-  const meiste = Math.max(0, ...days.map(d => proTag[d.key] || 0));
-  const gesamt = days.reduce((a, d) => a + (proTag[d.key] || 0), 0);
-
-  document.getElementById('planEditor').innerHTML = days.map((d, di) => {
-    const paare = gueltigePaare(d);
-    return '<div class="plan-day" data-tag="' + di + '">' +
-      '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) +
-        /* Erst ab zwei Einheiten: sonst haengt der zweite Tag schon hinterher,
-           bevor er ueberhaupt an der Reihe war. */
-        (gesamt >= 2
-          ? ' <span class="plan-day-count' + ((proTag[d.key] || 0) * 2 < meiste ? ' warn' : '') + '">' +
-            esc(__('dayCount', { n: proTag[d.key] || 0 })) + '</span>'
-          : '') +
-      '</span>' +
-        '<span><button class="mini-btn" data-action="planDay:rename" data-day="' + di + '" title="' + __('rename') + '" aria-label="' + __('rename') + '">' + ikon('edit') + '</button> ' +
-        '<button class="mini-btn danger" data-action="planDay:remove" data-day="' + di + '" title="' + __('remove') + '" aria-label="' + __('remove') + '">' + ikon('close') + '</button></span></div>' +
-      d.ex.map((id, ei) => {
-        const ex = EX_BY_ID[id];
-        /* Drag & Drop laeuft ueber einen eigenen, auf #planEditor begrenzten
-           Listener statt ueber die allgemeine Aktionstabelle: dragover feuert
-           ununterbrochen und muss jedes Mal preventDefault() aufrufen – das
-           gehoert nicht durch einen Namens-Lookup am document. */
-        /* Hoch, runter und entfernen in einem Menue. Als drei Knoepfe
-           nebeneinander liessen sie dem Namen auf dem Handy rund 130px, und
-           fast jeder brach um. Mit dem Finger zieht man am Griff
-           (installTouchZiehen()); hoch und runter bleiben fuer Tastatur und
-           Screenreader, und das Menue bleibt nach einem Schritt offen
-           (moveEx()). */
-        const name = ex ? exName(ex) : id;
-        const pp = partnerVon(paare, id);
-        const naechsteFrei = ei < d.ex.length - 1 && !partnerVon(paare, d.ex[ei + 1]);
-        const knopf = (aktion, delta, symbol, text, aus, extra = '') =>
-          '<button type="button"' + extra + ' data-action="' + aktion + '" data-day="' + di + '" data-i="' + ei + '"' +
-          (delta ? ' data-delta="' + delta + '"' : '') + (aus ? ' disabled' : '') + '>' + symbol +
-          /* Die Texte sind auch Tooltips und stehen dort klein. */
-          esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</button>';
-        return '<div class="plan-ex' + (pp ? (pp.erster ? ' ss-erster' : ' ss-zweiter') : '') + '" draggable="true" data-day="' + di + '" data-i="' + ei + '"' +
-          (ex ? ' data-cat="' + ex.cat + '"' : '') + '>' +
-          '<span class="drag-handle">' + ikon('grip') + '</span>' +
-          '<span class="nm">' + (ex ? esc(exName(ex)) : '<i>' + esc(__('unknownExercise', { id })) + '</i>') +
-            (pp && pp.erster ? ' <span class="cat-chip ss-chip">' + esc(__('supersetLabel')) + '</span>' : '') + '</span>' +
-          '<details class="pe-menu" data-day="' + di + '" data-i="' + ei + '">' +
-            '<summary class="mini-btn" aria-label="' + esc(__('exActions', { ex: name })) + '" title="' + esc(__('exActions', { ex: name })) + '">' + ikon('more') + '</summary>' +
-            '<div class="pe-liste">' +
-              knopf('planEx:move', '-1', ikon('up'), __('moveUp'), ei === 0) +
-              knopf('planEx:move', '1', ikon('down'), __('moveDown'), ei === d.ex.length - 1) +
-              knopf('planEx:pair', '', ikon('swap'), __(pp ? 'pairDissolve' : 'pairWithNext'), !pp && !naechsteFrei) +
-              knopf('planEx:remove', '', ikon('close'), __('remove'), false, ' class="danger"') +
-            '</div></details></div>';
-      }).join('') +
-      /* Nicht machbare Uebungen werden gesperrt statt entfernt: ein verkuerztes
-         Menue laesst offen, warum eine Uebung fehlt – ein ausgegrauter Eintrag
-         mit Grund erklaert sich selbst. */
-      '<div class="inline-row"><select id="add-' + di + '">' +
-        Object.keys(CATS).map(c => '<optgroup label="' + esc(catName(c, CATS[c].name)) + '">' +
-          EXERCISES.filter(e => e.cat === c).map(e => {
-            const geht = machbar(e);
-            return '<option value="' + e.id + '"' + (geht ? '' : ' disabled') + '>' +
-              esc(exName(e)) + (geht ? '' : ' (' + esc(__('equipMissing')) + ')') + '</option>';
-          }).join('') +
-          '</optgroup>').join('') +
-      '</select><button data-action="planEx:add" data-day="' + di + '">' + __('addExercise') + '</button></div>' +
-    '</div>';
-  }).join('') || '<div class="empty-hint">' + __('noPlanDays') + '</div>';
-
-  renderWeekPlan();
-  renderBilanz();
-}
-
-/* Wochenbilanz unter dem Plan-Editor. Die Woche kommt aus dem festen
-   Rhythmus, sonst aus dem Wochenziel: bei A/B und vier Einheiten also
-   A, B, A, B. */
-const BILANZ_KAT = { druecken: 'push', ziehen: 'pull', beine: 'legs', rumpf: 'core' };
-function renderBilanz(){
-  const el = document.getElementById('planBilanz');
-  if(!el) return;
-  const woche = wochenTage(getDays(), state.wochenplan, cfg('weekGoal'));
-  if(!woche.length){ el.innerHTML = ''; el.hidden = true; return; }
-  el.hidden = false;
-  const b = wochenbilanz(woche, EX_BY_ID, state.levels, cfg('setsMode'));
-  const auffaellig = new Set(b.warnungen.map(w => w.gruppe).filter(Boolean));
-  el.innerHTML =
-    '<p class="bil-kopf">' + esc(__(rhythmusAktiv() ? 'bilanzRhythmus' : 'bilanzZiel', { n: b.einheiten })) + '</p>' +
-    Object.entries(b.gruppen).map(([g, w]) =>
-      '<div class="bil-row' + (auffaellig.has(g) ? ' warn' : '') + '">' +
-        '<span class="bil-name"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' + esc(bilanzGruppe(g)) + '</span>' +
-        '<span class="bil-wert">' + esc(w.saetze === 1 ? __('setsCountOne') : __('setsCountMany', { n: w.saetze })) +
-          ' · ' + esc(__('dayCount', { n: w.tage })) + '</span></div>').join('') +
-    (bilanzWarnungen(b) || '<p class="bil-ok">' + esc(__('bilanzOk')) + '</p>');
-}
-const bilanzGruppe = g => catName(BILANZ_KAT[g], CATS[BILANZ_KAT[g]].name);
-/* Die Warnungen als Liste, leer ohne Warnung. Auch fuer die Vorschau im
-   Generator-Dialog: bei 30 Minuten passt keine Hueftbeuge mehr, und das
-   soll man sehen, bevor man den Plan uebernimmt. */
-function bilanzWarnungen(b){
-  const text = w => {
-    if(w.art === 'huefte') return __('bilanzHuefte');
-    if(w.art === 'zugWenig') return __('bilanzZugWenig', { d: b.gruppen.druecken.saetze, z: b.gruppen.ziehen.saetze });
-    return __('bilanz_' + w.art, { g: bilanzGruppe(w.gruppe), n: b.gruppen[w.gruppe].saetze });
-  };
-  return b.warnungen.length
-    ? '<ul class="bil-warn">' + b.warnungen.map(w => '<li>' + esc(text(w)) + '</li>').join('') + '</ul>'
-    : '';
-}
-
-/* Ein Listener fuer den ganzen Plan-Editor. Die Zeilen tragen nur noch
-   data-day und data-i; das Event kommt als Parameter statt aus dem
-   impliziten globalen window.event (nicht standardisiert, in Firefox nicht
-   vorhanden und unter Modulen ohnehin nicht verfuegbar). */
-function installPlanDragAndDrop(){
-  const editor = document.getElementById('planEditor');
-  const zeile = ev => ev.target.closest('.plan-ex[data-day]');
-
-  /* Die Menues der Plan-Zeilen: immer nur eines offen, ein Tipp daneben
-     oder Escape schliesst es. toggle steigt nicht auf, deshalb capture. */
-  const menues = () => editor.querySelectorAll('details.pe-menu[open]');
-  editor.addEventListener('toggle', ev => {
-    if(ev.target.matches && ev.target.matches('details.pe-menu') && ev.target.open){
-      menues().forEach(m => { if(m !== ev.target) m.open = false; });
-    }
-  }, true);
-  an(document, 'click', ev => {
-    if(!ev.target.closest || !ev.target.closest('details.pe-menu')) menues().forEach(m => { m.open = false; });
-  });
-  an(editor, 'keydown', ev => {
-    const m = ev.key === 'Escape' && ev.target.closest && ev.target.closest('details.pe-menu[open]');
-    if(!m) return;
-    ev.preventDefault();
-    m.open = false;
-    m.querySelector('summary').focus();
-  });
-
-  an(editor, 'dragstart', ev => {
-    const el = zeile(ev); if(!el) return;
-    dragSrcId = zahl(el.dataset.day); dragSrcIdx = zahl(el.dataset.i);
-    ev.dataTransfer.effectAllowed = 'move';
-    /* Firefox startet einen Drag nur, wenn Daten gesetzt sind. */
-    ev.dataTransfer.setData('text/plain', dragSrcId + ':' + dragSrcIdx);
-  });
-
-  an(editor, 'dragover', ev => {
-    if(!zeile(ev) || dragSrcId === null) return;
-    ev.preventDefault();                       /* macht die Zeile erst ablegbar */
-    ev.dataTransfer.dropEffect = 'move';
-  });
-
-  an(editor, 'drop', ev => {
-    const el = zeile(ev); if(!el) return;
-    ev.preventDefault();
-    dragDrop(zahl(el.dataset.day), zahl(el.dataset.i));
-  });
-
-  an(editor, 'dragend', () => { dragSrcId = null; dragSrcIdx = null; });
-
-  installTouchZiehen(editor);
-}
-
-/* Ziehen mit dem Finger. HTML-Drag-and-Drop kennt keine Beruehrung – auf
-   dem Handy blieb nur das Menue, und eine Uebung vom Ende eines Tags an
-   den Anfang waren sechs Tipps. Der Griff links an jeder Zeile nimmt
-   deshalb Pointer-Ereignisse an, aber nur von Finger und Stift; die Maus
-   behaelt das bisherige Drag-and-Drop.
-
-   touch-action:none am Griff (style.css) haelt den Browser davon ab, die
-   Geste als Scrollen zu nehmen. Die Zeile folgt dem Finger, eine Linie
-   zeigt, wo sie landet: ueber der Zeile unter dem Finger oder darunter, je
-   nach Haelfte. Ueber einem Tag ohne Zeile darunter – etwa einem leeren –
-   kommt sie ans Ende. Nahe am Rand scrollt die Seite mit. Abgelegt wird
-   ueber dragDrop(), also mit demselben Hinweis, wenn dabei ein Supersatz
-   zerfaellt. */
-const ZIEH_RAND = 80;
-function installTouchZiehen(editor){
-  let zug = null;
-  const markieren = (ziel, nach, tag) => {
-    if(!zug) return;
-    zug.ziel?.classList.remove('drop-vor', 'drop-nach');
-    zug.tagEl?.classList.remove('drop-tag');
-    zug.ziel = ziel; zug.nach = nach; zug.tagEl = tag;
-    ziel?.classList.add(nach ? 'drop-nach' : 'drop-vor');
-    tag?.classList.add('drop-tag');
-  };
-  const beenden = () => {
-    if(!zug) return;
-    markieren(null, false, null);
-    zug.zeile.classList.remove('zieht');
-    zug.zeile.style.transform = '';
-    zug = null;
-  };
-
-  an(editor, 'pointerdown', ev => {
-    if(ev.pointerType === 'mouse' || zug || !ev.target.closest) return;
-    const griff = ev.target.closest('.drag-handle');
-    const zeile = griff && griff.closest('.plan-ex[data-day]');
-    if(!zeile) return;
-    ev.preventDefault();
-    try{ griff.setPointerCapture(ev.pointerId); }catch{ /* jsdom, alte Browser */ }
-    zug = { zeile, griff, id: ev.pointerId, y0: ev.clientY, scroll0: window.scrollY, ziel: null, nach: false, tagEl: null };
-    zeile.classList.add('zieht');
-  });
-
-  an(editor, 'pointermove', ev => {
-    if(!zug || ev.pointerId !== zug.id) return;
-    ev.preventDefault();
-    if(ev.clientY < ZIEH_RAND) window.scrollBy(0, -12);
-    else if(ev.clientY > window.innerHeight - ZIEH_RAND) window.scrollBy(0, 12);
-    zug.zeile.style.transform = 'translateY(' + Math.round(ev.clientY - zug.y0 + window.scrollY - zug.scroll0) + 'px)';
-    /* Die gezogene Zeile hat pointer-events:none – darunter liegt das Ziel. */
-    const unter = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
-    const ziel = unter && unter.closest ? unter.closest('.plan-ex[data-day]') : null;
-    if(ziel && ziel !== zug.zeile){
-      const r = ziel.getBoundingClientRect();
-      markieren(ziel, ev.clientY > r.top + r.height / 2, null);
-    } else {
-      const tag = !ziel && unter && unter.closest ? unter.closest('#planEditor .plan-day') : null;
-      markieren(null, false, tag);
-    }
-  });
-
-  const loslassen = ev => {
-    if(!zug || ev.pointerId !== zug.id) return;
-    const { zeile, ziel, nach, tagEl } = zug;
-    beenden();
-    let di = null, ei = null;
-    if(ziel){ di = zahl(ziel.dataset.day); ei = zahl(ziel.dataset.i) + (nach ? 1 : 0); }
-    else if(tagEl){ di = zahl(tagEl.dataset.tag); ei = (getDays()[di] || { ex: [] }).ex.length; }
-    if(di === null) return;
-    const von = zahl(zeile.dataset.day), vonI = zahl(zeile.dataset.i);
-    /* Vor oder hinter sich selbst abgelegt: keine Bewegung. */
-    if(di === von && (ei === vonI || ei === vonI + 1)) return;
-    const ex = EX_BY_ID[(getDays()[von] || { ex: [] }).ex[vonI]];
-    dragSrcId = von; dragSrcIdx = vonI;
-    dragDrop(di, ei);
-    dragSrcId = null; dragSrcIdx = null;
-    if(ex) melde(__('movedTo', { name: exName(ex), day: getDays()[di].key }));
-  };
-  an(editor, 'pointerup', loslassen);
-  an(editor, 'pointercancel', ev => { if(zug && ev.pointerId === zug.id) beenden(); });
-}
-
-function dragDrop(di, ei){
-  if(dragSrcId === null || dragSrcIdx === null) return;
-  if(dragSrcId === di && dragSrcIdx === ei) return;
-  const p = ensureCustom();
-  const vorher = tagesStand(p, [dragSrcId, di]);
-  const arr = p.days[dragSrcId].ex;
-  const item = arr.splice(dragSrcIdx, 1)[0];
-  if(dragSrcId === di && dragSrcIdx < ei) ei--;
-  p.days[di].ex.splice(ei, 0, item);
-  const weg = [...paareAufraeumen(p.days[dragSrcId]), ...(di !== dragSrcId ? paareAufraeumen(p.days[di]) : [])];
-  dragSrcId = null; dragSrcIdx = null;
-  save(); renderPlanTab();
-  paarVerlustAnbieten(p, vorher, weg);
-}
-
-/* Huelle um buildPlan(): reicht Uebungen, Ausruestung und die uebersetzten
-   Bezeichnungen hinein. Das Modul selbst bleibt damit ohne Sprachwissen. */
-/* Wie schnell die letzten Einheiten wirklich waren (tempoFaktor() in
-   js/domain/planbuilder.js), oder null, solange es zu wenige gibt. */
-const planTempo = () => tempoFaktor(state.log, EXERCISES, cfg('setsMode'));
-function planAusAusruestung(tage, ziel, minuten, schwerpunkt, supersaetze = false){
-  const tempo = planTempo();
-  return buildPlan({
-    exercises: EXERCISES,
-    equipment: state.equipment,
-    tage, ziel, minuten, schwerpunkt, supersaetze,
-    tempo: tempo ? tempo.faktor : 1,
-    setsMode: cfg('setsMode'),
-    levels: state.levels,
-    texte: {
-      name: __('customPlan'),
-      desc: __('generatedPlanDesc'),
-      sub: __('generatedDaySub'),
-      ganzkoerper: __('fullBody'),
-      tage: {
-        gk: __('fullBody'), ok: __('dayUpper'), uk: __('dayLower'),
-        push: __('dayPush'), pull: __('dayPull'), legs: __('dayLegs')
-      }
-    }
-  });
-}
-
-async function generatePlan(){
-  const res = await askPlanBuilder();
-  const plan = res && res.plan;
-  if(!plan || !plan.days.length) return;
-  /* Ein eigener Plan wird ueberschrieben – das ist Arbeit, die verloren geht,
-     also nicht ohne Rueckfrage. */
-  if(state.customPlan){
-    const ok = await askConfirm(__('buildPlan'), __('overwriteCustomPlan'), __('apply'), true);
-    if(!ok) return;
-  }
-  state.customPlan = plan;
-  /* Die Tag-Keys des neuen Plans bedeuten etwas anderes als die des alten:
-     ein alter Rhythmus mit A am Montag zeigte sonst auf den neuen Tag A. */
-  if(res.wochenplan) state.wochenplan = res.wochenplan;
-  save();
-  renderPlanTab(); renderStats(); renderDaySelect(); renderLibrary();
-  toast(__('planBuilt', { n: plan.days.length }));
-}
-
-function ensureCustom(){
-  if(!state.customPlan){
-    /* Von dem aus, was man gerade sieht – also der fuer die Ausruestung
-       aufgeloesten Vorlage, nicht der rohen Liste. */
-    const base = vorlageFuerAusruestung(state.planId);
-    state.customPlan = JSON.parse(JSON.stringify({ name: __('customPlan'), desc: __('customPlanDesc'), days: base.days }));
-  }
-  return state.customPlan;
-}
-function changePlan(v){
-  if(v === 'custom'){ ensureCustom(); }
-  else { state.customPlan = null; state.planId = v; }
-  save(); renderPlanTab(); renderStats(); renderDaySelect();
-  toast(__('planChanged', { name: planLabel() }));
-}
-async function resetPlan(){
-  const ok = await askConfirm(__('planResetTitle'), __('planResetBody'), __('reset'), true);
-  if(!ok) return;
-  state.customPlan = null; save(); renderPlanTab(); renderDaySelect(); toast(__('planReset'));
-}
-async function addPlanDay(){
-  const p = ensureCustom();
-  const key = sanitizeDayKey(await askText(__('addDay'), __('dayKeyLabel'),
-    String.fromCharCode(65 + p.days.length), 6));
-  if(!key) return;
-  const title = (await askText(__('addDay'), __('dayTitle'), __('addDay'), 40)) || __('addDay');
-  p.days.push({ key, title: title.slice(0, 40), sub: '', ex: [] });
-  save(); renderPlanTab(); renderDaySelect();
-}
-async function renameDay(di){
-  const p = ensureCustom(), d = p.days[di];
-  const key = await askText(__('renameDayTitle'), __('dayKeyShort'), d.key, 6);
-  if(key === null) return;
-  const title = await askText(__('renameDayTitle'), __('dayTitle'), d.title, 40);
-  if(title === null) return;
-  const sub = await askText(__('renameDayTitle'), __('daySub'), d.sub || '', 60);
-  if(sub === null) return;
-  d.key = sanitizeDayKey(key) || d.key;
-  d.title = title.slice(0, 40) || d.title;
-  d.sub = sub.slice(0, 60);
-  save(); renderPlanTab(); renderDaySelect();
-}
-async function removeDay(di){
-  const p = ensureCustom();
-  const ok = await askConfirm(__('removeDayTitle'),
-    __('removeDayBody', { name: p.days[di].title }), __('remove'), true);
-  if(!ok) return;
-  p.days.splice(di, 1); save(); renderPlanTab(); renderDaySelect();
-}
-function addEx(di){
-  const p = ensureCustom();
-  const id = document.getElementById('add-' + di).value;
-  if(p.days[di].ex.includes(id)){ toast(__('exerciseAlreadyIn')); return; }
-  p.days[di].ex.push(id); save(); renderPlanTab();
-  toast(__('exerciseAdded', { name: exName(EX_BY_ID[id]) }));
-}
-function removeEx(di, ei){
-  const p = ensureCustom(), vorher = tagesStand(p, [di]);
-  p.days[di].ex.splice(ei, 1);
-  const weg = paareAufraeumen(p.days[di]);
-  save(); renderPlanTab();
-  paarVerlustAnbieten(p, vorher, weg);
-}
-/* Nach jeder Aenderung an der Reihenfolge: ein Paar, dessen Uebungen nicht
-   mehr nebeneinander stehen, ist aufgeloest (js/domain/supersatz.js). */
-function paareAufraeumen(day){
-  if(!day || !day.ss) return [];
-  const ss = gueltigePaare(day);
-  const behalten = new Set(ss.map(p => p.join('|')));
-  /* Gespeichert sind nur gueltige Paare (clampBackup, bisher jeder
-     Schritt) – was jetzt fehlt, ist also eben zerfallen. */
-  const weg = day.ss.filter(p => Array.isArray(p) && !behalten.has(p.join('|')));
-  if(ss.length) day.ss = ss; else delete day.ss;
-  return weg;
-}
-
-/* Rueckgaengig fuer einen Supersatz, der beim Verschieben oder Entfernen
-   zerfallen ist. Das Aufloesen war bisher stumm: wer eine Uebung aus dem
-   Paar einen Platz nach unten schob, sah die Klammer im Training nicht
-   mehr und wusste nicht, warum. Jetzt sagt es ein Hinweis, und ein Tipp
-   stellt den Stand vor dem Schritt wieder her – aber nur, solange sich
-   an den betroffenen Tagen seither nichts geaendert hat; sonst ueberschriebe
-   das Rueckgaengig einen spaeteren Schritt. */
-let paarRueckgabe = null;
-function tagesStand(p, tage){
-  return [...new Set(tage)].map(di => p.days[di] ? {
-    di, ex: [...p.days[di].ex], ss: (p.days[di].ss || []).map(x => [...x])
-  } : null);
-}
-function paarVerlustAnbieten(p, vorher, weg){
-  if(!weg.length){ paarRueckgabe = null; return; }
-  paarRueckgabe = { vorher, nachher: JSON.stringify(tagesStand(p, vorher.map(v => v.di))) };
-  const name = id => EX_BY_ID[id] ? exName(EX_BY_ID[id]) : id;
-  const [a, b] = weg[0];
-  toast(__(weg.length > 1 ? 'pairsDissolved' : 'pairDissolved', { a: name(a), b: name(b), n: weg.length }),
-    false, { text: __('undo'), action: 'planEx:pairUndo' });
-}
-function paarRueckgaengig(){
-  const r = paarRueckgabe;
-  paarRueckgabe = null;
-  if(!r) return;
-  const p = ensureCustom();
-  if(JSON.stringify(tagesStand(p, r.vorher.map(v => v.di))) !== r.nachher){ toast(__('pairUndoStale')); return; }
-  r.vorher.forEach(v => {
-    const d = p.days[v.di];
-    d.ex = v.ex;
-    if(v.ss.length) d.ss = v.ss; else delete d.ss;
-  });
-  save(); renderPlanTab();
-  toast(__('pairRestored'));
-}
-function paarSchalten(di, ei){
-  const p = ensureCustom(), day = p.days[di];
-  if(!day || ei < 0 || ei >= day.ex.length) return;
-  const ss = paarUmschalten(day, ei);
-  if(ss.length) day.ss = ss; else delete day.ss;
-  save(); renderPlanTab();
-  document.querySelector('#planEditor details.pe-menu[data-day="' + di + '"][data-i="' + ei + '"] summary')?.focus({ preventScroll: true });
-}
-function moveEx(di, ei, d){
-  const p = ensureCustom(), arr = p.days[di].ex;
-  const t = ei + d; if(t < 0 || t >= arr.length) return;
-  const vorher = tagesStand(p, [di]);
-  [arr[ei], arr[t]] = [arr[t], arr[ei]];
-  const weg = paareAufraeumen(p.days[di]);
-  save(); renderPlanTab();
-  paarVerlustAnbieten(p, vorher, weg);
-  /* Das Menue geht an der Uebung wieder auf, die gerade gewandert ist, und
-     der Fokus steht auf derselben Richtung: drei Plaetze sind drei Tipps.
-     Am Rand ist die Richtung gesperrt, dann die andere. */
-  const menu = document.querySelector('#planEditor details.pe-menu[data-day="' + di + '"][data-i="' + t + '"]');
-  if(menu){
-    menu.open = true;
-    const ziel = menu.querySelector('[data-delta="' + d + '"]:not([disabled])') ||
-      menu.querySelector('[data-delta]:not([disabled])') || menu.querySelector('summary');
-    ziel.focus({ preventScroll: true });
-  }
-}
-
-/* ================= Meilensteine & Fahrplan ================= */
-/* Der Stand eines Meilensteins gegen den aktuellen Zustand. */
-const msStatus = m => meilensteinStatus(m, {
-  levels: state.levels, prs: state.prs, exById: EX_BY_ID
-});
-
-/* Was fehlt, in Worten: "Stufe 4 und 5 Wdh" – oder nur der Teil, der
-   tatsaechlich aussteht. Aus der blossen Liste wird damit eine
-   Wegbeschreibung. */
-function fehltText(fehlt){
-  if(!fehlt) return '';
-  const teile = [];
-  if(fehlt.lvl !== undefined) teile.push(__('msNeedsLevel', { n: fehlt.lvl + 1 }));
-  if(fehlt.wert !== undefined){
-    teile.push(__(fehlt.art === 'sek' ? 'msNeedsSecs' : 'msNeedsReps', { n: fehlt.wert }));
-  }
-  return teile.length ? __('msNeeds', { list: teile.join(__('andJoin')) }) : '';
-}
-
-/* Eigene Meilensteine: der Nutzer kann sich eigene Ziele setzen, die nicht
-   in den Daten stehen. Sie werden in state.customMilestones gehalten und
-   wie die festen Meilensteine abgehakt. */
-function customMilestones(){
-  return state.customMilestones || [];
-}
-async function addCustomMilestone(){
-  const name = await askText(__('addMilestone'), __('milestoneName'), '', 60);
-  if(!name || !name.trim()) return;
-  if(!state.customMilestones) state.customMilestones = [];
-  state.customMilestones.push({ id: 'custom-' + Date.now(), name: name.trim() });
-  await save(); renderMilestones();
-  toast(__('milestoneAdded', { name: name.trim() }));
-}
-async function removeCustomMilestone(id){
-  const m = customMilestones().find(x => x.id === id);
-  if(!m) return;
-  const ok = await askConfirm(__('milestoneRemoveTitle'),
-    __('milestoneRemoveBody', { name: m.name }), __('remove'), true);
-  if(!ok) return;
-  state.customMilestones = customMilestones().filter(x => x.id !== id);
-  delete state.milestones[id];
-  await save(); renderMilestones();
-}
-
-function renderMilestones(){
-  const search = (document.getElementById('msSearch')?.value || '').toLowerCase();
-  let list = MILESTONES;
-  if(search) list = list.filter(m => msName(m).toLowerCase().includes(search));
-
-  /* Eigene Meilensteine zuerst – sie sind die persoenlichen Ziele. */
-  const eigene = customMilestones().filter(m => !search || m.name.toLowerCase().includes(search));
-  let html = eigene.map(m => {
-    const d = (state.milestones || {})[m.id];
-    return '<div class="ms-row">' +
-      '<label class="ms' + (d ? ' done' : '') + '">' +
-      '<input type="checkbox" ' + (d ? 'checked' : '') +
-      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span>' +
-      '<span class="ms-name">' + esc(m.name) + '</span>' +
-      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') +
-      '</span></label>' +
-      '<button type="button" class="mini-btn danger" data-action="milestone:removeCustom" data-id="' +
-        m.id + '" title="' + esc(__('remove')) + '" aria-label="' + esc(__('remove')) + '">' + ikon('close') + '</button>' +
-      '</div>';
-  }).join('');
-
-  html += list.map(m => {
-    const d = (state.milestones || {})[m.id];
-    const s = d ? null : msStatus(m);
-    /* Erkannt, aber nicht eingetragen: die App schlaegt vor und hakt nicht
-       ab. "Sauber geschafft" folgt aus keiner Zahl. */
-    const erkannt = s && s.bekannt && s.erfuellt;
-    /* Der Knopf steht NEBEN dem Label, nicht darin: ein Button in einem
-       Label wird beim Klick doppelt wirksam – er loest aus UND schaltet das
-       Kontrollkaestchen um. Dieselbe Falle wie frueher beim Warm-up-Knopf
-       im <summary>. */
-    return '<div class="ms-row' + (erkannt ? ' erkannt' : '') + '">' +
-      '<label class="ms' + (d ? ' done' : '') + '">' +
-      '<input type="checkbox" ' + (d ? 'checked' : '') +
-      ' data-action-change="milestone:toggle" data-id="' + m.id + '"><span>' +
-      '<span class="ms-name">' + esc(msName(m)) +
-        (erkannt ? ' <span class="cat-chip">' + esc(__('msLooksDone')) + '</span>' : '') + '</span>' +
-      (d ? '<br><span class="ms-date">' + esc(__('msAchievedOn')) + ' ' + fmtDate(d) + '</span>' : '') +
-      (!d && s && s.bekannt && !erkannt
-        ? '<br><span class="ms-need">' + esc(fehltText(s.fehlt)) + '</span>' : '') +
-      '</span></label>' +
-      (erkannt ? '<button type="button" class="mini-btn" data-action="milestone:accept" data-id="' +
-        m.id + '">' + esc(__('msAccept')) + '</button>' : '') +
-      '</div>';
-  }).join('');
-
-  document.getElementById('msList').innerHTML = html;
-}
-
-/* Alle erkannten, noch nicht eingetragenen Meilensteine. */
-const erkannteMs = () => erkannteMeilensteine(MILESTONES, {
-  levels: state.levels, prs: state.prs, exById: EX_BY_ID, milestones: state.milestones
-});
-
-/* Alle Bestleistungen an einer Stelle.
-
-   Erfasst werden sie seit jeher automatisch, angezeigt wurden sie nur im
-   jeweiligen Bibliothekseintrag – nach einem halben Jahr ist das die
-   Zahlenreihe, die man sehen will, und die einzige, die man 42-mal
-   aufklappen musste. Neueste zuerst. */
-function renderBests(){
-  const el = document.getElementById('bestsList');
-  if(!el) return;
-  const liste = Object.keys(state.prs || {})
-    .map(id => ({ id, ex: EX_BY_ID[id], pr: state.prs[id] }))
-    /* Eine Uebung, die es nicht mehr gibt, hat auch keinen Namen. */
-    .filter(e => e.ex && e.pr && typeof e.pr === 'object')
-    .sort((a, b) => String(b.pr.d || '').localeCompare(String(a.pr.d || '')) ||
-      exName(a.ex).localeCompare(exName(b.ex)));
-
-  el.innerHTML = liste.length ? liste.map(({ ex, pr }) =>
-    '<div class="log-item"><span class="log-day">' + esc(exName(ex)) + '</span>' +
-    '<span class="best-val">' + esc(pr.v) + '</span>' +
-    '<span class="log-date">' + esc(pr.d ? fmtDate(pr.d) : '') + '</span></div>').join('')
-    : '<div class="empty-hint">' + esc(__('bestsEmpty')) + '</div>';
-}
-async function toggleMilestone(id, on){
-  if(on){
-    state.milestones[id] = today(); signal(true);
-    /* Mit Guard und ueber msName(): der Name kam bisher roh aus den deutschen
-       Daten, und ein Eintrag, der aus MILESTONES verschwindet, aber noch in
-       state.milestones steht, liess find() undefined liefern. */
-    const m = MILESTONES.find(x => x.id === id);
-    if(m) toast(__('milestoneToast', { name: msName(m) }), true);
-  } else delete state.milestones[id];
-  await save(); renderStats(); renderMilestones();
-}
-function renderRoadmap(){
-  const skills = EXERCISES.filter(istSkill);
-  document.getElementById('roadmap').innerHTML = skills.map(ex => {
-    const lvl = lvlOf(ex);
-    const pct = Math.round(lvl / (ex.levels.length - 1) * 100);
-    return '<div class="roadmap-item">' +
-      '<div class="lib-head roadmap-head"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
-      '<span class="lib-meta">' + pct + '%</span></div>' +
-      '<div class="muted">' + esc(__('nextStage', { name: exStage(ex, lvl), stage: '' })).replace(/\s*$/, ' ') +
-      (lvl < ex.levels.length - 1 ? esc(exStage(ex, lvl + 1)) : esc(__('maxLevelReached'))) + '</div></div>';
-  }).join('');
-}
-
-/* ================= Einstellungen ================= */
-/* ================= Dialog-Fokus =================
-   Beide Overlays haben bisher nur eine CSS-Klasse umgeschaltet: der Fokus
-   wanderte nie hinein, wurde nicht gefangen und beim Schliessen nicht
-   zurueckgegeben. Ein Screenreader lief am Dialog vorbei in die Seite
-   dahinter, und mit der Tabulatortaste landete man hinter dem Dialog. */
-
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
-  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/* Ein Stapel, kein einzelner Dialog: eine Rueckfrage kann ueber dem
-   Einstellungsdialog liegen ("Backup importieren?"). Mit nur einer Variablen
-   haette das Schliessen der oberen Ebene inert vom Hintergrund genommen und
-   den Fokus an der falschen Stelle abgelegt, waehrend die untere noch offen
-   ist. */
-const dialogStack = [];
-const openDialogEl = { get current(){ return dialogStack.length ? dialogStack[dialogStack.length - 1].el : null; } };
-
-function trapTab(e){
-  const top = dialogStack[dialogStack.length - 1];
-  if(e.key !== 'Tab' || !top) return;
-  const items = [...top.el.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
-  if(!items.length) return;
-  const first = items[0], last = items[items.length - 1];
-  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
-  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
-}
-
-/* Alles, was bei offenem Dialog unerreichbar sein muss. Es genuegt nicht,
-   .wrap zu nehmen: die Abschlussleiste, der Pausen-Chip und der Toast liegen
-   ausserhalb davon. Ein Klick kam durch den z-index zwar nicht durch, aber im
-   Browse-Modus eines Screenreaders blieb "Training abschliessen" erreichbar,
-   waehrend eine Rueckfrage offen stand. */
-const HINTERGRUND = ['.wrap', '#finishBar', '#restChip', '#toast'];
-const hintergrundInert = an => HINTERGRUND.forEach(sel => {
-  const el = document.querySelector(sel);
-  if(!el) return;
-  if(an) el.setAttribute('inert', ''); else el.removeAttribute('inert');
-});
-
-function openDialog(overlay){
-  /* Dasselbe Overlay zweimal oeffnen: showExHistory() benutzt einen
-     wiederverwendeten Knoten. Ohne diese Zeile setzt er inert auf sich selbst
-     und closeDialog() loest nur den ersten Stapeleintrag – .wrap bliebe
-     dauerhaft unerreichbar. */
-  if(dialogStack.some(d => d.el === overlay)) return;
-
-  const unten = dialogStack[dialogStack.length - 1];
-  /* Die darunterliegende Ebene wird selbst unerreichbar. */
-  if(unten) unten.el.setAttribute('inert', '');
-  else hintergrundInert(true);
-
-  dialogStack.push({ el: overlay, rueckfokus: document.activeElement });
-  overlay.classList.add('open');
-  const first = overlay.querySelector(FOCUSABLE);
-  if(first) first.focus();
-  if(dialogStack.length === 1) document.addEventListener('keydown', trapTab, true);
-}
-
-function closeDialog(overlay){
-  const i = dialogStack.findIndex(d => d.el === overlay);
-  if(i < 0){ overlay.classList.remove('open'); return; }
-  const [eintrag] = dialogStack.splice(i, 1);
-  overlay.classList.remove('open');
-
-  const unten = dialogStack[dialogStack.length - 1];
-  if(unten) unten.el.removeAttribute('inert');
-  else {
-    hintergrundInert(false);
-    document.removeEventListener('keydown', trapTab, true);
-  }
-  /* Fokus dorthin zurueck, wo er herkam. */
-  if(eintrag.rueckfokus && document.contains(eintrag.rueckfokus)) eintrag.rueckfokus.focus();
-}
-
-/* ================= Eigene Dialoge =================
-   Ersetzt prompt() und confirm(). Diese blockieren den Browser, sind in
-   plattformübergreifenden PWAs unterschiedlich zuverlaessig, lassen sich
-   nicht gestalten und waren hier der Grund fuer eine Auswahl per
-   eingetippter Nummer. Alle drei Funktionen liefern ein Promise und nutzen
-   dasselbe Fokus-Management wie die uebrigen Dialoge. */
-
-function askDialog(build){
-  return new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-
-    let done = false;
-    const finish = wert => {
-      if(done) return;
-      done = true;
-      closeDialog(overlay);
-      overlay.remove();
-      resolve(wert);
-    };
-
-    overlay.innerHTML = '<div class="modal" role="dialog" aria-modal="true"></div>';
-    const modal = overlay.firstChild;
-    build(modal, finish);
-
-    overlay.addEventListener('click', e => { if(e.target === overlay) finish(null); });
-    overlay.addEventListener('keydown', e => { if(e.key === 'Escape'){ e.stopPropagation(); finish(null); } });
-    document.body.appendChild(overlay);
-    openDialog(overlay);
-  });
-}
-
-function dialogKopf(titel){
-  return '<div class="modal-head"><span>' + esc(titel) + '</span>' +
-    '<button data-dlg="abbrechen" aria-label="' + esc(__('close')) + '">' + ikon('close') + '</button></div>';
-}
-function dialogFuss(okText, gefahr){
-  return '<div class="dlg-actions">' +
-    '<button data-dlg="abbrechen">' + esc(__('cancel')) + '</button>' +
-    '<button data-dlg="ok" class="primary' + (gefahr ? ' danger' : '') + '">' + esc(okText) + '</button></div>';
-}
-
-/* Freitexteingabe – Ersatz fuer prompt() */
-function askText(titel, label, vorgabe = '', maxLen = 80){
-  return askDialog((modal, finish) => {
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<label class="dlg-label" for="dlg-input">' + esc(label) + '</label>' +
-      '<input id="dlg-input" class="dlg-input" maxlength="' + maxLen + '" value="' + esc(vorgabe) + '">' +
-      dialogFuss(__('apply'));
-    const input = modal.querySelector('#dlg-input');
-    const ok = () => finish(input.value);
-    modal.querySelector('[data-dlg=ok]').onclick = ok;
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-    input.onkeydown = e => { if(e.key === 'Enter') ok(); };
-    setTimeout(() => { input.focus(); input.select(); }, 0);
-  });
-}
-
-/* Rueckfrage – Ersatz fuer confirm() */
-function askConfirm(titel, text, okText = 'OK', gefahr = false){
-  return askDialog((modal, finish) => {
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<p class="dlg-text">' + esc(text).replace(/\n/g, '<br>') + '</p>' +
-      dialogFuss(okText, gefahr);
-    modal.querySelector('[data-dlg=ok]').onclick = () => finish(true);
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(false); });
-  });
-}
-
-/* Auswahlliste – ersetzt die frühere Eingabe einer Nummer per prompt() */
-function askChoice(titel, optionen){
-  return askDialog((modal, finish) => {
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<div class="dlg-list" role="group">' +
-      optionen.map((o, i) =>
-        '<button class="dlg-choice" data-i="' + i + '"><span class="dlg-choice-name">' + esc(o.name) + '</span>' +
-        (o.sub ? '<span class="dlg-choice-sub">' + esc(o.sub) + '</span>' : '') + '</button>').join('') +
-      '</div><div class="dlg-actions"><button data-dlg="abbrechen">' + esc(__('cancel')) + '</button></div>';
-    modal.querySelectorAll('.dlg-choice').forEach(b => {
-      b.onclick = () => finish(optionen[parseInt(b.dataset.i, 10)].value);
-    });
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-  });
-}
-
-/* Plangenerator – zwei Auswahlfelder mit sofortiger Vorschau.
-
-   askChoice() reicht dafuer nicht: dort ist jede Option ein Endergebnis, hier
-   sind zwei Angaben zu kombinieren und das Ergebnis will vor dem Uebernehmen
-   gesehen werden. Geruest, Fokusfalle und Promise kommen unveraendert aus
-   askDialog(). */
-function askPlanBuilder(){
-  /* Nur Ziele, die mit der eigenen Ausruestung gehen. */
-  const ZIELE_HIER = ['keiner', ...moeglicheZiele(EXERCISES, state.equipment)];
-  /* Steht nur da, wenn der Generator die Schaetzung tatsaechlich anpasst. */
-  const tempo = planTempo();
-  const tempoHinweis = tempo && tempo.faktor !== 1
-    ? __(tempo.faktor > 1 ? 'tempoSlower' : 'tempoFaster', { n: tempo.n, p: Math.round(Math.abs(tempo.faktor - 1) * 100) })
-    : '';
-  return askDialog((modal, finish) => {
-    const titel = __('buildPlan');
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<p class="dlg-text">' + esc(__('buildPlanBody')) + '</p>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-tage">' + esc(__('daysPerWeek')) + '</label></span>' +
-        '<select id="pb-tage">' + [2, 3, 4, 5, 6].map(n =>
-          '<option value="' + n + '"' + (n === cfg('weekGoal') ? ' selected' : '') + '>' + n + '×</option>').join('') +
-        '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-ziel">' + esc(__('skillGoal')) + '</label>' +
-        '<span class="hint" id="hint-pb-ziel">' + esc(__('skillGoalHint')) + '</span></span>' +
-        '<select id="pb-ziel" aria-describedby="hint-pb-ziel">' + ZIELE_HIER.map(z =>
-          '<option value="' + z + '">' + esc(__('goal_' + z)) + '</option>').join('') +
-        '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-schwerpunkt">' + esc(__('focusGroup')) + '</label>' +
-        '<span class="hint" id="hint-pb-schwerpunkt">' + esc(__('focusGroupHint')) + '</span></span>' +
-        '<select id="pb-schwerpunkt" aria-describedby="hint-pb-schwerpunkt">' + SCHWERPUNKTE.map(s =>
-          '<option value="' + s + '">' + esc(__('focus_' + s)) + '</option>').join('') +
-        '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-minuten">' + esc(__('minutesPerSession')) + '</label>' +
-        (tempoHinweis ? '<span class="hint" id="hint-pb-minuten">' + esc(tempoHinweis) + '</span>' : '') + '</span>' +
-        '<select id="pb-minuten"' + (tempoHinweis ? ' aria-describedby="hint-pb-minuten"' : '') + '>' + [30, 45, 60].map(m =>
-          '<option value="' + m + '"' + (m === 45 ? ' selected' : '') + '>' + esc(__('minutesN', { n: m })) + '</option>').join('') +
-        '</select></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-rhythmus">' + esc(__('setWeekdays')) + '</label>' +
-        '<span class="hint" id="hint-pb-rhythmus">' + esc(__(rhythmusAktiv() ? 'setWeekdaysReplace' : 'setWeekdaysHint')) + '</span></span>' +
-        '<input type="checkbox" id="pb-rhythmus" checked aria-describedby="hint-pb-rhythmus"></div>' +
-      '<div class="set-row"><span><label class="lbl2" for="pb-supersaetze">' + esc(__('setSupersets')) + '</label>' +
-        '<span class="hint" id="hint-pb-supersaetze">' + esc(__('setSupersetsHint')) + '</span></span>' +
-        '<input type="checkbox" id="pb-supersaetze" aria-describedby="hint-pb-supersaetze"></div>' +
-      '<div id="pb-vorschau" class="pb-preview"></div>' +
-      dialogFuss(__('apply'));
-
-    const tage = modal.querySelector('#pb-tage'), ziel = modal.querySelector('#pb-ziel');
-    const minuten = modal.querySelector('#pb-minuten');
-    const schwerpunkt = modal.querySelector('#pb-schwerpunkt');
-    const rhythmus = modal.querySelector('#pb-rhythmus');
-    const supersaetze = modal.querySelector('#pb-supersaetze');
-    const vorschau = modal.querySelector('#pb-vorschau');
-    const namen = wochentage();
-    /* Der Plan wird beim Zeichnen der Vorschau erzeugt und beim Uebernehmen
-       genau dieser genommen – nicht ein zweites Mal gebaut. Die Funktion ist
-       zwar deterministisch, aber wer die Vorschau bestaetigt, soll auch das
-       bekommen, was er gesehen hat. */
-    let plan = null, wochenplan = null;
-    const zeichnen = () => {
-      plan = planAusAusruestung(zahl(tage.value), ziel.value, zahl(minuten.value), schwerpunkt.value, supersaetze.checked);
-      wochenplan = rhythmus.checked ? wochentageVorschlag(plan.days.map(d => d.key)) : null;
-      /* Wochentag je Plan-Tag, Montag = 0 in namen[]. */
-      const wd = {};
-      Object.entries(wochenplan || {}).forEach(([t, key]) => { wd[key] = namen[(Number(t) + 6) % 7]; });
-      vorschau.innerHTML = plan.days.map(d =>
-        '<div class="pb-day"><b>' + (wd[d.key] ? esc(wd[d.key]) + ' · ' : '') + esc(d.key) + ' · ' + esc(d.title) +
-        ' <small class="pb-min">' + esc(__('aboutMinutes', { n: d.min })) + '</small></b><span>' +
-        /* Ein Supersatz als "A + B", damit man die Paare vor dem Uebernehmen sieht. */
-        esc(d.ex.filter(id => !(d.ss || []).some(p => p[1] === id)).map(id => {
-          const p = (d.ss || []).find(x => x[0] === id);
-          return exName(EX_BY_ID[id]) + (p ? ' + ' + exName(EX_BY_ID[p[1]]) : '');
-        }).join(' · ')) + '</span></div>').join('') +
-        /* Die Woche des neuen Plans: so viele Einheiten, wie Tage gewaehlt
-           sind – der alte Rhythmus gehoert zum alten Plan. */
-        bilanzWarnungen(wochenbilanz(wochenTage(plan.days, {}, plan.days.length), EX_BY_ID, state.levels, cfg('setsMode'))) ||
-        '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
-    };
-    tage.onchange = zeichnen; ziel.onchange = zeichnen; minuten.onchange = zeichnen;
-    schwerpunkt.onchange = zeichnen; rhythmus.onchange = zeichnen; supersaetze.onchange = zeichnen;
-    zeichnen();
-
-    modal.querySelector('[data-dlg=ok]').onclick = () => finish({ plan, wochenplan });
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-  });
-}
-
-/* Einstieg: Ausruestung und Selbsteinschaetzung in einem Dialog.
-
-   Die Stufenfragen haengen an der Ausruestung – ohne Stange ist der Klimmzug
-   keine sinnvolle Frage, und eine Stufe, die Parallettes braucht, darf nicht
-   zur Wahl stehen. Deshalb werden sie bei jeder Aenderung der Haken neu
-   aufgebaut. Bereits gegebene Antworten bleiben dabei erhalten, soweit die
-   Stufe weiterhin machbar ist; alles andere waere eine Strafe dafuer, dass
-   man die Reihenfolge falsch geraten hat. */
-function askEinstieg(){
-  return askDialog((modal, finish) => {
-    const titel = __('welcomeTitle');
-    const gewaehlt = new Set(state.equipment || []);
-    const antworten = {};
-
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<p class="dlg-text">' + esc(__('onboardEquipBody')) + '</p>' +
-      '<div id="ob-equip"></div>' +
-      '<p class="dlg-text">' + esc(__('onboardLevelBody')) + '</p>' +
-      '<div id="ob-fragen"></div>' +
-      dialogFuss(__('welcomeStart'));
-
-    const equipEl = modal.querySelector('#ob-equip');
-    const fragenEl = modal.querySelector('#ob-fragen');
-
-    equipEl.innerHTML = EQUIP.filter(e => e !== 'none').map(e =>
-      '<label class="set-row clickable"><span>' + esc(equipName(e)) + '</span>' +
-      '<input type="checkbox" data-ob-eq="' + e + '"' + (gewaehlt.has(e) ? ' checked' : '') + '></label>').join('');
-
-    const fragenZeichnen = () => {
-      const vorhanden = EQUIP.filter(e => e !== 'none' && gewaehlt.has(e));
-      const fragen = einstiegsFragen(EXERCISES, vorhanden);
-      fragenEl.innerHTML = fragen.map(({ kat, ex, stufen }) =>
-        '<div class="set-row"><span><label class="lbl2" for="ob-' + kat + '">' +
-          esc(exName(ex)) + '</label></span>' +
-        '<select id="ob-' + kat + '" data-ob-kat="' + kat + '">' +
-          /* Erste Wahl ist immer "ganz von vorn" – das ist die ehrlichste
-             Vorgabe und der bisherige Zustand. */
-          stufen.map(i => '<option value="' + i + '">' +
-            esc((i + 1) + '. ' + exStage(ex, i) + ' · ' + zielText(ex.levels[i])) +
-            '</option>').join('') +
-        '</select></div>').join('') ||
-        '<div class="empty-hint">' + esc(__('noExercises')) + '</div>';
-
-      /* Fruehere Antworten wieder einsetzen, soweit die Stufe es noch gibt. */
-      fragenEl.querySelectorAll('[data-ob-kat]').forEach(sel => {
-        const alt = antworten[sel.dataset.obKat];
-        if(alt !== undefined && sel.querySelector('option[value="' + alt + '"]')) sel.value = String(alt);
-        else antworten[sel.dataset.obKat] = Number(sel.value);
-        sel.onchange = () => { antworten[sel.dataset.obKat] = Number(sel.value); };
-      });
-    };
-
-    equipEl.querySelectorAll('[data-ob-eq]').forEach(box => {
-      box.onchange = () => {
-        if(box.checked) gewaehlt.add(box.dataset.obEq); else gewaehlt.delete(box.dataset.obEq);
-        fragenZeichnen();
-      };
-    });
-    fragenZeichnen();
-
-    modal.querySelector('[data-dlg=ok]').onclick = () => finish({
-      equipment: EQUIP.filter(e => e !== 'none' && gewaehlt.has(e)),
-      antworten
-    });
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-  });
-}
-
-async function einstiegLaufen(){
-  const res = await askEinstieg();
-  /* Auch ein Abbruch beendet den Einstieg. Ein Banner, das nach jedem
-     Wegklicken wiederkommt, ist keine Einladung mehr – wer ihn spaeter doch
-     will, findet ihn in den Einstellungen. */
-  if(!res){ einstiegBeenden(true); return; }
-
-  state.equipment = res.equipment;
-  const stufen = startStufen({
-    exercises: EXERCISES, equipment: state.equipment, antworten: res.antworten
-  });
-  Object.assign(state.levels, stufen);
-  einstiegBeenden(false);
-  toast(__('onboardDone', { n: Object.keys(stufen).length }), true);
-}
-
-function einstiegBeenden(stumm){
-  state.onboarded = true;
-  save();
-  renderAll(); renderLibrary(); renderPlanTab();
-  if(stumm) toast(__('onboardSkipped'));
-}
-
-/* Nur-Lese-Text zum Markieren und Kopieren */
-function showTextDialog(titel, text){
-  return askDialog((modal, finish) => {
-    modal.setAttribute('aria-label', titel);
-    modal.innerHTML = dialogKopf(titel) +
-      '<textarea class="dlg-area" readonly rows="12"></textarea>' +
-      '<div class="dlg-actions"><button data-dlg="abbrechen" class="primary">' + esc(__('close')) + '</button></div>';
-    modal.querySelector('.dlg-area').value = text;
-    modal.querySelectorAll('[data-dlg=abbrechen]').forEach(b => { b.onclick = () => finish(null); });
-    setTimeout(() => { const a = modal.querySelector('.dlg-area'); a.focus(); a.select(); }, 0);
-  });
-}
-
-function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'fokus', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'reminder', 'lang'].forEach(k => {
-    const el = document.getElementById('cfg-' + k); if(!el) return;
-    if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
-  });
-  const da = new Set(state.equipment || []);
-  EQUIP.filter(e => e !== 'none').forEach(e => {
-    const el = document.getElementById('eq-' + e);
-    if(el) el.checked = da.has(e);
-  });
-  zeigeSpeicherinfo();
-  zeigeInstallSchalter();
-  zeigeTeilenSchalter();
-  openDialog(document.getElementById('settingsOverlay'));
-}
-function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
-/* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
-   hat closeSettings() pro Tastendruck doppelt aufgerufen. */
-
-/* ================= Trainingserinnerungen (Notification API) =================
-   Der Wochenrhythmus weiss, welche Tage trainiert werden. Eine Erinnerung
-   nutzt die Notification API – der Pausenton erreicht zwar keinen gesperrten
-   Bildschirm, aber eine Systembenachrichtigung schon. Bewusst dezent: nur
-   ein Hinweis, keine Sperre, und nur wenn ein Rhythmus eingerichtet ist. */
-function erinnerungAktiv(){
-  return !!(state.settings && state.settings.reminder);
-}
-function erinnerungErlauben(){
-  if(!('Notification' in window)){ toast(__('reminderDenied')); return; }
-  if(Notification.permission === 'granted') return;
-  Notification.requestPermission().then(p => {
-    if(p === 'granted') toast(__('reminderEnabled'));
-    else toast(__('reminderDenied'));
-  });
-}
-/* Die Erinnerung lief bisher aus start(): wer die App an einem
-   Trainingstag oeffnete, bekam eine Systemmeldung, dass er heute trainieren
-   solle – waehrend er auf die App schaute, und bei jedem Neuladen erneut.
-   Das ist keine Erinnerung, das ist Laerm.
-
-   Jetzt gilt: hoechstens einmal am Tag, und nur wenn die Seite gerade nicht
-   sichtbar ist. Angesetzt wird sie, wenn die App in den Hintergrund geht –
-   wer sie offen hatte und ohne Training wieder verlaesst, ist genau der
-   Fall, fuer den sie gedacht ist. Kommt er vorher zurueck, faellt sie aus.
-
-   Mehr ist ohne Server nicht drin: eine geschlossene oder eingefrorene Seite
-   kann nicht benachrichtigen. Wer eine verlaessliche Erinnerung will, nimmt
-   den Kalender-Export – der Handy-Kalender braucht die App nicht. */
-const ERINNERUNG_VERZOEGERUNG = 2 * 60 * 1000;
-let erinnerungTimer = null;
-
-function erinnerungFaellig(){
-  if(!erinnerungAktiv() || !('Notification' in window)) return false;
-  if(Notification.permission !== 'granted') return false;
-  const heute = today();
-  /* Einmal am Tag reicht. Gemerkt wird das Datum, nicht ein Zaehler – so
-     ueberlebt die Sperre auch einen Neustart. */
-  if(state.erinnertAm === heute) return false;
-  if(!heutigerPlanTag()) return false;
-  return !(state.log || []).some(l => l.d === heute);
-}
-
-function erinnerungPlanen(){
-  clearTimeout(erinnerungTimer);
-  erinnerungTimer = erinnerungFaellig() ? setTimeout(erinnerungSenden, ERINNERUNG_VERZOEGERUNG) : null;
-}
-
-function erinnerungAbsagen(){
-  clearTimeout(erinnerungTimer);
-  erinnerungTimer = null;
-}
-
-function erinnerungSenden(){
-  erinnerungTimer = null;
-  /* Zwischen Ansetzen und Ausloesen kann sich alles geaendert haben: die
-     Seite ist wieder da, die Einheit ist abgeschlossen, der Tag ist um. */
-  if(document.visibilityState === 'visible') return;
-  if(!erinnerungFaellig()) return;
-  const d = getDay(heutigerPlanTag());
-  if(!d) return;
-  try{
-    new Notification(__('reminderTitle'), {
-      body: __('reminderBody', { day: d.key + ' · ' + dayTitleOf(d) }),
-      icon: 'icons/icon-192.png'
-    });
-    state.erinnertAm = today(); save();
-  }catch{ /* Benachrichtigung nicht moeglich – dann eben nicht */ }
-}
-
-/* ================= Undo fuer Einstellungsaenderungen =================
-   Eine Aenderung in den Einstellungen wird sofort gespeichert. Ein
-   versehentlicher Klick liess sich bisher nicht zuruecknehmen. Der Toast
-   bietet deshalb kurzzeitig ein Rueckgaengig an – wie beim Workout-Undo. */
-let settingsUndo = null;
-let settingsUndoTimeout = null;
-function updateSetting(k, v){
-  /* Vorherigen Wert merken, falls der Nutzer zurueck will. */
-  const vorher = state.settings[k];
-  state.settings[k] = v; save();
-  /* Rueckgaengig anbieten – aber nicht fuer die Sprache (dort wuerde ein
-     Undo die Oberflaeche mitten im Wechsel zurueckreissen). */
-  if(k !== 'lang'){
-    clearTimeout(settingsUndoTimeout);
-    settingsUndo = { k, vorher };
-    settingsUndoTimeout = setTimeout(() => { settingsUndo = null; }, 5000);
-    toast(__('settingChanged'), false, { text: __('undo'), action: 'setting:undo' });
-  }
-  if(k === 'lang'){
-    setLang(v);
-    applyLanguage();
-    /* Alle Ansichten neu aufbauen, nicht nur die sichtbare: die verborgenen
-       Tabs behielten sonst die alte Sprache, bis man sie zufaellig neu
-       rendert. Die laufende Einheit fehlte hier lange – ihre Karten blieben
-       in der alten Sprache, bis die Einheit vorbei war. Sie steht deshalb
-       unten mit in der Liste, die das Neuzeichnen samt Wiederherstellen der
-       Eintraege uebernimmt. */
-    renderWarmup(); renderCatFilter(); renderLibrary();
-    renderPlanTab(); renderMilestones(); renderBests(); renderRoadmap(); renderHistory();
-  }
-  if(session.dayKey && ['setsMode', 'streak', 'perExRest', 'rest', 'lang'].includes(k)){
-    if(k === 'setsMode') verwerfeUeberzaehligeSaetze();
-    cancelHold(); renderWorkout(); restoreSession(session.reps);
-  }
-  renderAll();
-}
-
-/* Haken, die es nach einer geaenderten Satzzahl nicht mehr gibt.
-
-   Frueher nur beim Satz-Modus noetig; die Entlastungswoche halbiert die
-   Saetze ebenfalls und kann mitten in einer laufenden Einheit beginnen. */
-function verwerfeUeberzaehligeSaetze(){
-  Object.keys(session.sets).forEach(key => {
-    const id = key.slice(0, key.lastIndexOf('-'));
-    const ex = EX_BY_ID[id]; if(!ex) return;
-    const max = zielVon(ex.levels[lvlOf(ex)]).sets;
-    if(parseInt(key.split('-').pop(), 10) >= max) delete session.sets[key];
-  });
-}
-
-/* ================= Backup ================= */
-function download(name, content, type){
-  const blob = new Blob([content], { type });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-function exportJSON(){
-  try{
-    download('progression-backup-' + today() + '.json', JSON.stringify(state, null, 2), 'application/json');
-    /* Erst nach dem erfolgreichen Erzeugen buchen – sonst verstummt die
-       Erinnerung fuer eine Sicherung, die es gar nicht gibt. Der Stand
-       selbst enthaelt die Buchung noch nicht; das ist richtig so, denn er
-       war zum Zeitpunkt des Exports ungesichert. */
-    state.lastBackup = today();
-    state.backupWorkouts = state.workouts || 0;
-    state.backupDismissed = 0;
-    save(); renderBanners();
-    toast(__('backupDownloaded'));
-  }catch(err){ console.error('[exportJSON]', err); toast(__('exportFailed')); }
-}
-
-/* Dieselbe Sicherung, nur ueber das Systemblatt statt in den Download-Ordner.
-
-   Auf dem Handy ist das der Unterschied zwischen "liegt irgendwo" und "ist
-   in der Cloud" – und die Sicherung ist laut eigener Ansage das groesste
-   Datenrisiko dieser App.
-
-   Gebucht wird NUR nach erfolgreichem Teilen. Bricht der Nutzer das Blatt
-   ab, wirft share() einen AbortError; dann bleibt die Erinnerung stehen,
-   denn ein abgebrochenes Teilen ist keine Sicherung. Dieselbe Regel wie
-   oben, nur schaerfer. */
-async function shareJSON(){
-  if(!kannTeilen()) return;
-  const name = 'progression-backup-' + today() + '.json';
-  try{
-    await navigator.share({
-      files: [new File([JSON.stringify(state, null, 2)], name, { type: 'application/json' })],
-      title: name
-    });
-  }catch(err){
-    /* Der Abbruch ist kein Fehler und braucht keine Meldung. */
-    if(!(err && err.name === 'AbortError')){
-      console.error('[shareJSON]', err);
-      toast(__('shareFailed'));
-    }
-    return;
-  }
-  state.lastBackup = today();
-  state.backupWorkouts = state.workouts || 0;
-  state.backupDismissed = 0;
-  await save(); renderBanners();
-  toast(__('backupShared'));
-}
-
-/* Der Wochenrhythmus als Kalenderdatei.
-
-   Die Trainingserinnerung der App kann nur greifen, solange die Seite lebt
-   (siehe erinnerungPlanen()). Der Kalender des Geraets braucht sie nicht:
-   ein woechentlicher Termin mit Vorwarnung erinnert auch dann, wenn die App
-   seit Wochen zu ist. Deshalb steht der Export im Plan-Tab direkt unter dem
-   Rhythmus – dort, wo die Tage festgelegt werden.
-
-   Geteilt statt heruntergeladen, wo das Geraet es kann: eine .ics im
-   Download-Ordner muss man erst suchen, das Systemblatt bietet den Kalender
-   direkt an. Dieselbe Abwaegung wie beim Backup. */
-async function exportICS(){
-  const plan = state.wochenplan || {};
-  if(!Object.keys(plan).length){ toast(__('icsNoPlan')); return; }
-
-  const uhrzeit = await askText(__('icsTimeTitle'), __('icsTimeLabel'), '18:00', 5);
-  if(uhrzeit === null) return;
-
-  const inhalt = wochenplanAlsIcs(plan, key => {
-    const d = getDay(key);
-    return d ? d.key + ' · ' + dayTitleOf(d) : key;
-  }, { von: today(), stempel: stempelJetzt(), uhrzeit: String(uhrzeit).trim() });
-
-  if(!inhalt){ toast(__('icsBadTime')); return; }
-
-  const name = 'progression-trainingstage.ics';
-  if(kannTeilen()){
-    try{
-      await navigator.share({
-        files: [new File([inhalt], name, { type: 'text/calendar' })],
-        title: name
-      });
-      toast(__('icsShared'));
-    }catch(err){
-      if(!(err && err.name === 'AbortError')){
-        console.error('[exportICS]', err);
-        toast(__('shareFailed'));
-      }
-    }
-    return;
-  }
-  try{
-    download(name, inhalt, 'text/calendar');
-    toast(__('icsDownloaded'));
-  }catch(err){ console.error('[exportICS]', err); toast(__('icsFailed')); }
-}
-
-/* DTSTAMP in UTC. Steht hier und nicht in domain/ics.js: die Schicht ruft
-   kein new Date(). */
-function stempelJetzt(){
-  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-}
-
-function exportCSV(){
-  download('progression-verlauf-' + today() + '.csv', '\uFEFF' + serializeLog(state.log), 'text/csv');
-  toast(__('csvDownloaded'));
-}
-function exportText(){
-  const lines = [__('textHeader', { date: fmtDate(today()) }),
-    __('textPlan', { name: planLabel() }),
-    __('textWorkouts', { n: state.workouts || 0 }), '', __('textLevels')];
-  /* Wochenzusammenfassung: wie viele Einheiten diese Woche. */
-  const dieseWoche = (state.log || []).filter(l => isoWeek(l.d) === isoWeek(today())).length;
-  if(dieseWoche > 0) lines.push('', __('textWeekSummary'), __('textWeekWorkouts', { n: dieseWoche }));
-  getDays().forEach(d => {
-    lines.push('', '[' + d.key + '] ' + d.title);
-    d.ex.forEach(id => {
-      const ex = EX_BY_ID[id]; if(!ex) return;
-      const l = lvlOf(ex);
-      lines.push('  ' + exName(ex) + ': ' + __('level') + ' ' + (l + 1) + '/' + ex.levels.length +
-        ' – ' + exStage(ex, l) + ' (' + zielText(ex.levels[l]) + ')');
-    });
-  });
-  const ms = Object.keys(state.milestones || {});
-  if(ms.length){
-    lines.push('', __('textMilestones'));
-    ms.forEach(id => { const m = MILESTONES.find(x => x.id === id); if(m) lines.push('  ✔ ' + msName(m) + ' (' + fmtDate(state.milestones[id]) + ')'); });
-  }
-  const ws = state.weights || [];
-  if(ws.length) lines.push('', __('textWeight', { from: ws[0].kg, to: ws[ws.length - 1].kg }));
-  const text = lines.join('\n');
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(() => toast(__('copiedToClipboard')))
-      .catch(() => showTextDialog(__('copyDialogTitle'), text));
-  } else showTextDialog(__('copyDialogTitle'), text);
-}
-const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
-
-/* Der Uebungsbestand ist die einzige Aussenabhaengigkeit von clampBackup und
-   wird ihm deshalb hereingereicht – die Domaenenschicht importiert nichts. */
-const clampBackup = data => clampBackupPure(data, EX_BY_ID);
-
-function importJSON(input){
-  const file = input.files && input.files[0]; if(!file) return;
-  if(file.size > MAX_BACKUP_BYTES){
-    toast(__('fileTooBig')); input.value = ''; return;
-  }
-  const r = new FileReader();
-  r.onload = async e => {
-    try{
-      const data = JSON.parse(e.target.result);
-      if(!data || typeof data !== 'object' || Array.isArray(data) ||
-         (data.levels === undefined && data.workouts === undefined)) throw new Error('invalid');
-      /* Ersetzen war bisher die einzige Moeglichkeit – und fuer den
-         haeufigsten Fall die falsche: wer auf dem Handy trainiert und danach
-         das Backup vom Rechner einspielt, verlor jede Einheit, die seit dem
-         Backup dazukam. Zusammenfuehren steht deshalb zuerst, es ist die
-         verlustfreie Wahl. */
-      const wahl = await askChoice(__('importTitle'), [
-        { name: __('importMerge'), sub: __('importMergeSub'), value: 'merge' },
-        { name: __('importReplace'), sub: __('importReplaceSub'), value: 'replace' }
-      ]);
-      if(!wahl){ input.value = ''; return; }
-      cancelHold(); stopRest();
-      /* Durch BEIDE Stufen: clampBackup kappt Laengen und Fremdfelder,
-         migrateState normalisiert Typen und setzt die Version. Frueher stand
-         hier ein Object.assign(DEFAULT_STATE(), …) – also genau der flache
-         Merge, den migrateState ersetzt hat. Boot- und Importpfad pruefen
-         seitdem unterschiedlich streng, obwohl es dieselben Daten sind.
-
-         mergeStates() sitzt dazwischen: es entscheidet, welcher Wert gewinnt,
-         nicht ob er eine gueltige Form hat. */
-      const sauber = clampBackup(data);
-      state = migrateState(wahl === 'merge' ? mergeStates(state, sauber) : sauber);
-      clearSession();          /* vor dem Speichern: sonst landet eine aus dem
-                                  Backup stammende Einheit kurz im Speicher */
-      await save();
-      document.getElementById('finishBar').style.display = 'none';
-      applyTheme(); closeSettings(); showTab('train'); renderAll();
-      toast(__('imported'), true);
-    }catch(err){
-      console.error('[importJSON]', err);
-      toast(__('importFailed'));
-    }
-    input.value = '';
-  };
-  r.onerror = () => { toast(__('fileUnreadable')); input.value = ''; };
-  r.readAsText(file);
-}
-
-/* ================= CSV Import ================= */
-
-/* Echter CSV-Parser fuer das von exportCSV() erzeugte Format:
-   Semikolon-getrennt, Felder in Anfuehrungszeichen, "" als maskiertes ".
-   Der frueher genutzte line.split(';') + replace(/"/g,'') zerlegte jede
-   Zeile falsch, sobald ein Feld selbst ein Semikolon enthielt – der
-   Roundtrip des eigenen Exports war damit nicht verlustfrei. */
-function importCSV(input){
-  const file = input.files && input.files[0]; if(!file) return;
-  if(file.size > MAX_BACKUP_BYTES){
-    toast(__('fileTooBig')); input.value = ''; return;
-  }
-  const r = new FileReader();
-  r.onload = async e => {
-    try{
-      const { entries: imported, skipped } = parseLog(e.target.result, sanitizeDayKey);
-      if(!imported.length) throw new Error(__('csvNoValidRows'));
-
-      const msg = __('csvImportBody', { n: imported.length }) +
-        (skipped ? __('csvSkipped', { n: skipped }) : '');
-      if(!await askConfirm(__('csvImportTitle'), msg, __('importAction'))) return;
-
-      const existing = new Set((state.log || []).map(l => l.d + '-' + l.day));
-      let added = 0;
-      imported.forEach(en => {
-        const key = en.d + '-' + en.day;
-        if(!existing.has(key)){ state.log.push(en); existing.add(key); added++; }
-      });
-      state.log.sort((a, b) => a.d.localeCompare(b.d));
-      if(state.log.length > MAX_LOG_ENTRIES) state.log = state.log.slice(-MAX_LOG_ENTRIES);
-      save(); renderAll(); renderHistory();
-      toast(__('csvImported', { added, total: imported.length }));
-    }catch(err){
-      toast(__('csvImportFailed', { msg: err.message }));
-    }finally{
-      /* Immer zuruecksetzen – bei einem return im try-Block blieb der Wert
-         sonst stehen und dieselbe Datei loeste kein change-Event mehr aus. */
-      input.value = '';
-    }
-  };
-  r.onerror = () => { toast(__('fileUnreadable')); input.value = ''; };
-  r.readAsText(file);
-}
-
-async function resetAll(){
-  const ok = await askConfirm(__('resetAllTitle'), __('resetAllBody'), __('resetAllAction'), true);
-  if(!ok) return;
-  cancelHold(); stopRest();
-  const keep = { theme: state.theme, settings: state.settings, planId: state.planId, customPlan: state.customPlan };
-  /* Ohne catch bricht ein Fehler in store.clear() die async-Funktion mitten
-     im Zuruecksetzen ab – ohne Meldung und mit halb geleertem Speicher. */
-  try{
-    await store.clear();
-  }catch(err){
-    console.error('[resetAll]', err);
-    toast(__('resetFailed'));
-    return;
-  }
-  state = Object.assign(DEFAULT_STATE(), keep);
-  clearSession();
-  await save();
-  document.getElementById('finishBar').style.display = 'none';
-  closeSettings(); showTab('train'); renderAll();
-  toast(__('resetDone'));
-}
-
-/* ================= Helfer ================= */
-/* today(), isoDaysAgo(), fmtDate(), esc() und sanitizeDayKey() liegen in
-   js/domain/ und werden oben importiert. */
-
-/* Ansage nur fuer Screenreader. Fuer Ereignisse, die sichtbar ohnehin
-   erkennbar sind und deshalb keinen Toast rechtfertigen. */
-function melde(text){
-  const el = document.getElementById('srStatus');
-  if(!el) return;
-  /* Zweimal derselbe Text wuerde sonst nicht erneut vorgelesen. */
-  el.textContent = '';
-  setTimeout(() => { el.textContent = text; }, 30);
-}
-
-/* Haelt den Fokus ueber ein Neuzeichnen hinweg.
-
-   Die Render-Funktionen ersetzen ganze Container per innerHTML. Das gerade
-   betaetigte Element ist danach weg und der Fokus faellt auf <body> – bei
-   Tastatur- und Screenreader-Bedienung reisst die Navigation jedes Mal ab.
-   Fuer Dialoge gibt es laengst einen Fokus-Trap mit Rueckgabe; fuer Renders
-   gab es nichts.
-
-   Bewusst an den Aktionen aufgerufen und nicht in den Render-Funktionen: so
-   steht an der Stelle, welche Interaktion den Fokus halten soll. */
-
-/* Wiedererkennungsmerkmal eines Bedienelements ueber ein Neuzeichnen hinweg.
-   Eine id haben laengst nicht alle – Bibliothekskoepfe, Meilenstein-Haken und
-   die Plan-Schaltflaechen tragen nur ihre data-Attribute. Die sind aber
-   stabil und eindeutig, also dienen sie als Kennung. */
-const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta'];
-function fokusKennung(el){
-  if(!el || el === document.body) return null;
-  if(el.id) return '#' + CSS.escape(el.id);
-  const art = el.dataset.action ? '' : el.dataset.actionChange ? '-change' : el.dataset.actionInput ? '-input' : null;
-  if(art === null) return null;
-  const name = el.dataset.action || el.dataset.actionChange || el.dataset.actionInput;
-  let sel = '[data-action' + art + '="' + name + '"]';
-  for(const k of FOKUS_DATEN){
-    const v = el.dataset[k];
-    if(v === undefined || v.includes('"')) continue;
-    sel += '[data-' + k + '="' + v + '"]';
-  }
-  return sel;
-}
-
-/* async, weil mehrere Aktionen erst nach einem await neu zeichnen
-   (toggleMilestone speichert, renameDay oeffnet einen Dialog). Wuerde hier
-   nicht gewartet, liefe die Wiederherstellung vor dem Neuzeichnen. */
-async function mitFokus(fn){
-  const alt = document.activeElement;
-  const kennung = fokusKennung(alt);
-  const pos = alt && typeof alt.selectionStart === 'number' ? alt.selectionStart : null;
-  await fn();
-  if(!kennung) return;
-  let neu;
-  try{ neu = document.querySelector(kennung); }catch{ return; }
-  if(!neu || neu === document.activeElement) return;
-  neu.focus({ preventScroll: true });
-  if(pos !== null && typeof neu.setSelectionRange === 'function'){
-    try{ neu.setSelectionRange(pos, pos); }catch{ /* Feldtyp erlaubt keine Auswahl */ }
-  }
-}
-
-/* Vom Nutzer abgelehnte Bewegung gilt auch fuer JavaScript-Animationen –
-   die CSS-Regel in style.css erreicht window.scrollTo nicht. */
-const wenigerBewegung = () =>
-  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-let toastTimer = null;
-/* aktion: optional { text, action } – haengt eine Schaltflaeche an, die ueber
-   die Aktionstabelle laeuft wie jedes andere Element auch. Bewusst
-   createElement statt innerHTML: so stellt sich die Frage nach dem Escapen
-   gar nicht erst. */
-function toast(msg, big, aktion){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.toggle('levelup', !!big);
-  if(aktion){
-    const b = document.createElement('button');
-    b.className = 'toast-btn';
-    b.textContent = aktion.text;
-    b.dataset.action = aktion.action;
-    t.appendChild(b);
-  }
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
 }
 
 /* Listener am Fenster und am Dokument. Aus start() heraus registriert und
@@ -5044,7 +2727,7 @@ function installGlobalListeners(){
        zwei Fenster gegenseitig im Wechsel, ohne je stillzustehen. */
     if(!(fremd.rev > (state.rev || 0))) return;
 
-    state = fremd;
+    setState(fremd);
 
     /* Die hier laufende Einheit muss zurueck in den Speicher – der fremde
        Stand kennt sie nicht. Genau dieser Schreibvorgang loest drueben aber
@@ -5135,7 +2818,7 @@ export const actions = {
   'log:remove':         d => removeLogEntry(zahl(d.i)),
   'calendar:shift':     (d, ev, el) => {
     if(el.getAttribute('aria-disabled') === 'true') return;
-    return mitFokus(() => { kalenderVersatz += zahl(d.delta); renderCalendar(); });
+    return mitFokus(() => kalenderVerschieben(zahl(d.delta)));
   },
 
   /* Bibliothek */
@@ -5144,7 +2827,7 @@ export const actions = {
   /* Kein mitFokus mehr: das Suchfeld wird nicht mehr ersetzt. */
   'library:search':     () => filterLibrary(),
   'library:sort':       (d, ev, el) => mitFokus(() => setLibSort(el.value)),
-  'library:onlyAvailable': (d, ev, el) => { libNurMachbar = el.checked; filterLibrary(); },
+  'library:onlyAvailable': (d, ev, el) => nurMachbarSetzen(el.checked),
   'pr:save':            d => mitFokus(() => savePR(d.ex)),
 
   /* Plan */
@@ -5183,14 +2866,7 @@ export const actions = {
       : el.value;
     updateSetting(d.key, wert);
   },
-  'setting:undo':       () => {
-    if(!settingsUndo) return;
-    state.settings[settingsUndo.k] = settingsUndo.vorher;
-    settingsUndo = null;
-    clearTimeout(settingsUndoTimeout);
-    save(); renderAll();
-    toast(__('settingUndone'));
-  },
+  'setting:undo':       () => einstellungZuruecknehmen(),
   'reminder:enable':    () => erinnerungErlauben(),
   'plan:ics':           () => exportICS(),
   /* Eigene Aktion statt setting:update: dort liegen Skalare in

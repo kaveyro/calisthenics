@@ -111,21 +111,31 @@ progression/
 │   ├── exercises.js    ► ÜBUNGSDATEN & PLAN-VORLAGEN (hier erweitern)
 │   ├── storage.js      Speicher-Adapter (localStorage, Dauerhaftigkeit)
 │   ├── main.js         Einstiegspunkt – ruft start() aus app.js
-│   ├── app.js          Logik, Rendering, Timer, Backup, Migration, Aktionen
+│   ├── app.js          Start, Training, Timer, Hinweise, Tabs, Aktionstabelle
+│   ├── core/
+│   │   └── kern.js     Gemeinsamer Zustand: state, session, cfg(), Listener
+│   ├── features/       Je Tab bzw. Bereich ein Modul
+│   │                   verlauf · bibliothek · ausruestung · planeditor
+│   │                   ziele · einstellungen · backup · einstieg
 │   ├── domain/         Reine Logik ohne DOM – hier liegen die Tests an
 │   │                   dates · escape · target · csv · plateau · state
 │   │                   log · backup · merge · equipment · planbuilder
 │   │                   volume · einstieg · milestones · plan · ics
+│   │                   bilanz · supersatz · warmup · rueckblick · fokus
 │   ├── i18n/           strings.js (Oberfläche de/en) · index.js (Zugriff)
 │   ├── data/
 │   │   └── content.en.js  Englische Übungsinhalte
 │   └── ui/
-│       └── delegate.js Event-Delegation (data-action)
+│       ├── delegate.js Event-Delegation (data-action)
+│       ├── hinweise.js Toast, Screenreader-Ansage, Symbole, Fokus halten
+│       └── dialoge.js  Eigene Dialoge mit Fokus-Trap
 ├── fonts/              Selbst gehostete woff2 + SIL-OFL-Lizenz
 ├── test/               Unit-Tests (vitest)
 ├── tools/              gen-sw-manifest.js
 └── icons/              App-Icons (192, 512, maskable)
 ```
+
+**Module statt einer Datei.** `js/app.js` war auf gut 5000 Zeilen gewachsen. Die Tabs Verlauf, Übungen, Plan und Ziele, Einstellungen, Sicherung und Einstieg stehen jetzt je in einem Modul unter `js/features/`, Dialoge und Rückmeldungen unter `js/ui/`; in `app.js` bleiben Start, Training samt Timern und Fokus-Modus, Hinweise, Tabs und die Aktionstabelle – rund 2900 Zeilen, die eng zusammenhängen. Der gemeinsame Zustand liegt in `js/core/kern.js`: `state` und `session` sind live gebundene Exporte, sodass jedes Modul den aktuellen Stand sieht; neu gesetzt werden sie nur über `setState()` und `setSession()`, denn ein importierter Name ist nicht zuweisbar. Jede andere Variable wird nur in dem Modul beschrieben, das sie deklariert – eine Aktion, die fremde Werte ändern will, ruft dort eine Funktion (`kalenderVerschieben()`, `nurMachbarSetzen()`, `einstellungZuruecknehmen()`). Die Module importieren sich gegenseitig; das geht, weil auf oberster Ebene nur deklariert und nichts aufgerufen wird. Die Tests, die den Quelltext lesen (Aktionsnamen, Symbole, Zustandsfelder), lesen alle Module außer `domain/`.
 
 **Schichten.** `js/domain/` ist rein: kein DOM, kein Zustand, keine Importe nach außen. ESLint gibt diesem Verzeichnis leere Globals, sodass ein Zugriff auf `document` dort als Fehler auffällt – die Reinheit ist erzwungen, nicht nur vereinbart.
 
@@ -359,7 +369,7 @@ Bewusste Entscheidungen, keine offenen Aufgaben – damit niemand danach sucht:
 - **Kein Zusatzgewicht.** Das Modell ist stufen-, nicht lastbasiert: ein Ziel kennt Sätze und Wiederholungen oder Sekunden, aber keine Last. Ein Gewichtsfeld je Satz bräche Aufstiegsregel und Tagesziel auf, die beide an der Wiederholungszahl hängen. Das Freitextfeld der Bestleistung trägt „+10 kg" heute schon.
 - **Der Countdown läuft durch, auch wenn man absetzt.** Die App erkennt nicht, wann ein Halten endet; das sagt ihr der zweite Tipp. Wer ihn vergisst, bekommt die volle Vorgabe eingetragen und kann sie im Feld daneben korrigieren.
 - **Die Abdeckung misst nur `js/domain/**`** (90 % Zeilen und Funktionen, 80 % Zweige, `vitest.config.js`). `js/app.js` wird von `test/app.test.js` durch echte Klicks gefahren, taucht in der Messung aber nicht auf – es gibt also keine Zahl dafür, wie viel davon läuft.
-- **`js/app.js` ist noch eine Datei** (gut 4000 Zeilen). Der ursprüngliche Grund für eine Aufteilung war die Testbarkeit; die ist mit `js/main.js` und `test/app.test.js` erledigt. Übrig ist die Größe, und die Aufteilung in ES-Module ist als eigene Runde vorgesehen — getrennt von Verhaltensänderungen, damit ein Umbau ohne sichtbare Wirkung nicht im selben Diff liegt wie einer mit.
+- **Das Training steht noch zusammen in `js/app.js`** (rund 2900 Zeilen). Sätze, Halte- und Pausen-Timer, Fokus-Modus, Abschluss und das Sichern der laufenden Einheit teilen sich eine Handvoll Variablen, die bei jedem Satz geschrieben werden; auseinandergezogen bräuchte jede davon einen Setter. Die übrigen Bereiche sind in Module ausgelagert (Abschnitt 5).
 - **Halteübungen zählen nicht ins Volumendiagramm.** Sie haben keine Wiederholungen; ihre Zeit unter Spannung ließe sich nur aus der Zielangabe schätzen, und eine geschätzte Zahl neben gezählten wäre irreführend. Über die Satzzahl zählen sie weiter mit.
 - **Der CSV-Export enthält keine Trainingsdauer und keine Haltezeiten.** Die Wiederholungen sind seit Längerem drin (Spalten `Uebungen` und `Wdh`, siehe `js/domain/csv.js`) und überstehen einen Roundtrip; die Dauer nicht. Eine weitere Spalte wäre eine Formatänderung mit Rückwirkung auf den Import. Der CSV ist der Verlaufs-Export — das vollständige Abbild ist das JSON-Backup.
 - **Gewichts- und Messreihen sind bei 1000 Einträgen gekappt** (`MAX_SERIES_ENTRIES`), das Trainingslog bei 2000. Bei täglichem Wiegen ist die erste Grenze nach knapp drei Jahren erreicht, die zweite bei vier Einheiten pro Woche nach gut neun. Gekappt wird beim Laden und bei jedem Import, und zwar am älteren Ende ohne Hinweis.

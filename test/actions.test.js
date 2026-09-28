@@ -26,6 +26,10 @@ function alleQuellen(dir, acc = []){
 const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 const jsQuellen = alleQuellen(join(ROOT, 'js'));
 const appQuelltext = readFileSync(join(ROOT, 'js', 'app.js'), 'utf8');
+/* Seit der Aufteilung erzeugen auch die Module unter core/, ui/ und
+   features/ Markup mit Aktionsnamen. Die reine Schicht domain/ nicht. */
+const oberflaeche = jsQuellen.filter(f => !/[\\/]domain[\\/]/.test(f))
+  .map(f => readFileSync(f, 'utf8')).join('\n');
 
 /* Namen aus der actions-Tabelle ziehen: alle Schlüssel bis zur schließenden
    Klammer des Objektliterals. */
@@ -51,7 +55,7 @@ function verwendeteNamen(text){
     ...[...text.matchAll(/\bknopf\('([a-zA-Z]+:[a-zA-Z]+)'/g)].map(m => m[1])
   ];
 }
-const verwendet = new Set([...verwendeteNamen(html), ...verwendeteNamen(appQuelltext)]);
+const verwendet = new Set([...verwendeteNamen(html), ...verwendeteNamen(oberflaeche)]);
 
 describe('Aktionstabelle', () => {
   it('enthält überhaupt Einträge', () => {

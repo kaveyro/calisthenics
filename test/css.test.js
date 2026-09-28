@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const css = readFileSync(join(process.cwd(), 'css/style.css'), 'utf8');
@@ -310,7 +310,10 @@ describe('Navigation unten', () => {
 });
 
 describe('Symbolsatz', () => {
-  const app = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
+  /* app.js und die Module, in die es aufgeteilt ist. */
+  const app = ['js/app.js', ...['core', 'ui', 'features'].flatMap(d =>
+    readdirSync(join(process.cwd(), 'js', d)).filter(f => f.endsWith('.js')).map(f => 'js/' + d + '/' + f))]
+    .map(f => readFileSync(join(process.cwd(), f), 'utf8')).join('\n');
   const vorhanden = new Set([...html.matchAll(/<symbol id="i-([a-z]+)"/g)].map(m => m[1]));
   const benutzt = new Set([
     ...[...app.matchAll(/ikon\('([a-z]+)'\)/g)].map(m => m[1]),

@@ -1,12 +1,13 @@
 /* AUTOMATISCH ERZEUGT von tools/gen-sw-manifest.js – nicht von Hand ändern.
    Neu erzeugen mit:  npm run sw:manifest  */
-self.__SW_VERSION = 'progression-eb2a8b07';
+self.__SW_VERSION = 'progression-20caadf3';
 self.__SW_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
   './js/app.js',
+  './js/core/kern.js',
   './js/data/content.en.js',
   './js/domain/backup.js',
   './js/domain/bilanz.js',
@@ -31,12 +32,22 @@ self.__SW_ASSETS = [
   './js/domain/volume.js',
   './js/domain/warmup.js',
   './js/exercises.js',
+  './js/features/ausruestung.js',
+  './js/features/backup.js',
+  './js/features/bibliothek.js',
+  './js/features/einstellungen.js',
+  './js/features/einstieg.js',
+  './js/features/planeditor.js',
+  './js/features/verlauf.js',
+  './js/features/ziele.js',
   './js/i18n/index.js',
   './js/i18n/strings.js',
   './js/main.js',
   './js/storage.js',
   './js/theme-init.js',
   './js/ui/delegate.js',
+  './js/ui/dialoge.js',
+  './js/ui/hinweise.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
