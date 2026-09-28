@@ -1293,7 +1293,8 @@ describe('Trainingsdauer', () => {
 });
 
 describe('Aufwaermen abhaken', () => {
-  const punkte = () => [...document.querySelectorAll('#warmupList input[type=checkbox]')];
+  const punkte = () => [...document.querySelectorAll('#warmupList input[data-action-change="warmup:toggle"]')];
+  const anlauf = () => document.querySelector('#warmupList .warm-anlauf');
   const offen = () => document.querySelector('.overlay.open');
 
   async function tagUndAufwaermen(n = 0){
@@ -1395,6 +1396,8 @@ describe('Aufwaermen abhaken', () => {
     await starten();
     expect(punkte()).toHaveLength(WARMUP.length);
     expect(document.querySelector('#warmupList .warm-note')).toBeNull();
+    /* Ohne Tag keine erste Uebung, also kein Anlaufsatz. */
+    expect(anlauf()).toBeNull();
   });
 
   /* Tag A der Vorlage beginnt mit der Handgelenks-Routine – die Handgelenke
@@ -1419,6 +1422,35 @@ describe('Aufwaermen abhaken', () => {
       customPlan: { name: 'Beine', desc: '', days: [{ key: 'L', title: 'Beine', sub: '', ex: ['squat', 'glute_bridge'] }] } }));
     await tagUndAufwaermen(0);
     expect(indizes()).toEqual([0, 4, 6, 7]);
+  });
+
+  it('zeigt am Zugtag ohne Stange die Schulterblaetter statt des Haengens', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, planId: 'custom', equipment: [],
+      customPlan: { name: 'Zug', desc: '', days: [{ key: 'Z', title: 'Zug', sub: '', ex: ['towel_row', 'floor_pull'] }] } }));
+    await tagUndAufwaermen(0);
+    expect(indizes()).toContain(8);
+    expect(indizes()).not.toContain(5);
+  });
+
+  /* Vor dem ersten harten Satz einmal dieselbe Bewegung, leichter. */
+  it('setzt den Anlaufsatz der ersten Uebung ans Ende und merkt sich den Haken', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, planId: 'custom', levels: { pushup: 2 },
+      customPlan: { name: 'D', desc: '', days: [{ key: 'D', title: 'D', sub: '', ex: ['wrist_prep', 'pushup', 'squat'] }] } }));
+    const app = await tagUndAufwaermen(0);
+    const { EX_BY_ID } = await import('../js/exercises.js');
+    expect(anlauf().textContent).toContain(EX_BY_ID.pushup.levels[1].stage);
+    expect(anlauf().textContent).toMatch(/eine Stufe leichter/);
+    /* Zuletzt, hoechstens noch der Hinweis auf Ausgeblendetes dahinter. */
+    const danach = anlauf().nextElementSibling;
+    expect(danach === null || danach.classList.contains('warm-note')).toBe(true);
+
+    anlauf().querySelector('input').click();
+    await ruhe();
+    expect(gespeichert().activeSession.warm).toEqual({ anlauf: true });
+    /* Entfernen eines Eintrags laesst den Haken, wo er ist. */
+    await app.actions['warmup:remove']({ i: '0' });
+    await ruhe();
+    expect(anlauf().querySelector('input').checked).toBe(true);
   });
 
   it('kopiert beim Entfernen die Liste in der Sprache der Oberflaeche', async () => {

@@ -572,6 +572,8 @@ details.acc li{margin-bottom:5px}
 #warmupList .warm-item{flex:1;min-width:0}
 #warmupList .mini-btn--inline{margin-left:auto;background:none;border-color:transparent}
 #warmupList .mini-btn--inline:hover{border-color:var(--line)}
+/* Der Anlaufsatz gehoert zur ersten Uebung, nicht zur Liste: abgesetzt. */
+#warmupList .warm-anlauf{margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)}
 #warmupList .warm-note{list-style:none;margin-top:6px;font-size:var(--text-xs);color:var(--ink-soft)}
 .effort{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:10px}
 .effort-q{font-size:var(--text-xs);color:var(--ink-soft);margin-right:2px}

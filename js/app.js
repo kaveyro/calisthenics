@@ -26,7 +26,7 @@ import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
 import { wochenTage, wochenbilanz, istBilanz, istLuecken } from './domain/bilanz.js';
-import { tagesMerkmale, passtZumTag } from './domain/warmup.js';
+import { tagesMerkmale, passtZumTag, anlaufSatz } from './domain/warmup.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -910,8 +910,24 @@ function renderWarmup(){
       '<span>' + esc(w) + '</span></label>' +
     ' <button class="mini-btn mini-btn--inline" data-action="warmup:remove" data-i="' + i + '"' +
     ' aria-label="' + esc(__('warmupRemoveAria', { item: w })) + '">' + ikon('close') + '</button></li>'
-  ).join('') +
+  ).join('') + anlaufHtml() +
     (aus ? '<li class="warm-note">' + esc(__('warmupFiltered', { day: day.key, n: aus })) + '</li>' : '');
+}
+/* Der Anlaufsatz zur ersten Kraftuebung des gewaehlten Tags
+   (js/domain/warmup.js). Er steht zuletzt, direkt vor der ersten Uebung,
+   und laesst sich nicht entfernen: er ist keine Zeile der Liste, sondern
+   folgt dem Stand. Sein Haken heisst "anlauf" statt einer Zahl, damit ihn
+   das Nachruecken beim Entfernen nicht verschiebt. */
+function anlaufHtml(){
+  const day = session.dayKey ? getDay(session.dayKey) : null;
+  const a = day && anlaufSatz(day.ex.map(id => session.subs[id] || id), EX_BY_ID, state.levels);
+  if(!a) return '';
+  const ex = EX_BY_ID[a.id];
+  const menge = __(a.art === 'sek' ? 'rampSek' : a.art === 'versuche' ? 'rampVersuche' : 'rampWdh', { n: a.menge });
+  const text = __(a.leichter ? 'warmupRamp' : 'warmupRampSame', { menge, stufe: exStage(ex, a.stufe) });
+  return '<li class="warm-anlauf"><label class="warm-item"><input type="checkbox"' +
+    (session.warm.anlauf ? ' checked' : '') + ' data-action-change="warmup:ramp">' +
+    '<span>' + esc(text) + '</span></label></li>';
 }
 /* Je Punkt, ob er zum gewaehlten Tag passt; ohne Tag alle. */
 function warmupPasst(items){
@@ -944,7 +960,7 @@ function removeWarmupItem(i){
   /* Die Haken haengen an der Position. Ohne dieses Nachruecken wandert
      jeder Haken hinter der geloeschten Zeile eine Zeile nach oben und sitzt
      danach an einem Punkt, den niemand abgehakt hat. */
-  const verschoben = {};
+  const verschoben = session.warm.anlauf ? { anlauf: true } : {};
   Object.keys(session.warm).forEach(k => {
     const n = Number(k);
     if(n < i) verschoben[n] = true;
@@ -4728,6 +4744,7 @@ export const actions = {
   'warmup:add':         () => addWarmupItem(),
   'warmup:remove':      d => removeWarmupItem(zahl(d.i)),   /* Eintrag ist danach weg – kein Fokusziel */
   'warmup:toggle':      (d, ev, el) => toggleWarmupItem(zahl(d.i), el.checked),
+  'warmup:ramp':        (d, ev, el) => toggleWarmupItem('anlauf', el.checked),
 
   /* Verlauf */
   'weight:add':         () => addWeight(),

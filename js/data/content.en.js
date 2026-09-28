@@ -471,7 +471,8 @@ export const CONTENT_EN = {
     'Cat-cow & shoulder openers at the wall – 1 min',
     'Hang loosely from the bar for 10–15 sec',
     'Hip circles and leg swings – 10× per side',
-    '10 slow squats, pausing briefly at the bottom'
+    '10 slow squats, pausing briefly at the bottom',
+    'Shoulder blades: raise the arms in Y, T and W, squeeze the blades together – 5× each'
   ],
 
   plans: {

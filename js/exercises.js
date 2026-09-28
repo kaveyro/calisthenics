@@ -969,14 +969,15 @@ export const WARMUP = [
   'Cat-Cow & Schulteröffner an der Wand – 1 Min',
   '10–15 Sek locker an der Stange hängen',
   'Hüftkreisen und Beinpendeln – je 10× pro Seite',
-  '10 langsame Kniebeugen, unten kurz halten'
+  '10 langsame Kniebeugen, unten kurz halten',
+  'Schulterblätter: Arme in Y, T und W heben, Blätter zusammenziehen – je 5×'
 ];
 
 /* Wann ein Punkt drankommt, je Index wie WARMUP_PFLICHT – Bedeutung siehe
    js/domain/warmup.js. Die Handgelenke stehen nur an Tagen ohne die
    Handgelenks-Routine: mit ihr wären sie doppelt. Beim Ergänzen der Liste
    mitpflegen; test/warmup.test.js prüft die Länge. */
-export const WARMUP_WANN = ['immer', 'oben', 'druck', 'handgelenk', 'immer', 'haengen', 'beine', 'beine'];
+export const WARMUP_WANN = ['immer', 'oben', 'druck', 'handgelenk', 'immer', 'haengen', 'beine', 'beine', 'zugboden'];
 
 /* Welche Warm-up-Punkte nicht optional sind – als Index, nicht als Textsuche.
    Die Oberfläche prüfte bisher w.includes('Pflicht') und hob im englischen
