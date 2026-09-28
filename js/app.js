@@ -3385,7 +3385,7 @@ function renderPlanTab(){
 
   document.getElementById('planEditor').innerHTML = days.map((d, di) => {
     const paare = gueltigePaare(d);
-    return '<div class="plan-day">' +
+    return '<div class="plan-day" data-tag="' + di + '">' +
       '<div class="plan-day-head"><span class="plan-day-title">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) +
         /* Erst ab zwei Einheiten: sonst haengt der zweite Tag schon hinterher,
            bevor er ueberhaupt an der Reihe war. */
@@ -3404,9 +3404,10 @@ function renderPlanTab(){
            gehoert nicht durch einen Namens-Lookup am document. */
         /* Hoch, runter und entfernen in einem Menue. Als drei Knoepfe
            nebeneinander liessen sie dem Namen auf dem Handy rund 130px, und
-           fast jeder brach um. Ziehen geht auf dem Handy nicht (HTML-Drag &
-           Drop kennt keine Beruehrung), deshalb bleiben hoch und runter –
-           und das Menue bleibt nach einem Schritt offen (moveEx()). */
+           fast jeder brach um. Mit dem Finger zieht man am Griff
+           (installTouchZiehen()); hoch und runter bleiben fuer Tastatur und
+           Screenreader, und das Menue bleibt nach einem Schritt offen
+           (moveEx()). */
         const name = ex ? exName(ex) : id;
         const pp = partnerVon(paare, id);
         const naechsteFrei = ei < d.ex.length - 1 && !partnerVon(paare, d.ex[ei + 1]);
@@ -3532,6 +3533,90 @@ function installPlanDragAndDrop(){
   });
 
   an(editor, 'dragend', () => { dragSrcId = null; dragSrcIdx = null; });
+
+  installTouchZiehen(editor);
+}
+
+/* Ziehen mit dem Finger. HTML-Drag-and-Drop kennt keine Beruehrung – auf
+   dem Handy blieb nur das Menue, und eine Uebung vom Ende eines Tags an
+   den Anfang waren sechs Tipps. Der Griff links an jeder Zeile nimmt
+   deshalb Pointer-Ereignisse an, aber nur von Finger und Stift; die Maus
+   behaelt das bisherige Drag-and-Drop.
+
+   touch-action:none am Griff (style.css) haelt den Browser davon ab, die
+   Geste als Scrollen zu nehmen. Die Zeile folgt dem Finger, eine Linie
+   zeigt, wo sie landet: ueber der Zeile unter dem Finger oder darunter, je
+   nach Haelfte. Ueber einem Tag ohne Zeile darunter – etwa einem leeren –
+   kommt sie ans Ende. Nahe am Rand scrollt die Seite mit. Abgelegt wird
+   ueber dragDrop(), also mit demselben Hinweis, wenn dabei ein Supersatz
+   zerfaellt. */
+const ZIEH_RAND = 80;
+function installTouchZiehen(editor){
+  let zug = null;
+  const markieren = (ziel, nach, tag) => {
+    if(!zug) return;
+    zug.ziel?.classList.remove('drop-vor', 'drop-nach');
+    zug.tagEl?.classList.remove('drop-tag');
+    zug.ziel = ziel; zug.nach = nach; zug.tagEl = tag;
+    ziel?.classList.add(nach ? 'drop-nach' : 'drop-vor');
+    tag?.classList.add('drop-tag');
+  };
+  const beenden = () => {
+    if(!zug) return;
+    markieren(null, false, null);
+    zug.zeile.classList.remove('zieht');
+    zug.zeile.style.transform = '';
+    zug = null;
+  };
+
+  an(editor, 'pointerdown', ev => {
+    if(ev.pointerType === 'mouse' || zug || !ev.target.closest) return;
+    const griff = ev.target.closest('.drag-handle');
+    const zeile = griff && griff.closest('.plan-ex[data-day]');
+    if(!zeile) return;
+    ev.preventDefault();
+    try{ griff.setPointerCapture(ev.pointerId); }catch{ /* jsdom, alte Browser */ }
+    zug = { zeile, griff, id: ev.pointerId, y0: ev.clientY, scroll0: window.scrollY, ziel: null, nach: false, tagEl: null };
+    zeile.classList.add('zieht');
+  });
+
+  an(editor, 'pointermove', ev => {
+    if(!zug || ev.pointerId !== zug.id) return;
+    ev.preventDefault();
+    if(ev.clientY < ZIEH_RAND) window.scrollBy(0, -12);
+    else if(ev.clientY > window.innerHeight - ZIEH_RAND) window.scrollBy(0, 12);
+    zug.zeile.style.transform = 'translateY(' + Math.round(ev.clientY - zug.y0 + window.scrollY - zug.scroll0) + 'px)';
+    /* Die gezogene Zeile hat pointer-events:none – darunter liegt das Ziel. */
+    const unter = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : null;
+    const ziel = unter && unter.closest ? unter.closest('.plan-ex[data-day]') : null;
+    if(ziel && ziel !== zug.zeile){
+      const r = ziel.getBoundingClientRect();
+      markieren(ziel, ev.clientY > r.top + r.height / 2, null);
+    } else {
+      const tag = !ziel && unter && unter.closest ? unter.closest('#planEditor .plan-day') : null;
+      markieren(null, false, tag);
+    }
+  });
+
+  const loslassen = ev => {
+    if(!zug || ev.pointerId !== zug.id) return;
+    const { zeile, ziel, nach, tagEl } = zug;
+    beenden();
+    let di = null, ei = null;
+    if(ziel){ di = zahl(ziel.dataset.day); ei = zahl(ziel.dataset.i) + (nach ? 1 : 0); }
+    else if(tagEl){ di = zahl(tagEl.dataset.tag); ei = (getDays()[di] || { ex: [] }).ex.length; }
+    if(di === null) return;
+    const von = zahl(zeile.dataset.day), vonI = zahl(zeile.dataset.i);
+    /* Vor oder hinter sich selbst abgelegt: keine Bewegung. */
+    if(di === von && (ei === vonI || ei === vonI + 1)) return;
+    const ex = EX_BY_ID[(getDays()[von] || { ex: [] }).ex[vonI]];
+    dragSrcId = von; dragSrcIdx = vonI;
+    dragDrop(di, ei);
+    dragSrcId = null; dragSrcIdx = null;
+    if(ex) melde(__('movedTo', { name: exName(ex), day: getDays()[di].key }));
+  };
+  an(editor, 'pointerup', loslassen);
+  an(editor, 'pointercancel', ev => { if(zug && ev.pointerId === zug.id) beenden(); });
 }
 
 function dragDrop(di, ei){

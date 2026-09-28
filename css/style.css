@@ -662,7 +662,18 @@ details.acc li{margin-bottom:5px}
 #planEditor .inline-row select{flex:1}
 #planEditor .inline-row button{min-height:44px}
 .plan-ex[draggable="true"]:active{cursor:grabbing;opacity:.6}
-.drag-handle{color:var(--ink-soft);font-size:var(--text-lg);cursor:grab;user-select:none;flex:none;width:20px;text-align:center}
+.drag-handle{color:var(--ink-soft);font-size:var(--text-lg);cursor:grab;user-select:none;flex:none;width:20px;text-align:center;touch-action:none}
+/* Ziehen mit dem Finger (installTouchZiehen()): ein Griff von 20 px trifft
+   kein Daumen, deshalb bei grobem Zeiger die volle Zeilenhoehe und mehr
+   Breite. Die gezogene Zeile hebt sich ab und laesst Treffer durch, eine
+   Linie zeigt, wo sie landet. */
+@media (pointer:coarse){
+  .drag-handle{width:36px;min-height:44px;display:inline-grid;place-items:center;margin-left:-8px}
+}
+.plan-ex.zieht{position:relative;z-index:5;pointer-events:none;background:var(--card);box-shadow:var(--schatten-2);border-radius:8px}
+.plan-ex.drop-vor{box-shadow:inset 0 3px 0 var(--accent)}
+.plan-ex.drop-nach{box-shadow:inset 0 -3px 0 var(--accent)}
+.plan-day.drop-tag{outline:2px dashed var(--accent);outline-offset:4px;border-radius:var(--radius)}
 /* Mindestens 32px: WCAG 2.5.8 fordert 24x24, empfohlen sind 44x44.
    Die Buttons waren 28x28 bzw. inline sogar nur 20x20. */
 .mini-btn{min-width:44px;min-height:44px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:var(--text-md);cursor:pointer;flex:none;line-height:1;padding:0 6px}

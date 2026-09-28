@@ -3758,6 +3758,85 @@ describe('Heute-Karte und Kennzahlen', () => {
   });
 });
 
+describe('Ziehen mit dem Finger im Plan-Editor', () => {
+  async function planTab(){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'plan' });
+    await ruhe();
+    return app;
+  }
+  const tage = () => [...document.querySelectorAll('#planEditor .plan-day')];
+  const zeilen = di => [...tage()[di].querySelectorAll('.plan-ex')];
+  const ids = di => gespeichert().customPlan.days[di].ex;
+  /* jsdom kennt weder PointerEvent noch elementFromPoint: ein Event mit den
+     Feldern, die installTouchZiehen() liest, und ein fester Treffer. */
+  const zeiger = (el, typ, art = 'touch', y = 300) => {
+    const ev = new Event(typ, { bubbles: true, cancelable: true });
+    Object.assign(ev, { pointerType: art, pointerId: 3, clientX: 20, clientY: y });
+    el.dispatchEvent(ev);
+  };
+  const ziehen = (griff, treffer, art) => {
+    document.elementFromPoint = () => treffer;
+    zeiger(griff, 'pointerdown', art);
+    zeiger(griff, 'pointermove', art);
+  };
+  afterEach(() => { delete document.elementFromPoint; });
+
+  it('legt eine Zeile hinter der ab, ueber deren untere Haelfte der Finger losgelassen wird', async () => {
+    await planTab();
+    const vorher = zeilen(0).map(z => z.querySelector('.nm').textContent);
+    const griff = zeilen(0)[0].querySelector('.drag-handle');
+    /* Ohne Groesse liegt jeder Punkt in der unteren Haelfte. */
+    ziehen(griff, zeilen(0)[2].querySelector('.nm'));
+    expect(zeilen(0)[0].classList.contains('zieht')).toBe(true);
+    expect(zeilen(0)[2].classList.contains('drop-nach')).toBe(true);
+    zeiger(griff, 'pointerup');
+    await ruhe();
+    const nachher = zeilen(0).map(z => z.querySelector('.nm').textContent);
+    expect(nachher.slice(0, 3)).toEqual([vorher[1], vorher[2], vorher[0]]);
+    expect(document.querySelectorAll('#planEditor .zieht, #planEditor .drop-nach')).toHaveLength(0);
+    await new Promise(r => setTimeout(r, 50));
+    expect(document.getElementById('srStatus').textContent).toMatch(/verschoben, Tag A/);
+  });
+
+  it('haengt eine Zeile ans Ende eines anderen Tags', async () => {
+    await planTab();
+    const griff = zeilen(0)[1].querySelector('.drag-handle');
+    const id = zeilen(0)[1].querySelector('.nm').textContent;
+    ziehen(griff, tage()[1].querySelector('.plan-day-head'));
+    expect(tage()[1].classList.contains('drop-tag')).toBe(true);
+    zeiger(griff, 'pointerup');
+    await ruhe();
+    expect(zeilen(1).at(-1).querySelector('.nm').textContent).toBe(id);
+    expect(ids(1).length).toBe(zeilen(1).length);
+  });
+
+  it('ueberlaesst die Maus dem Drag-and-Drop und bricht bei pointercancel ab', async () => {
+    await planTab();
+    const griff = zeilen(0)[0].querySelector('.drag-handle');
+    ziehen(griff, zeilen(0)[2], 'mouse');
+    expect(document.querySelector('#planEditor .zieht')).toBeNull();
+
+    ziehen(griff, zeilen(0)[2]);
+    zeiger(griff, 'pointercancel');
+    expect(document.querySelector('#planEditor .zieht, #planEditor .drop-nach')).toBeNull();
+    zeiger(griff, 'pointerup');
+    await ruhe();
+    /* Nichts veraendert, also auch keine Kopie der Vorlage angelegt. */
+    expect(gespeichert().customPlan).toBeFalsy();
+  });
+
+  it('bewegt nichts, wenn die Zeile vor oder hinter sich selbst landet', async () => {
+    await planTab();
+    const griff = zeilen(0)[1].querySelector('.drag-handle');
+    ziehen(griff, zeilen(0)[0]);
+    zeiger(griff, 'pointerup');
+    await ruhe();
+    expect(gespeichert().customPlan).toBeFalsy();
+  });
+});
+
 describe('Wochenrueckblick', () => {
   const einheit = (n, extra = {}) => ({ d: isoDaysAgo(n), day: 'A', ex: ['pushup'], sets: 4, reps: { 'pushup-0': 10 }, dauer: 0, ups: [], ...extra });
   /* Die Tage relativ zu heute, aber sicher in der letzten und vorletzten
