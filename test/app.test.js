@@ -3474,3 +3474,29 @@ describe('Anstrengung erfassen', () => {
     expect(gespeichert().streaks.pushup).toBe(1);
   });
 });
+
+describe('Ist-Bilanz im Verlauf', () => {
+  it('zeigt die gemachten Saetze je Gruppe und meldet, was hinter dem Plan bleibt', async () => {
+    const drueck = d => ({ d, day: 'A', ex: ['pushup'], sets: 4, reps: { 'pushup-0': 8, 'pushup-1': 8, 'pushup-2': 8, 'pushup-3': 8 }, dauer: 900 });
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 17, onboarded: true, log: [drueck(isoDaysAgo(14)), drueck(isoDaysAgo(8)), drueck(isoDaysAgo(7))]
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    expect(document.getElementById('istPanel').hidden).toBe(false);
+    const zeilen = [...document.querySelectorAll('#istBilanz tbody tr')];
+    expect(zeilen).toHaveLength(4);
+    expect(zeilen[2].classList.contains('warn')).toBe(true);
+    expect(document.querySelector('#istBilanz .bil-warn').textContent).toMatch(/Beine: im Schnitt 0 von \d+ geplanten/);
+    expect(document.querySelector('#istBilanz thead').textContent).toContain('*');
+  });
+
+  it('bleibt ohne Log verborgen', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    expect(document.getElementById('istPanel').hidden).toBe(true);
+  });
+});

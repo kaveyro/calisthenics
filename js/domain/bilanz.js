@@ -12,6 +12,7 @@
 
 import { istSkill } from './skills.js';
 import { zielAuswerten } from './target.js';
+import { isoWeek, isoDaysAgo } from './dates.js';
 
 /* Muskelgruppen als Bewegungsmuster. Die Schulterübungen (Hängen, Scapula
    Pull-ups, Face Pulls, Y-T-W) zählen zum Ziehen: sie arbeiten mit den
@@ -98,4 +99,83 @@ export function wochenbilanz(woche, exById = {}, levels = {}, setsMode = 'standa
       gruppen.ziehen.saetze < gruppen.druecken.saetze * ZUG_ANTEIL) warnungen.push({ art: 'zugWenig' });
   }
   return { einheiten: tage.length, gruppen, huefte, warnungen };
+}
+
+/* Ist-Bilanz: die tatsächlich gemachten Kraftsätze je Gruppe und Woche.
+
+   Die Wochenbilanz sagt, was der Plan vorsieht. Ob er auch so trainiert
+   wird, stand nirgends: wer jede Woche die Einheit mit den Beinen ausließ,
+   hatte eine Bilanz ohne Warnung und trotzdem kaum Beine im Training.
+
+   Gezählt wird je Übung, was im Log steht: jeder Satz mit Wiederholungen
+   oder gehaltenen Sekunden. Nachgetragene Einheiten haben keine Zahlen;
+   für sie gelten die Sätze ihrer Stufe, als wäre die Einheit wie geplant
+   gelaufen – sie ganz wegzulassen, sähe aus wie eine ausgefallene Woche.
+
+   wochen: so viele Kalenderwochen bis einschließlich der laufenden. Wochen
+   vor der ersten Einheit überhaupt fehlen: vor dem Anfang wurde nichts
+   ausgelassen. Der Schnitt nimmt nur abgeschlossene Wochen.
+
+   Zurück: { wochen: [{ key, laufend, einheiten, gruppen: { druecken: n, … } }],
+             schnitt: { druecken: n, … } | null, geschaetzt: bool } */
+export function istBilanz(log, exById = {}, { wochen = 4, levels = {}, setsMode = 'standard', now = new Date() } = {}){
+  const liste = (Array.isArray(log) ? log : []).filter(l => l && typeof l.d === 'string' && isoWeek(l.d));
+  const stand = objekt(levels);
+  const keys = [];
+  for(let i = Math.max(1, Math.round(wochen)) - 1; i >= 0; i--) keys.push(isoWeek(isoDaysAgo(7 * i, now)));
+  const erste = liste.length ? liste.map(l => isoWeek(l.d)).sort()[0] : null;
+  const leer = () => Object.fromEntries(Object.keys(GRUPPEN).map(g => [g, 0]));
+  const out = keys.filter(k => erste && k >= erste).map(key => ({
+    key, laufend: key === keys[keys.length - 1], einheiten: 0, gruppen: leer()
+  }));
+  const byKey = new Map(out.map(w => [w.key, w]));
+  let geschaetzt = false;
+
+  for(const l of liste){
+    const w = byKey.get(isoWeek(l.d));
+    if(!w) continue;
+    w.einheiten++;
+    const saetze = new Map();
+    const zaehlen = obj => Object.keys(objekt(obj)).forEach(key => {
+      const n = Number(obj[key]);
+      if(!(Number.isFinite(n) && n > 0)) return;
+      const id = key.slice(0, key.lastIndexOf('-'));
+      saetze.set(id, (saetze.get(id) || 0) + 1);
+    });
+    zaehlen(l.reps); zaehlen(l.sek);
+    if(!saetze.size && Array.isArray(l.ex)){
+      l.ex.forEach(id => {
+        const ex = exById[id];
+        if(!ex || !Array.isArray(ex.levels) || !ex.levels.length) return;
+        const lv = objekt(l.lv)[id] ?? stand[id] ?? 0;
+        const lvl = Math.min(ex.levels.length - 1, Math.max(0, Number(lv) || 0));
+        saetze.set(id, zielAuswerten(ex.levels[lvl], setsMode).sets);
+        geschaetzt = true;
+      });
+    }
+    saetze.forEach((n, id) => {
+      const ex = exById[id];
+      const g = ex && GRUPPE_VON.get(ex.muster);
+      if(g && !istSkill(ex)) w.gruppen[g] += n;
+    });
+  }
+
+  const fertig = out.filter(w => !w.laufend);
+  const schnitt = fertig.length
+    ? Object.fromEntries(Object.keys(GRUPPEN).map(g => [g, Math.round(fertig.reduce((s, w) => s + w.gruppen[g], 0) / fertig.length)]))
+    : null;
+  return { wochen: out, schnitt, geschaetzt };
+}
+
+/* Welche Gruppen im Schnitt deutlich unter dem Plan bleiben: unter drei
+   Vierteln der geplanten Sätze oder unter dem Minimum. Ohne Plan für die
+   Gruppe keine Aussage. Eine ausgelassene von vier Einheiten löst es noch
+   nicht aus – das ist eine Woche, kein Muster –, zwei schon. */
+export const IST_ANTEIL = 0.75;
+export function istLuecken(schnitt, soll){
+  if(!schnitt || !soll) return [];
+  return Object.keys(GRUPPEN).filter(g => {
+    const plan = soll[g] ? soll[g].saetze : 0;
+    return plan > 0 && (schnitt[g] < plan * IST_ANTEIL || schnitt[g] < Math.min(plan, MIN_SAETZE_WOCHE));
+  });
 }

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { EXERCISES, EX_BY_ID, PLAN_TEMPLATES } from '../js/exercises.js';
-import { GRUPPEN, wochenTage, wochenbilanz, MIN_SAETZE_WOCHE } from '../js/domain/bilanz.js';
+import { GRUPPEN, wochenTage, wochenbilanz, MIN_SAETZE_WOCHE, istBilanz, istLuecken } from '../js/domain/bilanz.js';
+import { isoDaysAgo } from '../js/domain/dates.js';
+import { zielAuswerten } from '../js/domain/target.js';
 import { MUSTER_NAMEN, vorlageAufloesen } from '../js/domain/planbuilder.js';
 import { EQUIP_ALL } from '../js/domain/equipment.js';
 
@@ -126,5 +128,67 @@ describe('Vorlagen', () => {
         expect(arten(b), id + ' ' + equipment.join(',')).toEqual([]);
       }
     }
+  });
+});
+
+describe('Ist-Bilanz aus dem Log', () => {
+  /* Mittwoch, 30.09.2026 – KW40. */
+  const NOW = new Date(2026, 8, 30, 12);
+  const vor = tage => isoDaysAgo(tage, NOW);
+  const saetze = (id, n, feld = 'reps') => ({ [feld]: Object.fromEntries([...Array(n)].map((_, s) => [id + '-' + s, 8])) });
+  const eintrag = (d, ...teile) => ({ d, day: 'A', ex: [], sets: 0, reps: {}, sek: {},
+    ...teile.reduce((a, t) => ({ reps: { ...a.reps, ...t.reps }, sek: { ...a.sek, ...t.sek } }), {}) });
+
+  it('zaehlt die Saetze je Gruppe, ohne Skills und Mobility', () => {
+    const log = [eintrag(vor(7), saetze('pushup', 3), saetze('pullup', 4), saetze('plank', 2, 'sek'),
+      saetze('wall_hs', 3, 'sek'), saetze('wrist_prep', 2, 'sek'))];
+    log[0].reps['squat-0'] = 0;
+    const b = istBilanz(log, EX_BY_ID, { now: NOW });
+    const kw39 = b.wochen.find(w => w.key === '2026-KW39');
+    expect(kw39.gruppen).toEqual({ druecken: 3, ziehen: 4, beine: 0, rumpf: 2 });
+    expect(kw39.einheiten).toBe(1);
+  });
+
+  it('beginnt mit der ersten Einheit und schneidet die laufende Woche aus dem Schnitt', () => {
+    const log = [
+      eintrag(vor(14), saetze('pushup', 4)),
+      eintrag(vor(7), saetze('pushup', 2)),
+      eintrag(vor(0), saetze('pushup', 9))
+    ];
+    const b = istBilanz(log, EX_BY_ID, { wochen: 5, now: NOW });
+    expect(b.wochen.map(w => w.key)).toEqual(['2026-KW38', '2026-KW39', '2026-KW40']);
+    expect(b.wochen.map(w => w.laufend)).toEqual([false, false, true]);
+    expect(b.schnitt.druecken).toBe(3);
+    expect(b.geschaetzt).toBe(false);
+  });
+
+  it('zaehlt eine Woche ohne Training als null, wenn sie nach dem Anfang liegt', () => {
+    const b = istBilanz([eintrag(vor(21), saetze('squat', 6))], EX_BY_ID, { wochen: 5, now: NOW });
+    expect(b.wochen.map(w => w.gruppen.beine)).toEqual([6, 0, 0, 0]);
+    expect(b.schnitt.beine).toBe(2);
+  });
+
+  it('rechnet nachgetragene Einheiten mit den Saetzen ihrer Stufe', () => {
+    const l = { d: vor(7), day: 'A', ex: ['pushup', 'squat'], sets: 7, reps: {}, dauer: 0, lv: { pushup: 3 } };
+    const b = istBilanz([l], EX_BY_ID, { now: NOW, levels: { squat: 1 } });
+    const w = b.wochen.find(x => x.key === '2026-KW39');
+    expect(w.gruppen.druecken).toBe(zielAuswerten(EX_BY_ID.pushup.levels[3]).sets);
+    expect(w.gruppen.beine).toBe(zielAuswerten(EX_BY_ID.squat.levels[1]).sets);
+    expect(b.geschaetzt).toBe(true);
+  });
+
+  it('hat ohne volle Woche keinen Schnitt und ohne Log keine Wochen', () => {
+    expect(istBilanz([eintrag(vor(0), saetze('pushup', 3))], EX_BY_ID, { now: NOW }).schnitt).toBeNull();
+    expect(istBilanz([], EX_BY_ID, { now: NOW })).toEqual({ wochen: [], schnitt: null, geschaetzt: false });
+    expect(istBilanz(null, EX_BY_ID, { now: NOW }).wochen).toEqual([]);
+  });
+
+  it('meldet Gruppen unter drei Vierteln des Plans oder unter dem Minimum', () => {
+    const soll = { druecken: { saetze: 20 }, ziehen: { saetze: 20 }, beine: { saetze: 5 }, rumpf: { saetze: 0 } };
+    expect(istLuecken({ druecken: 15, ziehen: 14, beine: 4, rumpf: 0 }, soll)).toEqual(['ziehen', 'beine']);
+    expect(istLuecken({ druecken: 15, ziehen: 15, beine: 5, rumpf: 0 }, soll)).toEqual([]);
+    expect(istLuecken(null, soll)).toEqual([]);
+    expect(istLuecken({ druecken: 0 }, null)).toEqual([]);
+    expect(MIN_SAETZE_WOCHE).toBe(6);
   });
 });

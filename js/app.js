@@ -24,7 +24,7 @@ import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from './domain
 import { wochenplanAlsIcs } from './domain/ics.js';
 import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js';
 import { volumenJeGruppe } from './domain/volume.js';
-import { wochenTage, wochenbilanz } from './domain/bilanz.js';
+import { wochenTage, wochenbilanz, istBilanz, istLuecken } from './domain/bilanz.js';
 import { tagesMerkmale, passtZumTag } from './domain/warmup.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
@@ -2300,6 +2300,50 @@ function renderVolSplit(woche, monat = false){
     '</div>';
 }
 
+/* Ist-Bilanz: gemachte Kraftsaetze je Gruppe in den letzten Wochen, daneben
+   der Schnitt der abgeschlossenen und die Saetze, die der Plan vorsieht
+   (dieselbe Woche wie in der Wochenbilanz im Plan-Tab). Fest vier volle
+   Wochen plus die laufende, unabhaengig vom Zeitraum oben: die Frage ist,
+   ob der Plan gerade so trainiert wird. */
+const IST_WOCHEN = 5;
+function renderIstBilanz(){
+  const panel = document.getElementById('istPanel');
+  const el = document.getElementById('istBilanz');
+  if(!panel || !el) return;
+  const ist = istBilanz(state.log, EX_BY_ID, { wochen: IST_WOCHEN, levels: state.levels, setsMode: cfg('setsMode') });
+  if(!ist.wochen.length){ panel.hidden = true; el.innerHTML = ''; return; }
+  panel.hidden = false;
+  const woche = wochenTage(getDays(), state.wochenplan, cfg('weekGoal'));
+  const soll = woche.length ? wochenbilanz(woche, EX_BY_ID, state.levels, cfg('setsMode')).gruppen : null;
+  const luecken = new Set(istLuecken(ist.schnitt, soll));
+  const laufend = ist.wochen.find(w => w.laufend);
+  /* Nur die Wochennummer im Kopf, "KW" einmal vorn: mit "KW38" in jeder
+     Spalte war die Tabelle auf dem Handy breiter als die Karte. */
+  const kopf = '<tr><th scope="col" class="ist-kw"><span aria-hidden="true">' + esc(__('weekShort')) + '</span>' +
+    '<span class="sr-only">' + esc(__('istGruppe')) + '</span></th>' +
+    ist.wochen.map(w => '<th scope="col"' + (w.laufend ? ' class="ist-laufend"' : '') + ' aria-label="' + esc(weekLabel(w.key)) + '">' +
+      esc(w.key.split('KW')[1]) + (w.laufend ? '*' : '') + '</th>').join('') +
+    '<th scope="col">' + esc(__('istSchnitt')) + '</th><th scope="col">' + esc(__('istPlan')) + '</th></tr>';
+  const zeilen = Object.keys(BILANZ_KAT).map(g =>
+    '<tr' + (luecken.has(g) ? ' class="warn"' : '') + '><th scope="row"><i class="vol-' + BILANZ_KAT[g] + '" aria-hidden="true"></i>' +
+      esc(bilanzGruppe(g)) + '</th>' +
+      ist.wochen.map(w => '<td' + (w.laufend ? ' class="ist-laufend"' : '') + '>' + w.gruppen[g] + '</td>').join('') +
+      '<td class="ist-schnitt">' + (ist.schnitt ? ist.schnitt[g] : '–') + '</td>' +
+      '<td>' + (soll ? soll[g].saetze : '–') + '</td></tr>').join('');
+  const hinweise = [];
+  if(!ist.schnitt) hinweise.push('<p class="bil-kopf">' + esc(__('istErsteWoche')) + '</p>');
+  else if(luecken.size){
+    hinweise.push('<ul class="bil-warn">' + [...luecken].map(g => '<li>' + esc(__('istLuecke', {
+      g: bilanzGruppe(g), n: ist.schnitt[g], soll: soll[g].saetze
+    })) + '</li>').join('') + '</ul>');
+  } else if(soll) hinweise.push('<p class="bil-ok">' + esc(__('istOk')) + '</p>');
+  if(laufend) hinweise.push('<p class="bil-kopf">' + esc(__('istLaufend', { w: weekLabel(laufend.key) })) + '</p>');
+  if(ist.geschaetzt) hinweise.push('<p class="bil-kopf">' + esc(__('istGeschaetzt')) + '</p>');
+  el.innerHTML = '<p class="bil-kopf">' + esc(__('istKopf')) + '</p>' +
+    '<div class="ist-scroll"><table class="ist-tab"><caption class="sr-only">' + esc(__('istAria')) + '</caption>' +
+    '<thead>' + kopf + '</thead><tbody>' + zeilen + '</tbody></table></div>' + hinweise.join('');
+}
+
 /* ================= Verlauf ================= */
 /* '2026-KW31' -> 'KW31' bzw. 'W31'. Der Schluessel bleibt deutsch, weil er
    in Diagrammen und CSV als Gruppierung dient; nur die Achse wird uebersetzt. */
@@ -2400,6 +2444,7 @@ function renderHistory(){
     renderVolSplit(volWeek[weeks[weeks.length - 1]], monat);
   }
 
+  renderIstBilanz();
   renderWeight();
   renderMeasurements();
   renderYearReview();
