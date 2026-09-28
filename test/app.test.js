@@ -1713,6 +1713,40 @@ describe('Training nachtragen', () => {
   });
 });
 
+describe('Leerer Verlauf', () => {
+  const heute = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  it('zeigt statt leerer Flaechen einen Hinweis mit dem Weg zum Training', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    const knopf = document.querySelector('#weekChart .leer-zustand .leer-los');
+    expect(knopf.dataset).toMatchObject({ action: 'tab:show', tab: 'train' });
+    expect(document.getElementById('weekChart').hasAttribute('role')).toBe(false);
+    expect(document.getElementById('volChart').classList.contains('leer')).toBe(true);
+    expect(document.querySelector('#volChart .leer-klein').textContent).toMatch(/nach dem ersten Training/);
+    /* Ohne zwei Gewichte keine Kurve, also auch kein Platz dafuer. */
+    expect(document.getElementById('weightSpark').classList.contains('leer')).toBe(true);
+    knopf.click();
+    await ruhe();
+    expect(document.body.dataset.tab).toBe('train');
+  });
+
+  it('zeigt Diagramme und Kurve, sobald es Daten gibt', async () => {
+    const log = [{ d: heute(), day: 'A', ex: ['pushup'], sets: 4, tops: 0, ups: [], reps: {}, dauer: 0 }];
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, workouts: 1, log,
+      weights: [{ d: '2026-01-01', kg: 80 }, { d: heute(), kg: 79 }] }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    expect(document.querySelector('#weekChart .leer-zustand')).toBeNull();
+    expect(document.getElementById('weekChart').classList.contains('leer')).toBe(false);
+    expect(document.getElementById('volChart').getAttribute('role')).toBe('img');
+    expect(document.getElementById('weightSpark').classList.contains('leer')).toBe(false);
+  });
+});
+
 describe('Verlauf ohne Kappung', () => {
   const spalten = () => [...document.querySelectorAll('#weekChart .bar-col')];
   const zeilen = () => document.querySelectorAll('#logList .log-item');

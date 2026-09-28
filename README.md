@@ -337,6 +337,8 @@ Ein Tagesschlüssel, den der Plan nicht mehr kennt, bleibt in der Zuordnung steh
 
 **Trainingserinnerung.** Optional in den Einstellungen, und mit Absicht schwach: angesetzt wird sie, wenn die App in den Hintergrund geht, und sie fällt aus, sobald man zurückkommt oder die Einheit abgeschlossen ist — höchstens einmal am Tag. Eine Meldung, die kommt, während man auf die App schaut, ist keine Erinnerung; genau das tat sie vorher bei jedem Start. Verlässlich wird es erst über den Kalender-Export.
 
+**Leerer Verlauf.** Vor der ersten Einheit steht statt des Diagramms ein Hinweis mit dem Knopf *Zum Training* (`leerHtml()`); das Wiederholungsdiagramm verliert seine feste Höhe von 120 px und sagt in einer Zeile, wann es sich füllt. Die Gewichtskurve nimmt erst ab zwei Einträgen Platz ein.
+
 **Jahresrückblick.** Unten im Verlauf: Trainings, Level-Ups, Meilensteine, Wiederholungen, gehaltene Zeit und die meistgeübte Übung des laufenden Jahres – ohne Mobility, sonst stand dort die Handgelenks-Routine, also das Aufwärmen. Alles aus dem Log gerechnet und alles auf das Jahr gefiltert — auch die Meilensteine, deren gespeicherter Wert das Datum des ersten Mals ist.
 
 **Eigene Meilensteine.** Neben den 20 festen lassen sich eigene Ziele anlegen. Sie tragen keine Bedingung und erkennen sich deshalb nicht selbst; abgehakt werden sie wie alle anderen von Hand.

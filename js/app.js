@@ -2586,10 +2586,19 @@ function renderHistory(){
   const goal = histMonatlich() ? cfg('weekGoal') * 4 : cfg('weekGoal');
 
   const wc = document.getElementById('weekChart');
+  const vcLeer = document.getElementById('volChart');
+  wc.classList.toggle('leer', !weeks.length);
+  vcLeer.classList.toggle('leer', !weeks.length);
   if(!weeks.length){
-    wc.innerHTML = '<div class="empty-hint empty-hint--full">' + esc(__('noHistory') + __('noHistoryHint')) + '</div>';
+    /* Ohne Einheit gibt es nichts zu zeigen, aber etwas zu tun. Rolle und
+       Beschriftung des Diagramms gehen mit weg – sonst sagte ein
+       Screenreader nach dem Loeschen der letzten Einheit noch die alten
+       Balken an. */
+    [wc, vcLeer].forEach(el => { el.removeAttribute('role'); el.removeAttribute('aria-label'); });
+    wc.innerHTML = leerHtml(ikon('train'), __('noHistory') + __('noHistoryHint'),
+      { text: __('startFirst'), action: 'tab:show', tab: 'train' });
     document.getElementById('weekLegend').textContent = '';
-    document.getElementById('volChart').innerHTML = '';
+    vcLeer.innerHTML = '<p class="leer-klein">' + esc(__('volumeEmpty')) + '</p>';
     renderVolSplit(null);
   } else {
     /* Die Diagramme sind div-Stapel ohne Textalternative: die Zielerreichung
@@ -3027,6 +3036,9 @@ async function addWeight(){
 function renderWeight(){
   const svg = document.getElementById('weightSpark'), meta = document.getElementById('weightMeta');
   const ws = state.weights || [];
+  /* Unter zwei Eintraegen gibt es keine Kurve; die 70 px dafuer standen
+     bisher leer zwischen Eingabe und Text. */
+  svg.classList.toggle('leer', ws.length < 2);
   if(!ws.length){
     svg.innerHTML = '';
     meta.textContent = __('weightEmpty');
@@ -3047,6 +3059,16 @@ function renderWeight(){
   svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   const delta = Math.round((kgs[kgs.length - 1] - kgs[0]) * 10) / 10;
   meta.innerHTML = __('weightMeta', { kg: kgs[kgs.length - 1], delta: (delta > 0 ? '+' : '') + delta, n: ws.length });
+}
+
+/* Leerer Zustand: ein Symbol, ein Satz, was als Naechstes kommt, und wo
+   es einen gibt, der Knopf dorthin. Das Symbol kommt fertig herein –
+   ikon('…') steht damit woertlich beim Aufrufer, wo der Test auf tote
+   Symbole es findet. */
+function leerHtml(symbol, text, knopf){
+  return '<div class="leer-zustand">' + symbol + '<p>' + esc(text) + '</p>' +
+    (knopf ? '<button class="leer-los" data-action="' + knopf.action + '"' +
+      (knopf.tab ? ' data-tab="' + knopf.tab + '"' : '') + '>' + esc(knopf.text) + '</button>' : '') + '</div>';
 }
 
 /* ================= Bibliothek ================= */

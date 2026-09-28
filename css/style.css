@@ -720,6 +720,16 @@ details.acc li{margin-bottom:5px}
 .roadmap-item{padding:10px 0;border-bottom:1px solid var(--line)}
 .roadmap-head{cursor:default}
 .empty-hint--full{width:100%}
+/* Leerer Zustand: Symbol, Satz, Knopf. Im Diagramm faellt dessen feste
+   Hoehe weg, sonst stuende darunter eine leere Flaeche. */
+.bar-chart.leer{height:auto;overflow:visible;display:block}
+.spark.leer{display:none}
+.leer-zustand{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:18px 10px;color:var(--ink-soft);font-size:var(--text-base)}
+.leer-zustand > .i{width:32px;height:32px;color:var(--accent);opacity:.8}
+.leer-zustand p{margin:0;max-width:34ch}
+.leer-los{border:none;background:var(--accent);color:var(--on-accent);border-radius:999px;min-height:44px;padding:8px 20px;font-weight:700;font-size:var(--text-md);cursor:pointer}
+.leer-los:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.leer-klein{margin:0;padding:8px 0;color:var(--ink-soft);font-size:var(--text-sm)}
 /* cursor:pointer auf Labels/Set-Zeilen – ersetzt style="cursor:pointer". */
 .clickable{cursor:pointer}
 /* Globale Button-Klasse. Frueher nur innerhalb .data-btns definiert – die
