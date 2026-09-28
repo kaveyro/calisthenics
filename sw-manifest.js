@@ -1,6 +1,6 @@
 /* AUTOMATISCH ERZEUGT von tools/gen-sw-manifest.js – nicht von Hand ändern.
    Neu erzeugen mit:  npm run sw:manifest  */
-self.__SW_VERSION = 'progression-328c2a6a';
+self.__SW_VERSION = 'progression-93c5e073';
 self.__SW_ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ self.__SW_ASSETS = [
   './js/domain/plan.js',
   './js/domain/planbuilder.js',
   './js/domain/plateau.js',
+  './js/domain/rueckblick.js',
   './js/domain/skills.js',
   './js/domain/state.js',
   './js/domain/supersatz.js',

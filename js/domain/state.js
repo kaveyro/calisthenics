@@ -25,7 +25,7 @@ export const SETTINGS_DEFAULTS = {
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur
    hochzaehlen und in migrateState() einen Schritt ergaenzen. */
-export const STATE_VERSION = 17;
+export const STATE_VERSION = 18;
 /* Mehr abgelehnte Plan-Vorschlaege merkt sich die App nicht; die aeltesten
    fallen heraus. Der Katalog hat weniger als 60 Uebungen, das reicht. */
 const MAX_PLAN_HINWEISE = 100;
@@ -96,7 +96,11 @@ export const DEFAULT_STATE = () => ({
   planHinweiseAus: [],
   /* Datum der letzten Trainingserinnerung. Verhindert, dass dieselbe
      Erinnerung mehrmals am Tag kommt – auch ueber einen Neustart hinweg. */
-  erinnertAm: null
+  erinnertAm: null,
+  /* Die Woche, in der der Wochenrueckblick geschlossen wurde ('2026-KW39').
+     Gehoert zu diesem Geraet wie die anderen Hinweise und wird beim
+     Zusammenfuehren nicht gemischt. */
+  rueckblickZu: null
 });
 /* Entfernt in v5: streakDays, lastWeek, pauseHistory – wurden geschrieben
    bzw. angelegt, aber nie gelesen. migrateState() laesst sie beim Laden
@@ -136,7 +140,10 @@ export const DEFAULT_STATE = () => ({
    erschlossen und die Stufe bleibt offen. v11 entfernt byDay (siehe oben)
    und ergaenzt wochenplan (feste Trainingstage je Wochentag, Vorgabe leer –
    ein alter Stand rotiert damit weiter wie bisher). v17 ergaenzt log[].an
-   (wie sich eine Uebung angefuehlt hat; leer bei allem davor). */
+   (wie sich eine Uebung angefuehlt hat; leer bei allem davor). v18 ergaenzt
+   rueckblickZu (die Woche, in der der Wochenrueckblick weggeklickt wurde,
+   als '2026-KW39'; Vorgabe null – ein alter Stand sieht den Rueckblick
+   einmal). */
 export function migrateState(raw){
   const def = DEFAULT_STATE();
   if(!raw || typeof raw !== 'object' || Array.isArray(raw)) return def;
@@ -164,6 +171,7 @@ export function migrateState(raw){
      ISO-Datum, das spaeter in eine Datumsrechnung laeuft. */
   if(out.lastBackup !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.lastBackup))) out.lastBackup = null;
   if(out.erinnertAm !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(out.erinnertAm))) out.erinnertAm = null;
+  if(out.rueckblickZu !== null && !/^\d{4}-KW\d{2}$/.test(String(out.rueckblickZu))) out.rueckblickZu = null;
   /* Der Revisionszaehler wird nur groesser und nur ganzzahlig – eine 2.5 oder
      eine -1 aus einem handgeschriebenen Stand wuerde den Vergleich zwischen
      zwei Fenstern still verdrehen. */

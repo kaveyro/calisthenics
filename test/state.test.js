@@ -659,6 +659,15 @@ describe('migrateState – Trainingserinnerung', () => {
       expect(migrateState({ erinnertAm: wert }).erinnertAm).toBeNull();
     });
   });
+
+  /* v18: die Woche, in der der Wochenrueckblick geschlossen wurde. */
+  it('nimmt nur einen Wochenschluessel fuer den geschlossenen Rueckblick', () => {
+    expect(DEFAULT_STATE().rueckblickZu).toBeNull();
+    expect(migrateState({ rueckblickZu: '2026-KW39' }).rueckblickZu).toBe('2026-KW39');
+    ['2026-W39', 'KW39', '2026-09-28', 39, true].forEach(wert => {
+      expect(migrateState({ rueckblickZu: wert }).rueckblickZu, String(wert)).toBeNull();
+    });
+  });
 });
 
 describe('clampBackup – Supersaetze im eigenen Plan', () => {

@@ -92,7 +92,7 @@ describe('Start', () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 1, workouts: 7, notes: null }));
     await starten();
     const s = gespeichert();
-    expect(s.v).toBe(17);
+    expect(s.v).toBe(18);
     expect(s.workouts).toBe(7);
     expect(s.notes).toEqual({});
   });
@@ -3755,6 +3755,55 @@ describe('Heute-Karte und Kennzahlen', () => {
     /* Ein voller Ring ist voll, nicht mehr als voll. */
     const [bogen, umfang] = ring.querySelector('.hk-ring-wert').getAttribute('stroke-dasharray').split(' ');
     expect(bogen).toBe(umfang);
+  });
+});
+
+describe('Wochenrueckblick', () => {
+  const einheit = (n, extra = {}) => ({ d: isoDaysAgo(n), day: 'A', ex: ['pushup'], sets: 4, reps: { 'pushup-0': 10 }, dauer: 0, ups: [], ...extra });
+  /* Die Tage relativ zu heute, aber sicher in der letzten und vorletzten
+     ISO-Woche: sieben Tage zurueck ist immer die letzte, vierzehn die davor. */
+  const karte = () => document.querySelector('#rueckblick .rueckblick');
+
+  it('zeigt die letzte Woche gegen die davor und schliesst sich fuer diese Woche', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true,
+      log: [einheit(14), einheit(7, { ups: ['pushup'] })] }));
+    const app = await starten();
+    expect(karte().textContent).toMatch(/Deine Woche/);
+    expect(karte().textContent).toMatch(/verglichen mit KW \d+/);
+    expect(karte().querySelector('.fertig-up').textContent).toMatch(/^1 Aufstieg: Liegestütze/);
+    expect(karte().querySelector('.fertig-zahl').textContent).toMatch(/^1 ±0/);
+    await app.actions['review:close']();
+    await ruhe();
+    expect(karte()).toBeNull();
+    expect(gespeichert().rueckblickZu).toMatch(/^\d{4}-KW\d{2}$/);
+    /* Und bleibt nach dem Neuladen zu. */
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    await starten();
+    expect(karte()).toBeNull();
+  });
+
+  it('kommt nicht ohne Training in der letzten Woche und nicht nach der ersten Einheit dieser Woche', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, log: [einheit(14)] }));
+    await starten();
+    expect(karte()).toBeNull();
+
+    vi.resetModules();
+    document.body.innerHTML = KOERPER;
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, log: [einheit(7), einheit(0)] }));
+    await starten();
+    expect(karte()).toBeNull();
+  });
+
+  it('verschwindet waehrend einer Einheit', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, log: [einheit(7)] }));
+    const app = await starten();
+    expect(karte()).not.toBeNull();
+    /* Ohne Vorwoche kein Vergleich. */
+    expect(karte().textContent).not.toMatch(/verglichen/);
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    expect(karte()).toBeNull();
   });
 });
 

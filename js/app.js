@@ -27,6 +27,7 @@ import { meilensteinStatus, erkannteMeilensteine } from './domain/milestones.js'
 import { volumenJeGruppe } from './domain/volume.js';
 import { wochenTage, wochenbilanz, istBilanz, istLuecken } from './domain/bilanz.js';
 import { tagesMerkmale, passtZumTag, anlaufSatz } from './domain/warmup.js';
+import { wochenRueckblick } from './domain/rueckblick.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import {
   __, setLang, getLang, LANGS, applyStaticTexts,
@@ -1157,6 +1158,7 @@ function addKeyboardShortcuts(){
 /* ================= Trainingstag wählen ================= */
 function renderDaySelect(){
   const sug = nextSuggestedKey();
+  renderRueckblick();
   renderHeuteKarte(sug);
   const sel = document.getElementById('daySelect');
   /* Neben der Heute-Karte werden die Tage klein: gewaehlt wird dort nur,
@@ -1173,6 +1175,58 @@ function renderDaySelect(){
     '<div class="sub">' + esc(daySubOf(d) || __('exercisesCount', { n: d.ex.length })) + '</div></button>'
   ).join('') || '<div class="empty-hint">' + esc(__('noPlanDays') + __('noPlanDaysHint')) + '</div>';
   renderHeute();
+}
+
+/* Der Wochenrueckblick (js/domain/rueckblick.js) ueber der Heute-Karte:
+   was die letzte volle Woche gebracht hat, gegen die Woche davor.
+
+   Er steht, bis er geschlossen wird oder die erste Einheit der neuen Woche
+   fertig ist – danach ist das Abschlussblatt die frischere Nachricht. Nie
+   waehrend einer Einheit. Ohne Training in der letzten Woche gibt es keinen:
+   eine Karte "0 Einheiten" am Montag waere ein Vorwurf. */
+function renderRueckblick(){
+  const el = document.getElementById('rueckblick');
+  if(!el) return;
+  const woche = isoWeek(today());
+  const r = !session.dayKey && state.rueckblickZu !== woche &&
+    !(state.log || []).some(l => isoWeek(l.d) === woche) ? wochenRueckblick(state.log) : null;
+  if(!r){ el.innerHTML = ''; return; }
+  const v = r.vorwoche;
+  /* Vier schmale Kacheln in einer Zeile; die Differenz steht als Zahl
+     neben dem Wert, wogegen verglichen wird, einmal in der Unterzeile. */
+  const differenz = (jetzt, vorher) => {
+    if(vorher == null) return '';
+    const d = jetzt - vorher;
+    return ' <small>' + (d > 0 ? '+' + d : d < 0 ? '−' + Math.abs(d) : '±0') + '</small>';
+  };
+  const kachel = (wert, label, diff) => '<div class="fertig-zahl"><b>' + wert + diff + '</b><span>' + esc(label) + '</span></div>';
+  const minuten = s => Math.round(s / 60);
+  const kacheln = [
+    kachel(r.einheiten, __('reviewSessions'), differenz(r.einheiten, v && v.einheiten)),
+    kachel(r.saetze, __('summarySets'), differenz(r.saetze, v && v.saetze)),
+    r.wdh ? kachel(r.wdh, __('reviewReps'), v && v.wdh ? differenz(r.wdh, v.wdh) : '') : '',
+    r.dauer ? kachel(minuten(r.dauer), __('reviewMinutes'), v && v.dauer ? differenz(minuten(r.dauer), minuten(v.dauer)) : '') : ''
+  ].join('');
+  const unterzeile = __('reviewWeek', { kw: Number(r.woche.slice(-2)) }) +
+    (v ? ' · ' + __('reviewVsPrev', { kw: Number(r.davor.slice(-2)) }) : '');
+  /* Hoechstens vier Aufstiege mit Namen, der Rest als Zahl. */
+  const ups = r.ups.filter(id => EX_BY_ID[id]);
+  const namen = ups.slice(0, 4).map(id => exName(EX_BY_ID[id])).join(', ') +
+    (ups.length > 4 ? ' ' + __('reviewMore', { n: ups.length - 4 }) : '');
+  el.innerHTML = '<section class="card fertig rueckblick" aria-labelledby="rueckblick-titel">' +
+    '<div class="fertig-kopf"><h2 id="rueckblick-titel">' + esc(__('reviewTitle')) +
+      ' <span>' + esc(unterzeile) + '</span></h2>' +
+    '<button type="button" class="icon-btn" data-action="review:close" aria-label="' + esc(__('reviewClose')) + '">' + ikon('close') + '</button></div>' +
+    '<div class="fertig-zahlen">' + kacheln + '</div>' +
+    '<ul class="fertig-liste">' + (ups.length
+      ? '<li class="fertig-up">' + ikon('levelup') + esc(__(ups.length === 1 ? 'reviewUpsOne' : 'reviewUpsMany', { n: ups.length, list: namen })) + '</li>'
+      : '<li>' + esc(__('reviewNoUps')) + '</li>') + '</ul></section>';
+}
+function rueckblickSchliessen(){
+  state.rueckblickZu = isoWeek(today());
+  save(); renderRueckblick();
+  /* Der Knopf ist weg; der Fokus geht an den Start der naechsten Einheit. */
+  document.querySelector('#heuteKarte .heute-karte, #daySelect .day-btn')?.focus({ preventScroll: true });
 }
 
 /* Der faellige Tag als grosse Karte, solange keine Einheit laeuft.
@@ -4871,6 +4925,7 @@ export const actions = {
   'planEx:remove':      d => removeEx(zahl(d.day), zahl(d.i)),
   'planEx:pair':        d => paarSchalten(zahl(d.day), zahl(d.i)),
   'planEx:pairUndo':    () => paarRueckgaengig(),
+  'review:close':       () => rueckblickSchliessen(),
   /* Ohne mitFokus(): moveEx() setzt den Fokus selbst, auf die gewanderte
      Uebung statt auf die, die jetzt an ihrem alten Platz steht. */
   'planEx:move':        d => moveEx(zahl(d.day), zahl(d.i), zahl(d.delta)),

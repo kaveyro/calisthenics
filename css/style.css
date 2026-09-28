@@ -966,3 +966,11 @@ footer small{display:block;margin-top:4px;opacity:.6}
   .tabs,.finish-bar,.rest-chip,.head-btns,.tip-btn,.sub-btn,.undo-btn{display:none!important}
   body{padding-bottom:0}
 }
+
+/* Wochenrueckblick: dieselbe Form wie das Abschlussblatt, ueber der
+   Heute-Karte. */
+.rueckblick{margin:6px 0 10px}
+.rueckblick .fertig-zahlen{grid-template-columns:repeat(auto-fit,minmax(64px,1fr));margin-top:var(--abstand-3)}
+.rueckblick .fertig-zahl b{font-size:var(--text-lg);white-space:nowrap}
+.rueckblick .fertig-zahl small{font-weight:500}
+.rueckblick .fertig-liste{margin-top:var(--abstand-3)}
