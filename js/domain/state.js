@@ -22,7 +22,9 @@ export const SETTINGS_DEFAULTS = {
      weg. Die Erinnerung war nach jedem Neuladen wieder aus. */
   reminder: false,
   /* Fokus-Modus im Training: eine Uebung je Ansicht statt der ganzen Liste. */
-  fokus: false
+  fokus: false,
+  /* Drei Sekunden Vorlauf, bevor eine Haltezeit zu zaehlen beginnt. */
+  holdLead: true
 };
 
 /* Schema-Version des gespeicherten Standes. Beim Aendern der Datenstruktur

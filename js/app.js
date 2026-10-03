@@ -2214,11 +2214,16 @@ function tapSet(id, s){
     zeitNehmen();
     el.classList.add('running');
     const secs = halteSekunden(ex, t, vorgabeFuer(ex))[s] || t.holdSecs;
-    const start = Date.now();
-    holdTimer = { key, el, id, s, ex, secs, start, ende: start + secs * 1000, interval: null };
+    /* Der Countdown begann mit dem Tipp – man tippte und musste dann erst
+       in den Stuetz oder an die Wand, waehrend die Zeit schon lief. Mit dem
+       Vorlauf beginnt die Haltezeit drei Sekunden spaeter, angezaehlt mit
+       den leisen Toenen der Pause und einem Signal beim Start. */
+    const vorlauf = cfg('holdLead') ? HALTE_VORLAUF : 0;
+    const start = Date.now() + vorlauf * 1000;
+    holdTimer = { key, el, id, s, ex, secs, start, ende: start + secs * 1000, interval: null, vorlauf: vorlauf > 0, letzte: 0 };
     haltenAnzeigen();
     holdTimer.interval = setInterval(haltenAnzeigen, TAKT);
-    melde(__('holdStarted', { sec: secs }));
+    melde(vorlauf ? __('holdLeadStarted', { sec: vorlauf }) : __('holdStarted', { sec: secs }));
   } else {
     /* Ein leerer Satz bekommt beim Abhaken die heutige Vorgabe eingetragen.
        Bisher hiess ein Tipp nur "erledigt", und die Zahl musste man
@@ -2246,8 +2251,22 @@ function tapSet(id, s){
    gilt die Haltezeit als geschafft. Die Uhr lief weiter, und ein Tipp auf
    den Punkt bricht jederzeit ab. Das ist KEIN Fehler – bitte nicht in ein
    Weiterzaehlen ab dem eingefrorenen Stand zurueckbauen. */
+const HALTE_VORLAUF = 3;
 function haltenAnzeigen(){
   if(!holdTimer) return;
+  if(holdTimer.vorlauf){
+    const bis = Math.ceil((holdTimer.start - Date.now()) / 1000);
+    if(bis > 0){
+      holdTimer.el.classList.add('vorlauf');
+      if(holdTimer.letzte !== bis){ holdTimer.letzte = bis; tick(); holdTimer.el.textContent = bis; }
+      return;
+    }
+    /* Los: ab hier zaehlt die Haltezeit wie ohne Vorlauf. */
+    holdTimer.vorlauf = false;
+    holdTimer.el.classList.remove('vorlauf');
+    signal(false);
+    melde(__('holdStarted', { sec: holdTimer.secs }));
+  }
   const rem = Math.ceil((holdTimer.ende - Date.now()) / 1000);
   if(rem > 0){
     if(holdTimer.el.textContent !== String(rem)) holdTimer.el.textContent = rem;
@@ -2347,7 +2366,7 @@ function halteZeitEintragen(key, sek){
 export function cancelHold(){
   if(!holdTimer) return;
   clearInterval(holdTimer.interval);
-  holdTimer.el.classList.remove('running');
+  holdTimer.el.classList.remove('running', 'vorlauf');
   holdTimer.el.textContent = holdTimer.s + 1;
   holdTimer = null;
 }

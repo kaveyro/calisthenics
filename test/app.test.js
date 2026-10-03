@@ -3177,8 +3177,11 @@ describe('Gehaltene Sekunden', () => {
   const MIT_STUETZE = { planId: 'custom', customPlan: { name: 'Test', days: [
     { key: 'A', title: 'A', sub: '', ex: ['support', 'pushup'] }
   ]}};
-  async function einheit(stand = {}){
-    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...MIT_STUETZE, ...stand }));
+  /* Ohne Vorlauf: die Tests hier pruefen die Haltezeit selbst. Der Vorlauf
+     hat seine eigenen Tests am Ende des Blocks. */
+  async function einheit(stand = {}, vorlauf = false){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, ...MIT_STUETZE, ...stand,
+      settings: { holdLead: vorlauf, ...(stand.settings || {}) } }));
     app = await starten();
     app.actions['day:select']({ key: 'A' });
     await ruhe();
@@ -3198,6 +3201,30 @@ describe('Gehaltene Sekunden', () => {
     expect(feld(0).placeholder).toBe('10');
     tippe(0);
     expect(punkt(0).textContent).toBe('10');
+  });
+
+  /* Der Countdown begann mit dem Tipp, waehrend man noch in Position ging. */
+  it('zaehlt mit Vorlauf erst 3-2-1 und dann die Haltezeit', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    await einheit({}, true);
+    tippe(0);
+    expect(punkt(0).textContent).toBe('3');
+    expect(punkt(0).classList.contains('vorlauf')).toBe(true);
+    jetzt += 3000; vi.advanceTimersByTime(250);
+    expect(punkt(0).classList.contains('vorlauf')).toBe(false);
+    expect(punkt(0).textContent).toBe('10');
+    jetzt += 10000; vi.advanceTimersByTime(250);
+    expect(feld(0).value).toBe('10');
+  });
+
+  it('bricht im Vorlauf ab, ohne etwas einzutragen', async () => {
+    await einheit({}, true);
+    tippe(0);
+    jetzt += 1500;
+    tippe(0);
+    expect(punkt(0).textContent).toBe('1');
+    expect(punkt(0).classList.contains('running')).toBe(false);
+    expect(feld(0).value).toBe('');
   });
 
   it('beendet den Satz beim zweiten Tipp mit der gehaltenen Zeit', async () => {
