@@ -4,11 +4,12 @@
 import { istBilanz, istLuecken, wochenTage, wochenbilanz } from '../domain/bilanz.js';
 import { isoWeek, today } from '../domain/dates.js';
 import { esc } from '../domain/escape.js';
+import { entryExercises, repsOf, sekOf } from '../domain/log.js';
 import { naechsteTermine } from '../domain/plan.js';
 import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES } from '../domain/state.js';
 import { volumenJeGruppe } from '../domain/volume.js';
 import { CATS, EX_BY_ID } from '../exercises.js';
-import { __, catName, exName, getLang } from '../i18n/index.js';
+import { __, catName, exName, exStage, getLang } from '../i18n/index.js';
 import { dauerText, dayTitleOf, fmtDate, getDay, getDays, lvlOf, renderAll, save, wochentage, zielVon } from '../app.js';
 import { cfg, state } from '../core/kern.js';
 import { BILANZ_KAT, bilanzGruppe } from './planeditor.js';
@@ -209,7 +210,14 @@ export function renderHistory(){
   const log = imZeitraum.slice(-LOG_MAX_ZEILEN).reverse();
   list.innerHTML = log.length ? log.map(({ l, i }) => {
     const d = getDay(l.day);
-    return '<div class="log-item"><span class="log-date">' + fmtDate(l.d) + '</span>' +
+    const offen = offeneEintraege.has(l);
+    /* Die Zeile ist ein Knopf, der die Einheit aufklappt: welche Uebungen,
+       auf welcher Stufe, mit welchen Zahlen. Bisher stand hier nur die
+       Summe, und was in einer Einheit genau lief, war nirgends zu sehen. */
+    return '<div class="log-item' + (offen ? ' offen' : '') + '">' +
+      '<button type="button" class="log-auf" data-action="log:toggle" data-i="' + i + '" aria-expanded="' + offen + '"' +
+        (offen ? ' aria-controls="log-det-' + i + '"' : '') + '>' +
+      '<span class="log-date">' + fmtDate(l.d) + '</span>' +
       '<span class="log-day">' + esc(l.day) + (d ? ' · ' + esc(dayTitleOf(d)) : '') + '</span>' +
       /* Die Dauer nur, wenn sie gemessen wurde: Eintraege von vor v9, CSV-
          Importe und nachgetragene Einheiten haben keine, und "0 Min" waere
@@ -221,14 +229,47 @@ export function renderHistory(){
         (l.dauer ? ' · ' + esc(dauerText(l.dauer)) : '') + '</span>' +
       '<span class="log-ups">' + (l.ups && l.ups.length
         ? '<span class="aufstieg" title="' + esc(__('colLevelUp')) + '">' + ikon('levelup') + l.ups.length + '</span>' : '') + '</span>' +
+      '</button>' +
       '<button class="mini-btn danger" data-action="log:remove" data-i="' + i + '"' +
-      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">' + ikon('close') + '</button></div>';
+      ' aria-label="' + esc(__('logRemoveAria', { date: fmtDate(l.d), day: l.day })) + '">' + ikon('close') + '</button>' +
+      (offen ? eintragDetails(l, i, d) : '') + '</div>';
   }).join('') : '<div class="empty-hint">' + __('noLogs') + '</div>';
 
   renderLogSummary(imZeitraum.length, log.length);
 
   /* Calendar view */
   renderCalendar();
+}
+
+/* Aufgeklappte Eintraege. Die Eintraege selbst als Schluessel, nicht ihr
+   Index: der verschiebt sich, sobald einer davor geloescht wird. */
+const offeneEintraege = new Set();
+export function logUmschalten(i){
+  const l = (state.log || [])[i];
+  if(!l) return;
+  if(offeneEintraege.has(l)) offeneEintraege.delete(l); else offeneEintraege.add(l);
+  renderHistory();
+}
+
+const ANSTRENGUNG = { l: 'effortEasy', p: 'effortOk', h: 'effortHard' };
+function eintragDetails(l, i, tag){
+  const ids = entryExercises(l, tag).filter(id => EX_BY_ID[id]);
+  const ups = new Set(l.ups || []);
+  const zeilen = ids.map(id => {
+    const ex = EX_BY_ID[id];
+    const reps = repsOf(l, id), sek = sekOf(l, id);
+    const zahlen = reps.length ? reps.join(' · ') + ' ' + __('reps')
+      : sek.length ? sek.join(' · ') + ' ' + __('secShort') : '–';
+    const stufe = l.lv && Number.isInteger(l.lv[id]) ? exStage(ex, l.lv[id]) : '';
+    return '<li><span class="ld-name">' + esc(exName(ex)) +
+        (ups.has(id) ? ' <span class="aufstieg" title="' + esc(__('colLevelUp')) + '">' + ikon('levelup') + '</span>' : '') + '</span>' +
+      '<span class="ld-zahlen">' + esc(zahlen) + '</span>' +
+      (stufe || (l.an && l.an[id]) ? '<span class="ld-stufe">' + esc([stufe, l.an && ANSTRENGUNG[l.an[id]] ? __(ANSTRENGUNG[l.an[id]]) : ''].filter(Boolean).join(' · ')) + '</span>' : '') +
+      '</li>';
+  }).join('');
+  return '<div class="log-details" id="log-det-' + i + '">' +
+    (zeilen ? '<ul>' + zeilen + '</ul>' : '<p class="muted">' + esc(__('logNoDetails')) + '</p>') +
+    (l.dl ? '<p class="muted">' + esc(__('logDeload')) + '</p>' : '') + '</div>';
 }
 
 /* Die durchschnittliche Trainingsdauer.
@@ -408,15 +449,21 @@ export async function addLogEntry(){
    Zurueckgerechnet werden Zaehler, Tagesstatistik und das Datum der letzten
    Einheit. Stufen, Serien und Bestleistungen bleiben, wie sie sind: aus einem
    Log-Eintrag laesst sich nicht ableiten, welcher Stand vor ihm galt. Der
-   Bestaetigungsdialog sagt das ausdruecklich. */
+   Toast sagt das ausdruecklich.
+
+   Statt der Rueckfrage gibt es jetzt Rueckgaengig: eine Frage vor jedem
+   Loeschen bremst den, der aufraeumt, und schuetzt trotzdem nicht vor dem
+   falschen Eintrag. Der Toast holt ihn an seine alte Stelle zurueck. */
+let geloescht = null, geloeschtTimeout = null;
 export async function removeLogEntry(i){
   const l = (state.log || [])[i];
   if(!l) return;
-  const ok = await askConfirm(__('logRemoveTitle'),
-    __('logRemoveBody', { date: fmtDate(l.d), day: l.day }), __('remove'), true);
-  if(!ok) return;
+  clearTimeout(geloeschtTimeout);
+  geloescht = { l, i, workouts: state.workouts || 0, lastDate: state.lastDate };
+  geloeschtTimeout = setTimeout(() => { geloescht = null; }, 12000);
 
   state.log.splice(i, 1);
+  offeneEintraege.delete(l);
   state.workouts = Math.max(0, (state.workouts || 0) - 1);
   /* Das groesste verbliebene Datum, nicht das letzte Element: ein CSV-Import
      kann aeltere Eintraege hinten angehaengt haben. */
@@ -424,7 +471,19 @@ export async function removeLogEntry(i){
 
   await save();
   renderAll(); renderHistory();
-  toast(__('logRemoved'));
+  toast(__('logRemovedUndo', { date: fmtDate(l.d), day: l.day }), false, { text: __('undo'), action: 'log:restore' });
+}
+export async function logZurueckholen(){
+  const g = geloescht;
+  if(!g) return;
+  clearTimeout(geloeschtTimeout);
+  geloescht = null;
+  state.log.splice(Math.min(g.i, state.log.length), 0, g.l);
+  state.workouts = g.workouts;
+  state.lastDate = g.lastDate;
+  await save();
+  renderAll(); renderHistory();
+  toast(__('logRestored'));
 }
 
 /* Angezeigter Monat, relativ zum laufenden. 0 = dieser Monat. */

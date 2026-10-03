@@ -228,7 +228,7 @@ describe('Sicherungshinweis', () => {
 });
 
 describe('Einen Log-Eintrag loeschen', () => {
-  it('entfernt ihn samt Zaehler, nach Rueckfrage', async () => {
+  it('entfernt ihn samt Zaehler und holt ihn zurueck', async () => {
     localStorage.setItem(SPEICHER, JSON.stringify({
       v: 6, workouts: 2, lastDate: '2026-07-30',
       log: [
@@ -245,10 +245,8 @@ describe('Einen Log-Eintrag loeschen', () => {
     knopf.click();
     await ruhe();
 
-    /* Die Rueckfrage bestaetigen. */
-    document.querySelector('.overlay [data-dlg=ok]').click();
-    await ruhe();
-
+    /* Keine Rueckfrage mehr, dafuer Rueckgaengig im Toast. */
+    expect(document.querySelector('.overlay.open')).toBeNull();
     const s = gespeichert();
     expect(s.log).toHaveLength(1);
     expect(s.workouts).toBe(1);
@@ -256,6 +254,39 @@ describe('Einen Log-Eintrag loeschen', () => {
     /* Der Zaehler je Trainingstag steht seit v11 nicht mehr im Stand – er
        wird aus dem Log gezaehlt und geht damit automatisch mit. */
     expect(s.byDay).toBeUndefined();
+
+    document.querySelector('#toast [data-action="log:restore"]').click();
+    await ruhe();
+    const z = gespeichert();
+    expect(z.log.map(l => l.d)).toEqual(['2026-07-29', '2026-07-30']);
+    expect(z.workouts).toBe(2);
+    expect(z.lastDate).toBe('2026-07-30');
+  });
+
+  it('klappt einen Eintrag auf und zeigt Uebungen, Stufen und Zahlen', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 16, onboarded: true, workouts: 1, lastDate: '2026-07-30',
+      log: [{ d: '2026-07-30', day: 'A', sets: 4, tops: 0, ups: ['pushup'], ex: ['pushup', 'support'],
+        reps: { 'pushup-0': 8, 'pushup-1': 7 }, sek: { 'support-0': 20 }, lv: { pushup: 2, support: 0 }, an: { pushup: 'h' } }]
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    const auf = document.querySelector('[data-action="log:toggle"]');
+    expect(auf.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('.log-details')).toBeNull();
+    auf.click();
+    await ruhe();
+    const det = document.querySelector('.log-details');
+    expect(det).not.toBeNull();
+    expect(det.textContent).toMatch(/8 · 7 Wdh/);
+    expect(det.textContent).toMatch(/20 Sek/);
+    expect(det.textContent).toMatch(/hart/);
+    expect(det.querySelectorAll('li')).toHaveLength(2);
+    expect(document.querySelector('[data-action="log:toggle"]').getAttribute('aria-expanded')).toBe('true');
+    document.querySelector('[data-action="log:toggle"]').click();
+    await ruhe();
+    expect(document.querySelector('.log-details')).toBeNull();
   });
 });
 
@@ -2195,10 +2226,8 @@ describe('Verteilung je Trainingstag', () => {
     const letzter = gespeichert().log.length - 1;
     expect(gespeichert().log[letzter].day).toBe('B');
 
-    const fertig = app.actions['log:remove']({ i: String(letzter) });
+    await app.actions['log:remove']({ i: String(letzter) });
     await ruhe();
-    document.querySelector('.overlay.open [data-dlg=ok]').click();
-    await fertig; await ruhe();
 
     app.actions['tab:show']({ tab: 'plan' });
     await ruhe();

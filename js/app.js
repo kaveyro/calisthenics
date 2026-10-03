@@ -29,7 +29,7 @@ import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR
 import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungErlauben, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
 import { einstiegBeenden, einstiegLaufen } from './features/einstieg.js';
 import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanDragAndDrop, moveEx, paarRueckgaengig, paarSchalten, planTempo, removeDay, removeEx, renameDay, renderPlanTab, resetPlan, setWeekPlan } from './features/planeditor.js';
-import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
+import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, logUmschalten, logZurueckholen, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
 import { addCustomMilestone, erkannteMs, removeCustomMilestone, renderBests, renderMilestones, renderRoadmap, toggleMilestone } from './features/ziele.js';
 import { FOCUSABLE, askChoice, askConfirm, askText, closeDialog, openDialog, openDialogEl } from './ui/dialoge.js';
 import { ikon, melde, mitFokus, toast, toastTimer, wenigerBewegung } from './ui/hinweise.js';
@@ -3044,6 +3044,8 @@ export const actions = {
   'history:range':      (d, ev, el) => mitFokus(() => setHistRange(el.value)),
   'log:add':            () => addLogEntry(),
   'log:remove':         d => removeLogEntry(zahl(d.i)),
+  'log:toggle':         d => mitFokus(() => logUmschalten(zahl(d.i))),
+  'log:restore':        () => logZurueckholen(),
   'calendar:shift':     (d, ev, el) => {
     if(el.getAttribute('aria-disabled') === 'true') return;
     return mitFokus(() => kalenderVerschieben(zahl(d.delta)));
