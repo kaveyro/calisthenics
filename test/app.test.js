@@ -4448,3 +4448,17 @@ describe('Pause kuerzen und Trainingsdauer', () => {
     }
   });
 });
+
+describe('Einstellungsdialog', () => {
+  it('zeigt jeden Schalter mit seinem gespeicherten Wert', async () => {
+    const { SETTINGS_DEFAULTS } = await import('../js/domain/state.js');
+    const app = await starten();
+    app.actions['settings:open']();
+    for(const [k, v] of Object.entries(SETTINGS_DEFAULTS)){
+      const el = document.getElementById('cfg-' + k);
+      expect(el, k).not.toBeNull();
+      if(el.type === 'checkbox') expect(el.checked, k).toBe(!!v);
+      else if(k !== 'lang') expect(el.value, k).toBe(String(v));
+    }
+  });
+});

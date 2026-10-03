@@ -3,6 +3,7 @@
 
 import { today } from '../domain/dates.js';
 import { EQUIP } from '../domain/equipment.js';
+import { SETTINGS_DEFAULTS } from '../domain/state.js';
 import { EX_BY_ID } from '../exercises.js';
 import { __, setLang } from '../i18n/index.js';
 import { applyLanguage, cancelHold, dayTitleOf, getDay, heutigerPlanTag, lvlOf, renderAll, renderWarmup, renderWorkout, restoreSession, save, zeigeInstallSchalter, zeigeSpeicherinfo, zeigeTeilenSchalter, zielVon } from '../app.js';
@@ -15,7 +16,10 @@ import { closeDialog, openDialog } from '../ui/dialoge.js';
 import { toast } from '../ui/hinweise.js';
 
 export function openSettings(){
-  ['setsMode', 'rest', 'perExRest', 'autoRest', 'fokus', 'sound', 'vibrate', 'streak', 'weekGoal', 'deload', 'regress', 'reminder', 'lang'].forEach(k => {
+  /* Alle Schluessel der Vorgabe, keine eigene Liste: die stand hier von Hand
+     und vergass den Vorlauf-Schalter – er zeigte "aus", obwohl er an war.
+     Dass jeder Schluessel einen Schalter hat, prueft test/schema.test.js. */
+  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
     const el = document.getElementById('cfg-' + k); if(!el) return;
     if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
   });
