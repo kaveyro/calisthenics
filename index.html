@@ -415,6 +415,34 @@
       </select>
     </div>
     <div class="set-row">
+      <span><label class="lbl2" for="cfg-streak" data-i18n="levelUpAfter">Level-Up nach</label><span class="hint" id="hint-cfg-streak" data-i18n="levelUpAfterHint">Einheiten am oberen Limit in Folge</span></span>
+      <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int" aria-describedby="hint-cfg-streak">
+        <option value="1" data-i18n="unitOne">1 Einheit</option>
+        <option value="2" data-i18n="unitTwo">2 Einheiten</option>
+        <option value="3" data-i18n="unitThree">3 Einheiten</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="cfg-weekGoal" data-i18n="weekGoal">Wochenziel</label><span class="hint" id="hint-cfg-weekGoal" data-i18n="weekGoalHint">Trainings pro Woche</span></span>
+      <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int" aria-describedby="hint-cfg-weekGoal">
+        <option value="2">2×</option><option value="3">3×</option>
+        <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="cfg-regress" data-i18n="regress">Stufe zurück nach Pause</label><span class="hint" id="hint-cfg-regress" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
+      <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress" aria-describedby="hint-cfg-regress">
+    </div>
+    <div class="set-row">
+      <span><label class="lbl2" for="cfg-deload" data-i18n="deloadRemind">Deload-Erinnerung</label><span class="hint" id="hint-cfg-deload" data-i18n="deloadRemindHint">Nach dieser Anzahl Trainings</span></span>
+      <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int" aria-describedby="hint-cfg-deload">
+        <option value="0" data-i18n="off">Aus</option><option value="16">16</option>
+        <option value="24">24</option><option value="32">32</option>
+      </select>
+    </div>
+
+    <div class="section-title" data-i18n="settingsTimer">Pausen &amp; Signale</div>
+    <div class="set-row">
       <span><label class="lbl2" for="cfg-rest" data-i18n="restBasic">Satzpause</label><span class="hint" id="hint-cfg-rest" data-i18n="restBasicHint">Grundwert; schwere Übungen erhalten automatisch mehr</span></span>
       <select id="cfg-rest" data-action-change="setting:update" data-key="rest" data-type="int" aria-describedby="hint-cfg-rest">
         <option value="45">45 Sek</option>
@@ -433,8 +461,8 @@
       <input type="checkbox" id="cfg-autoRest" data-action-change="setting:update" data-key="autoRest" aria-describedby="hint-cfg-autoRest">
     </div>
     <div class="set-row">
-      <span><label class="lbl2" for="cfg-fokus" data-i18n="focusSetting">Fokus-Modus im Training</label><span class="hint" id="hint-cfg-fokus" data-i18n="focusSettingHint">Eine Übung je Ansicht, die Pause als Ring</span></span>
-      <input type="checkbox" id="cfg-fokus" data-action-change="setting:update" data-key="fokus" aria-describedby="hint-cfg-fokus">
+      <span><label class="lbl2" for="cfg-holdLead" data-i18n="holdLead">Vorlauf vor Haltezeiten</label><span class="hint" id="hint-cfg-holdLead" data-i18n="holdLeadHint">3-2-1, um in Position zu kommen</span></span>
+      <input type="checkbox" id="cfg-holdLead" data-action-change="setting:update" data-key="holdLead" aria-describedby="hint-cfg-holdLead">
     </div>
     <div class="set-row">
       <span><label class="lbl2" for="cfg-sound" data-i18n="sound">Signaltöne</label><span class="hint" id="hint-cfg-sound" data-i18n="soundHint">Ton bei Timer-Ende und Level-Ups</span></span>
@@ -444,28 +472,11 @@
       <span><label class="lbl2" for="cfg-vibrate" data-i18n="vibration">Vibration</label><span class="hint" id="hint-cfg-vibrate" data-i18n="vibrationHint">Falls das Gerät es unterstützt</span></span>
       <input type="checkbox" id="cfg-vibrate" data-action-change="setting:update" data-key="vibrate" aria-describedby="hint-cfg-vibrate">
     </div>
+
+    <div class="section-title" data-i18n="settingsDisplay">Anzeige &amp; Sprache</div>
     <div class="set-row">
-      <span><label class="lbl2" for="cfg-holdLead" data-i18n="holdLead">Vorlauf vor Haltezeiten</label><span class="hint" id="hint-cfg-holdLead" data-i18n="holdLeadHint">3-2-1, um in Position zu kommen</span></span>
-      <input type="checkbox" id="cfg-holdLead" data-action-change="setting:update" data-key="holdLead" aria-describedby="hint-cfg-holdLead">
-    </div>
-    <div class="set-row">
-      <span><label class="lbl2" for="cfg-streak" data-i18n="levelUpAfter">Level-Up nach</label><span class="hint" id="hint-cfg-streak" data-i18n="levelUpAfterHint">Einheiten am oberen Limit in Folge</span></span>
-      <select id="cfg-streak" data-action-change="setting:update" data-key="streak" data-type="int" aria-describedby="hint-cfg-streak">
-        <option value="1" data-i18n="unitOne">1 Einheit</option>
-        <option value="2" data-i18n="unitTwo">2 Einheiten</option>
-        <option value="3" data-i18n="unitThree">3 Einheiten</option>
-      </select>
-    </div>
-    <div class="set-row">
-      <span><label class="lbl2" for="cfg-regress" data-i18n="regress">Stufe zurück nach Pause</label><span class="hint" id="hint-cfg-regress" data-i18n="regressHint">Nach 14 Tagen ohne Training eine Stufe runter</span></span>
-      <input type="checkbox" id="cfg-regress" data-action-change="setting:update" data-key="regress" aria-describedby="hint-cfg-regress">
-    </div>
-    <div class="set-row">
-      <span><label class="lbl2" for="cfg-reminder" data-i18n="reminderEnable">Trainingserinnerung</label><span class="hint" id="hint-cfg-reminder" data-i18n="reminderEnableHint">Erinnert an geplante Trainingstage</span></span>
-      <input type="checkbox" id="cfg-reminder" data-action-change="setting:update" data-key="reminder" aria-describedby="hint-cfg-reminder">
-    </div>
-    <div class="data-btns">
-      <button class="btn secondary" data-action="reminder:enable" data-i18n="reminderEnable">Trainingserinnerung</button>
+      <span><label class="lbl2" for="cfg-fokus" data-i18n="focusSetting">Fokus-Modus im Training</label><span class="hint" id="hint-cfg-fokus" data-i18n="focusSettingHint">Eine Übung je Ansicht, die Pause als Ring</span></span>
+      <input type="checkbox" id="cfg-fokus" data-action-change="setting:update" data-key="fokus" aria-describedby="hint-cfg-fokus">
     </div>
     <div class="set-row">
       <span><label class="lbl2" for="cfg-lang" data-i18n="language">Sprache</label><span class="hint" id="hint-cfg-lang" data-i18n="languageHint">Oberfläche und Übungsinhalte</span></span>
@@ -473,19 +484,11 @@
            Sprache nur an einer Stelle eingetragen werden muss. -->
       <select id="cfg-lang" data-action-change="setting:update" data-key="lang" aria-describedby="hint-cfg-lang"></select>
     </div>
+
+    <div class="section-title" data-i18n="settingsReminder">Erinnerung</div>
     <div class="set-row">
-      <span><label class="lbl2" for="cfg-weekGoal" data-i18n="weekGoal">Wochenziel</label><span class="hint" id="hint-cfg-weekGoal" data-i18n="weekGoalHint">Trainings pro Woche</span></span>
-      <select id="cfg-weekGoal" data-action-change="setting:update" data-key="weekGoal" data-type="int" aria-describedby="hint-cfg-weekGoal">
-        <option value="2">2×</option><option value="3">3×</option>
-        <option value="4">4×</option><option value="5">5×</option><option value="6">6×</option>
-      </select>
-    </div>
-    <div class="set-row">
-      <span><label class="lbl2" for="cfg-deload" data-i18n="deloadRemind">Deload-Erinnerung</label><span class="hint" id="hint-cfg-deload" data-i18n="deloadRemindHint">Nach dieser Anzahl Trainings</span></span>
-      <select id="cfg-deload" data-action-change="setting:update" data-key="deload" data-type="int" aria-describedby="hint-cfg-deload">
-        <option value="0" data-i18n="off">Aus</option><option value="16">16</option>
-        <option value="24">24</option><option value="32">32</option>
-      </select>
+      <span><label class="lbl2" for="cfg-reminder" data-i18n="reminderEnable">Trainingserinnerung</label><span class="hint" id="hint-cfg-reminder" data-i18n="reminderEnableHint">Erinnert an geplante Trainingstage</span></span>
+      <input type="checkbox" id="cfg-reminder" data-action-change="setting:update" data-key="reminder" aria-describedby="hint-cfg-reminder">
     </div>
 
     <div class="section-title" data-i18n="dataBackup">Daten &amp; Backup</div>
@@ -514,10 +517,15 @@
     <div class="data-btns">
       <button class="btn" id="installBtn" hidden data-action="app:install" data-i18n="installApp">App installieren</button>
     </div>
-    <div class="data-btns">
-      <button class="btn secondary" style="color:var(--warn)" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
-    </div>
     <div class="data-hint" id="storageInfo"></div>
+
+    <!-- Abgesetzt statt zwischen den Export-Knöpfen: dort war "Alles
+         zurücksetzen" nur an der Schriftfarbe zu erkennen. -->
+    <div class="gefahr-zone">
+      <div class="section-title" data-i18n="dangerZone">Zurücksetzen</div>
+      <p class="data-hint" data-i18n="resetAllHint">Löscht Stufen, Verlauf, Plan und Einstellungen auf diesem Gerät. Lade vorher ein Backup herunter.</p>
+      <button class="btn secondary btn--gefahr" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
+    </div>
   </div>
 </div>
 

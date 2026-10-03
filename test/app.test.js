@@ -4462,3 +4462,41 @@ describe('Einstellungsdialog', () => {
     }
   });
 });
+
+describe('Einstellungen gegliedert', () => {
+  afterEach(() => { delete window.Notification; });
+  const schalten = async (app, an) => {
+    const el = document.getElementById('cfg-reminder');
+    el.checked = an;
+    app.actions['setting:update']({ key: 'reminder' }, null, el);
+    await ruhe(); await ruhe();
+  };
+
+  it('ordnet die Schalter in Abschnitte und setzt Zuruecksetzen ab', () => {
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+    const dlg = html.split('id="settingsOverlay"')[1].split('id="toast"')[0];
+    const titel = [...dlg.matchAll(/section-title" data-i18n="(\w+)"/g)].map(m => m[1]);
+    expect(titel).toEqual(['myEquipment', 'training', 'settingsTimer', 'settingsDisplay', 'settingsReminder', 'dataBackup', 'dangerZone']);
+    expect(dlg.split('gefahr-zone')[1]).toContain('data-action="backup:resetAll"');
+    expect(dlg).not.toContain('reminder:enable');
+  });
+
+  it('fragt beim Einschalten der Erinnerung nach der Erlaubnis', async () => {
+    window.Notification = { permission: 'default', requestPermission: vi.fn(() => Promise.resolve('granted')) };
+    const app = await starten();
+    app.actions['settings:open']();
+    await schalten(app, true);
+    expect(window.Notification.requestPermission).toHaveBeenCalled();
+    expect(gespeichert().settings.reminder).toBe(true);
+  });
+
+  it('schaltet die Erinnerung ohne Erlaubnis wieder aus', async () => {
+    window.Notification = { permission: 'default', requestPermission: vi.fn(() => Promise.resolve('denied')) };
+    const app = await starten();
+    app.actions['settings:open']();
+    await schalten(app, true);
+    expect(gespeichert().settings.reminder).toBe(false);
+    expect(document.getElementById('cfg-reminder').checked).toBe(false);
+    expect(document.getElementById('toast').textContent).toMatch(/blockiert/);
+  });
+});

@@ -26,7 +26,7 @@ import { an, cfg, lauf, leereSession, session, setSession, setState, state } fro
 import { equipListe, fehlt, machbar, stufeMachbar, toggleEquipment } from './features/ausruestung.js';
 import { exportCSV, exportICS, exportJSON, exportText, importCSV, importJSON, resetAll, shareJSON } from './features/backup.js';
 import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR, setLibFilter, setLibSort, toggleLib } from './features/bibliothek.js';
-import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungErlauben, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
+import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
 import { einstiegBeenden, einstiegLaufen } from './features/einstieg.js';
 import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanDragAndDrop, moveEx, paarRueckgaengig, paarSchalten, planTempo, removeDay, removeEx, renameDay, renderPlanTab, resetPlan, setWeekPlan } from './features/planeditor.js';
 import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, logUmschalten, logZurueckholen, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
@@ -3097,7 +3097,6 @@ export const actions = {
     updateSetting(d.key, wert);
   },
   'setting:undo':       () => einstellungZuruecknehmen(),
-  'reminder:enable':    () => erinnerungErlauben(),
   'plan:ics':           () => exportICS(),
   /* Eigene Aktion statt setting:update: dort liegen Skalare in
      state.settings, hier ein Array auf oberster Ebene. */

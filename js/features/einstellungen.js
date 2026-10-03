@@ -45,13 +45,24 @@ export function closeSettings(){ closeDialog(document.getElementById('settingsOv
 function erinnerungAktiv(){
   return !!(state.settings && state.settings.reminder);
 }
-export function erinnerungErlauben(){
-  if(!('Notification' in window)){ toast(__('reminderDenied')); return; }
-  if(Notification.permission === 'granted') return;
-  Notification.requestPermission().then(p => {
-    if(p === 'granted') toast(__('reminderEnabled'));
-    else toast(__('reminderDenied'));
-  });
+/* Der Schalter "Trainingserinnerung" fragt beim Einschalten selbst nach der
+   Erlaubnis. Bisher gab es dafuer einen zweiten Knopf mit derselben
+   Beschriftung, und wer nur den Schalter setzte, bekam nie eine Mitteilung.
+   Ohne Erlaubnis geht der Schalter wieder aus – sonst stuende er an und
+   bewirkte nichts. */
+export async function erinnerungErlauben(){
+  let erlaubt = false;
+  if('Notification' in window){
+    erlaubt = Notification.permission === 'granted' ||
+      await Notification.requestPermission().then(p => p === 'granted', () => false);
+  }
+  if(!erlaubt){
+    state.settings.reminder = false; save();
+    const el = document.getElementById('cfg-reminder');
+    if(el) el.checked = false;
+  }
+  toast(__(erlaubt ? 'reminderEnabled' : 'reminderDenied'));
+  return erlaubt;
 }
 /* Die Erinnerung lief bisher aus start(): wer die App an einem
    Trainingstag oeffnete, bekam eine Systemmeldung, dass er heute trainieren
@@ -125,6 +136,7 @@ export function updateSetting(k, v){
     settingsUndoTimeout = setTimeout(() => { settingsUndo = null; }, 5000);
     toast(__('settingChanged'), false, { text: __('undo'), action: 'setting:undo' });
   }
+  if(k === 'reminder' && v) erinnerungErlauben();
   if(k === 'lang'){
     setLang(v);
     applyLanguage();
