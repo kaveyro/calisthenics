@@ -1028,3 +1028,12 @@ footer small{display:block;margin-top:4px;opacity:.6}
 .fp-mitte small{font-size:var(--text-xs);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
 .fp-plus{min-width:56px;min-height:56px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-family:var(--mono);font-size:var(--text-md);font-weight:600;cursor:pointer}
 @media print{.fokus-leiste,.fokus-pause{display:none!important}}
+
+/* Auf dem Touchgeraet hat jedes Eingabefeld mindestens 16 px Schrift.
+   Darunter zoomt iOS beim Antippen die ganze Seite heran – mitten in der
+   Einheit, bei jedem Wiederholungsfeld (11 px auf dem Handy). Steht am Ende
+   der Datei, und :is() gibt allen drei die Spezifitaet des laengsten
+   Arguments – sonst schlugen .note-input und .inline-row select es. */
+@media (pointer:coarse){
+  :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea){font-size:var(--text-lg)}
+}

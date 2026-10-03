@@ -1663,7 +1663,7 @@ export function renderWorkout(){
         ' aria-pressed="' + (session.sets[repKey] ? 'true' : 'false') + '"' +
         ' aria-label="' + esc(__('setAria', { ex: exName(ex), n: s + 1, total: t.sets })) + '">' + (s + 1) + '</button>';
       if(!t.isHold && t.maxReps){
-        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" min="0" max="' + (t.maxReps + 10) + '"' +
+        dots += '<input class="rep-input" id="rep-' + repKey + '" type="number" inputmode="numeric" min="0" max="' + (t.maxReps + 10) + '"' +
           /* Die heutige Vorgabe statt der Spanne: die Spanne steht oben
              auf der Karte, die Vorgabe ist die Zahl fuer DIESEN Satz. */
           ' placeholder="' + (vorgabe ? vorgabe[s] : t.minReps + '-' + t.maxReps) + '"' +
@@ -1673,7 +1673,7 @@ export function renderWorkout(){
       } else if(t.isHold){
         /* Die gehaltene Zeit: der Countdown traegt sie ein, von Hand laesst
            sie sich korrigieren. Der Platzhalter ist die heutige Vorgabe. */
-        dots += '<input class="sek-input" id="sek-' + repKey + '" type="number" min="0" max="3600"' +
+        dots += '<input class="sek-input" id="sek-' + repKey + '" type="number" inputmode="numeric" min="0" max="3600"' +
           ' placeholder="' + vorgabe[s] + '"' +
           ' aria-label="' + esc(__('secsAria', { ex: exName(ex), n: s + 1 })) + '"' +
           (ziel !== null ? ' aria-describedby="' + zielId + '"' : '') +

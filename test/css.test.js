@@ -390,3 +390,15 @@ describe('Gestaltungsstufen', () => {
     expect(css).toMatch(/^\.modal\{[^}]*box-shadow:var\(--schatten-2\)/m);
   });
 });
+
+/* iOS zoomt bei einem Eingabefeld unter 16 px die ganze Seite heran. */
+describe('Eingabefelder auf dem Touchgeraet', () => {
+  it('setzt alle Felder unter pointer:coarse auf mindestens 16 px', () => {
+    const block = css.match(/@media \(pointer:coarse\)\{\s*:is\(input:not\(\[type=checkbox\]\)[^{]*select,textarea\)\{font-size:var\(--text-(\w+)\)\}/);
+    expect(block).toBeTruthy();
+    const px = Number(css.match(new RegExp('--text-' + block[1] + ':([0-9.]+)px'))[1]);
+    expect(px).toBeGreaterThanOrEqual(16);
+    /* Am Ende der Datei, sonst schlagen spaetere Feldregeln sie. */
+    expect(css.lastIndexOf('@media (pointer:coarse)')).toBe(css.indexOf(block[0]));
+  });
+});

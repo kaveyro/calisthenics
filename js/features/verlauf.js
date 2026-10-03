@@ -547,7 +547,7 @@ function renderMeasurements(){
     /* <small> ist keine Beschriftung – ein Screenreader las hier bisher
        nur "Eingabefeld". */
     html += '<div class="meas-col"><label for="meas-' + p + '"><small>' + esc(labels[p]) + '</small></label>' +
-      '<input id="meas-' + p + '" type="number" step="0.5" min="0" max="200"' +
+      '<input id="meas-' + p + '" type="number" inputmode="decimal" step="0.5" min="0" max="200"' +
       ' placeholder="' + esc(last) + ' ' + esc(__('cm')) + '" class="meas-input"></div>';
   });
   html += '<button class="btn btn--standalone meas-save" data-action="measurement:add">' + __('save') + '</button>';

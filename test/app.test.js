@@ -4223,3 +4223,15 @@ describe('Tageswahl waehrend der Einheit', () => {
     expect(document.getElementById('finishBar').style.display).toBe('block');
   });
 });
+
+describe('Zifferntastatur', () => {
+  it('oeffnet bei Wiederholungs- und Sekundenfeldern den Ziffernblock', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const felder = [...document.querySelectorAll('.rep-input, .sek-input')];
+    expect(felder.length).toBeGreaterThan(0);
+    felder.forEach(f => expect(f.getAttribute('inputmode')).toBe('numeric'));
+    expect(document.getElementById('weightInput').getAttribute('inputmode')).toBe('decimal');
+  });
+});
