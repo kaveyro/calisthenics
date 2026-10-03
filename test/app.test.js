@@ -4356,3 +4356,21 @@ describe('Stepper fuer Wiederholungen', () => {
     expect(feld.value).toBe('6');
   });
 });
+
+/* Ein Fehltipp auf ± setzte die Stufe und nullte die Serie, ohne Weg zurueck. */
+describe('Stufenwechsel rueckgaengig', () => {
+  it('holt Stufe und Serie zurueck', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 16, onboarded: true, levels: { pushup: 2 }, streaks: { pushup: 1 } }));
+    const app = await starten();
+    app.actions['level:adjust']({ ex: 'pushup', delta: '1' });
+    expect(gespeichert().levels.pushup).toBe(3);
+    expect(gespeichert().streaks.pushup).toBe(0);
+    const knopf = document.querySelector('#toast [data-action="level:undo"]');
+    expect(knopf).not.toBeNull();
+    knopf.click();
+    await ruhe();
+    expect(gespeichert().levels.pushup).toBe(2);
+    expect(gespeichert().streaks.pushup).toBe(1);
+    expect(document.getElementById('toast').textContent).toMatch(/zurück/);
+  });
+});

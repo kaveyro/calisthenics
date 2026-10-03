@@ -66,6 +66,8 @@ let verworfen = null, verworfenTimeout = null;
 /* Je Uebung der Satz, auf den der Stepper wirkt: der zuletzt erledigte oder
    von Hand geaenderte. Gilt nur fuer die laufende Einheit. */
 let stepSatz = {};
+/* Die Stufe vor dem letzten Wechsel per ±, solange der Toast sie anbietet. */
+let stufeVorher = null, stufeTimeout = null;
 
 /* ================= Start =================
    Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
@@ -1981,14 +1983,34 @@ function adjustLevel(id, d){
   const cur = state.levels[id] || 0;
   const next = Math.max(0, Math.min(ex.levels.length - 1, cur + d));
   if(next === cur) return;
+  /* Ein Fehltipp auf ± setzte die Stufe und nullte die Serie bis zum
+     Aufstieg, ohne Weg zurueck. Der Toast bietet jetzt beides zurueck. */
+  clearTimeout(stufeTimeout);
+  stufeVorher = { id, lvl: cur, streak: state.streaks[id] || 0, gesetzt: id in state.levels };
+  stufeTimeout = setTimeout(() => { stufeVorher = null; }, 12000);
   state.levels[id] = next; state.streaks[id] = 0;
+  stufeAnwenden();
+  toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }), false,
+    { text: __('undo'), action: 'level:undo' });
+}
+function stufeAnwenden(){
   save(); renderStats();
   /* cancelHold() zuerst: sonst laeuft ein Countdown gegen das alte,
      nach renderWorkout() abgehaengte Element weiter und markiert einen
      Satz, den man nicht mehr sieht. */
   if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
-  toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }));
+}
+function stufeZuruecknehmen(){
+  const v = stufeVorher;
+  if(!v) return;
+  clearTimeout(stufeTimeout);
+  stufeVorher = null;
+  if(v.gesetzt) state.levels[v.id] = v.lvl; else delete state.levels[v.id];
+  state.streaks[v.id] = v.streak;
+  stufeAnwenden();
+  const ex = EX_BY_ID[v.id];
+  toast(__('levelRestored', { name: exName(ex), stage: exStage(ex, v.lvl) }));
 }
 
 /* ================= Substitute Exercise ================= */
@@ -2979,6 +3001,7 @@ export const actions = {
   /* mitFokus(): diese Aktionen zeichnen ihren Container neu, das gerade
      betaetigte Element verschwindet dabei und der Fokus fiele auf <body>. */
   'level:adjust':       d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
+  'level:undo':         () => stufeZuruecknehmen(),
   'tips:toggle':        d => toggleTips(d.ex),
   'exercise:substitute': d => substituteExercise(d.ex),
   'exercise:skip':      d => skipExercise(d.ex),
