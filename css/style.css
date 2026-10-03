@@ -290,6 +290,15 @@ h1 .thin{color:var(--accent)}
 .day-select.klein .day-btn{padding:10px 12px;border-width:1px}
 .day-select.klein .day-btn .tag{font-size:var(--text-md)}
 .day-select.klein .day-btn .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Die laufende Einheit als eine Zeile statt aller Tage. */
+.tag-laeuft{grid-column:1/-1;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:8px 8px 8px 14px;box-shadow:var(--schatten-1)}
+.tl-name{flex:1 1 0;min-width:0;overflow-wrap:anywhere;font-family:var(--display);font-size:var(--text-md);text-transform:uppercase;line-height:1.15;color:var(--accent)}
+.tl-name small{display:block;font-family:var(--mono);font-size:var(--text-xs);letter-spacing:.08em;color:var(--ink-soft)}
+.tl-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;flex:none;white-space:nowrap;padding:0 12px;border:1px solid var(--line);border-radius:calc(var(--radius) - 6px);background:transparent;color:var(--ink);font:inherit;font-size:var(--text-sm);cursor:pointer}
+.tl-btn:hover{background:var(--accent-soft)}
+.tl-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tl-btn.tl-weg{color:var(--ink-soft);padding:0}
+.tl-btn .i{width:16px;height:16px}
 
 /* ---------- Aufklappbares ---------- */
 details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:var(--abstand-4);overflow:hidden;box-shadow:var(--schatten-1)}

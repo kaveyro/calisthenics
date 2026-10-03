@@ -1329,6 +1329,8 @@ describe('Aufwaermen abhaken', () => {
     await tagUndAufwaermen();
     punkte()[0].click();
     await ruhe();
+    /* Waehrend der Einheit sind die Tage eingeklappt. */
+    document.querySelector('[data-action="day:change"]').click();
     document.querySelectorAll('.day-btn')[1].click();
     await ruhe();
     expect(punkte().every(p => !p.checked)).toBe(true);
@@ -4153,5 +4155,71 @@ describe('Supersaetze', () => {
     document.querySelector('.overlay.open [data-dlg=ok]').click();
     await p; await ruhe();
     expect(gespeichert().customPlan.days.some(d => d.ss && d.ss.length)).toBe(true);
+  });
+});
+
+/* Ein Tipp auf einen Tag ersetzte die laufende Einheit wortlos durch eine
+   leere – im Browser wurden aus 4/25 erledigten Saetzen 0/22. */
+describe('Tageswahl waehrend der Einheit', () => {
+  const erledigt = () => Object.values(gespeichert().activeSession?.sets || {}).filter(Boolean).length;
+  async function mitSatz(){
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    return app;
+  }
+
+  it('klappt die Tage zu einer Zeile ein', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    expect(document.querySelectorAll('#daySelect .day-btn').length).toBe(0);
+    expect(document.querySelector('#daySelect .tag-laeuft').textContent).toContain('A');
+    app.actions['day:change']();
+    expect(document.querySelectorAll('#daySelect .day-btn').length).toBeGreaterThan(1);
+    expect(document.querySelector('[data-action="day:change"]').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('fragt vor dem Wechsel, und Abbrechen behaelt die Saetze', async () => {
+    const app = await mitSatz();
+    expect(erledigt()).toBe(1);
+    app.actions['day:change']();
+    document.querySelectorAll('#daySelect .day-btn')[1].click();
+    await ruhe();
+    document.querySelector('.overlay.open [data-dlg=abbrechen]').click();
+    await ruhe();
+    expect(gespeichert().activeSession.dayKey).toBe('A');
+    expect(erledigt()).toBe(1);
+  });
+
+  it('wechselt nach Bestaetigung und holt die Einheit zurueck', async () => {
+    const app = await mitSatz();
+    app.actions['day:change']();
+    document.querySelectorAll('#daySelect .day-btn')[1].click();
+    await ruhe();
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await ruhe();
+    expect(gespeichert().activeSession.dayKey).toBe('B');
+    document.querySelector('#toast [data-action="workout:restore"]').click();
+    await ruhe();
+    expect(gespeichert().activeSession.dayKey).toBe('A');
+    expect(erledigt()).toBe(1);
+  });
+
+  it('verwirft eine Einheit nach Rueckfrage, ohne sie ins Log zu schreiben', async () => {
+    const app = await mitSatz();
+    const p = app.actions['workout:discard']();
+    await ruhe();
+    document.querySelector('.overlay.open [data-dlg=ok]').click();
+    await p; await ruhe();
+    expect(gespeichert().activeSession).toBeNull();
+    expect(gespeichert().log || []).toEqual([]);
+    expect(document.getElementById('finishBar').style.display).toBe('none');
+    document.querySelector('#toast [data-action="workout:restore"]').click();
+    await ruhe();
+    expect(erledigt()).toBe(1);
+    expect(document.getElementById('finishBar').style.display).toBe('block');
   });
 });

@@ -58,6 +58,11 @@ let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
    ein neuer Tag gewaehlt wird. Kennungen statt Texte: ein Sprachwechsel soll
    es nicht in der alten Sprache stehen lassen. */
 let abschluss = null;
+/* Waehrend einer Einheit ist die Tagesauswahl zu einer Zeile eingeklappt;
+   aufgeklappt wird sie nur ueber "Tag wechseln". */
+let tagWahlOffen = false;
+/* Die zuletzt verworfene Einheit, solange der Toast sie zurueckholen kann. */
+let verworfen = null, verworfenTimeout = null;
 
 /* ================= Start =================
    Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
@@ -1131,10 +1136,24 @@ export function renderDaySelect(){
   renderRueckblick();
   renderHeuteKarte(sug);
   const sel = document.getElementById('daySelect');
+  /* Waehrend einer Einheit standen hier alle Tage gross ueber dem Training,
+     und ein Tipp auf einen davon ersetzte die laufende Einheit wortlos durch
+     eine leere. Jetzt steht nur eine Zeile mit dem laufenden Tag da; die
+     Tage erscheinen erst nach "Tag wechseln", und der Wechsel fragt nach. */
+  const laeuft = session.dayKey ? getDay(session.dayKey) : null;
+  if(!laeuft) tagWahlOffen = false;
+  const zeile = laeuft ? '<div class="tag-laeuft">' +
+    '<span class="tl-name"><small>' + esc(__('dayRunning')) + '</small>' +
+      esc(laeuft.key) + ' · ' + esc(dayTitleOf(laeuft)) + '</span>' +
+    '<button type="button" class="tl-btn" data-action="day:change" aria-expanded="' + tagWahlOffen + '">' +
+      ikon('swap') + esc(__(tagWahlOffen ? 'dayChangeClose' : 'dayChange')) + '</button>' +
+    '<button type="button" class="tl-btn tl-weg" data-action="workout:discard" aria-label="' + esc(__('workoutDiscardAria')) +
+      '" title="' + esc(__('workoutDiscardAria')) + '">' + ikon('close') + '</button></div>' : '';
   /* Neben der Heute-Karte werden die Tage klein: gewaehlt wird dort nur,
      wer heute etwas anderes machen will. */
-  sel.classList.toggle('klein', !session.dayKey && !!sug);
-  sel.innerHTML = getDays().map(d =>
+  sel.classList.toggle('klein', (!session.dayKey && !!sug) || tagWahlOffen);
+  if(laeuft && !tagWahlOffen){ sel.innerHTML = zeile; renderHeute(); return; }
+  sel.innerHTML = zeile + getDays().map(d =>
     /* Der Tag-Key stammt aus einer Nutzereingabe und darf nicht in einen
        JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
        weil der HTML-Parser die Entities vor der JS-Auswertung zurueckwandelt.
@@ -1493,6 +1512,71 @@ export function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.l
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
 /* ================= Workout rendern ================= */
+const erledigteSaetze = () => Object.values(session.sets).filter(Boolean).length;
+
+/* Der Weg ueber die Knoepfe. Ein Tipp auf den laufenden Tag klappt nur zu;
+   ein anderer Tag ersetzt die Einheit erst nach Rueckfrage, wenn darin schon
+   etwas abgehakt ist – und laesst sich danach noch zurueckholen. */
+async function tagWaehlen(key){
+  if(session.dayKey === key){ tagWahlOffen = false; renderDaySelect(); return; }
+  if(session.dayKey && erledigteSaetze()){
+    if(!await askConfirm(__('switchDayTitle'), __('switchDayBody', { n: erledigteSaetze() }), __('switchDayOk'), true)) return;
+    einheitMerken();
+  }
+  tagWahlOffen = false;
+  selectDay(key);
+}
+function tagWahlUmschalten(){
+  tagWahlOffen = !tagWahlOffen;
+  renderDaySelect();
+  document.querySelector('#daySelect [data-action="day:change"]')?.focus({ preventScroll: true });
+}
+
+/* Die laufende Einheit zuruecklegen, bevor sie ersetzt oder verworfen wird.
+   Der Toast bietet sie so lange an, wie er steht. */
+function einheitMerken(){
+  clearTimeout(verworfenTimeout);
+  verworfen = JSON.parse(JSON.stringify(session));
+  verworfenTimeout = setTimeout(() => { verworfen = null; }, 12000);
+}
+function einheitAnbieten(){
+  const d = getDay(verworfen.dayKey);
+  toast(__('workoutDiscarded', { day: d ? d.key + ' · ' + dayTitleOf(d) : verworfen.dayKey }), false,
+    { text: __('undo'), action: 'workout:restore' });
+}
+
+async function einheitVerwerfen(){
+  if(!session.dayKey) return;
+  if(erledigteSaetze() &&
+    !await askConfirm(__('discardTitle'), __('discardBody', { n: erledigteSaetze() }), __('workoutDiscard'), true)) return;
+  einheitMerken();
+  cancelHold(); stopRest(); releaseWakeLock();
+  abschluss = null;
+  clearSession();
+  save();
+  document.getElementById('finishBar').style.display = 'none';
+  renderAll();
+  einheitAnbieten();
+  document.querySelector('#heuteKarte .heute-karte, #daySelect .day-btn')?.focus({ preventScroll: true });
+}
+function einheitZurueckholen(){
+  const v = verworfen;
+  if(!v || !getDay(v.dayKey)) return;
+  clearTimeout(verworfenTimeout);
+  verworfen = null;
+  cancelHold(); stopRest();
+  abschluss = null;
+  fokusIdx = null;
+  tagWahlOffen = false;
+  setSession(v);
+  persistSession();
+  renderWarmup(); renderBanners();
+  renderDaySelect(); renderWorkout(); restoreSession(session.reps);
+  requestWakeLock();
+  document.getElementById('toast').classList.remove('show');
+  melde(__('workoutRestored'));
+}
+
 function selectDay(key){
   cancelHold(); stopRest();
   abschluss = null;
@@ -1505,6 +1589,7 @@ function selectDay(key){
   /* Auch die Hinweise: der Plan-Check schweigt waehrend der Einheit. */
   renderBanners();
   renderDaySelect(); renderWorkout(); requestWakeLock();
+  if(verworfen) einheitAnbieten();
 }
 
 export function renderWorkout(){
@@ -2777,7 +2862,10 @@ export const actions = {
   'tab:show':           d => showTab(d.tab),
 
   /* Training */
-  'day:select':         d => selectDay(d.key),
+  'day:select':         d => tagWaehlen(d.key),
+  'day:change':         () => tagWahlUmschalten(),
+  'workout:discard':    () => einheitVerwerfen(),
+  'workout:restore':    () => einheitZurueckholen(),
   'set:tap':            d => tapSet(d.ex, zahl(d.set)),
   'set:reps':           (d, ev, el) => setRep(d.key, el.value),
   'set:sek':            (d, ev, el) => setSek(d.key, el.value),
