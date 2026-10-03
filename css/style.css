@@ -415,6 +415,14 @@ details.acc li{margin-bottom:5px}
 .set-dot.running{background:var(--accent);border-color:var(--accent);color:var(--on-accent);animation:pulse 1s infinite alternate}
 @keyframes pulse{from{box-shadow:0 0 0 0 var(--accent-soft)}to{box-shadow:0 0 0 6px var(--accent-soft)}}
 .hold-hint{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
+/* Korrektur um eins ohne Tastatur, erst ab dem ersten erledigten Satz. */
+.stepper{display:none;align-items:center;gap:var(--abstand-2);margin:var(--abstand-2) 0 var(--abstand-1);max-width:360px}
+.ex.begonnen .stepper{display:flex}
+.st-btn{width:44px;height:44px;flex:none;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-family:var(--mono);font-size:var(--text-xl);line-height:1;cursor:pointer;touch-action:manipulation}
+.st-btn:hover{background:var(--accent-soft)}
+.st-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.st-wert{flex:1;min-width:0;text-align:center;font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft)}
+.st-wert b{color:var(--ink);font-size:var(--text-lg);margin-left:4px}
 
 /* ---------- Rep Input ---------- */
 .rep-input,.sek-input{width:52px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:var(--text-sm);text-align:center;padding:4px}

@@ -63,6 +63,9 @@ let abschluss = null;
 let tagWahlOffen = false;
 /* Die zuletzt verworfene Einheit, solange der Toast sie zurueckholen kann. */
 let verworfen = null, verworfenTimeout = null;
+/* Je Uebung der Satz, auf den der Stepper wirkt: der zuletzt erledigte oder
+   von Hand geaenderte. Gilt nur fuer die laufende Einheit. */
+let stepSatz = {};
 
 /* ================= Start =================
    Exportiert statt sofort ausgefuehrt. Solange sich dieses Modul beim Import
@@ -1511,6 +1514,62 @@ export function dauerText(sek){
 export function lvlOf(ex){ return Math.min(state.levels[ex.id] || 0, ex.levels.length - 1); }
 function restFor(ex){ return (cfg('perExRest') && ex.rest) ? ex.rest : cfg('rest'); }
 
+/* ================= Stepper =================
+   Ein Satz wird mit einem Tipp abgehakt und bekommt dabei die Vorgabe
+   eingetragen. Lief er anders, musste man bisher ins Feld tippen – mit
+   Tastatur, die die halbe Karte verdeckt. Der Stepper korrigiert den
+   zuletzt erledigten Satz um eins, ohne Tastatur.
+
+   Eine Zeile je Uebung statt je Satz: eine Satzspalte ist hoechstens 56 px
+   breit, bei fuenf Saetzen auf 320 px gut 40 px – fuer zwei Knoepfe von
+   44 px kein Platz. Sichtbar erst ab dem ersten erledigten Satz, per CSS
+   an .begonnen wie "Wie war's?". */
+function stepperZiel(id, saetze){
+  const s = stepSatz[id];
+  if(Number.isInteger(s) && s < saetze) return s;
+  for(let i = saetze - 1; i >= 0; i--) if(session.sets[id + '-' + i]) return i;
+  return 0;
+}
+function stepperInhalt(id, saetze){
+  const s = stepperZiel(id, saetze);
+  const v = session.reps[id + '-' + s];
+  return esc(__('stepperSet', { n: s + 1 })) + ' <b>' + (Number.isInteger(v) ? v : '–') + '</b>';
+}
+function stepperHtml(ex, t){
+  return '<div class="stepper" role="group" aria-label="' + esc(__('stepperAria', { ex: exName(ex) })) + '">' +
+    '<button type="button" class="st-btn" data-action="set:step" data-ex="' + ex.id + '" data-d="-1" aria-label="' + esc(__('stepLess')) + '">−</button>' +
+    '<span class="st-wert" id="st-' + ex.id + '" aria-live="polite">' + stepperInhalt(ex.id, t.sets) + '</span>' +
+    '<button type="button" class="st-btn" data-action="set:step" data-ex="' + ex.id + '" data-d="1" aria-label="' + esc(__('stepMore')) + '">+</button></div>';
+}
+function stepperAnzeigen(id){
+  const el = document.getElementById('st-' + id);
+  const ex = EX_BY_ID[id];
+  if(el && ex) el.innerHTML = stepperInhalt(id, zielVon(ex.levels[lvlOf(ex)]).sets);
+}
+function stepperFolgt(key){
+  const id = key.slice(0, key.lastIndexOf('-'));
+  stepSatz[id] = Number(key.slice(key.lastIndexOf('-') + 1));
+  stepperAnzeigen(id);
+}
+function repsSchritt(id, d){
+  const ex = EX_BY_ID[id]; if(!ex) return;
+  const t = zielVon(ex.levels[lvlOf(ex)]);
+  if(t.isHold || !t.maxReps) return;
+  const s = stepperZiel(id, t.sets);
+  const key = id + '-' + s;
+  /* Ohne Zahl im Satz beginnt der Schritt bei der Vorgabe – die steht als
+     Platzhalter im Feld und ist der naheliegende Ausgangspunkt. */
+  const v = vorgabeFuer(ex);
+  const basis = Number.isInteger(session.reps[key]) ? session.reps[key]
+    : v && Number.isInteger(v.werte[s]) ? v.werte[s] : t.minReps;
+  const n = Math.max(0, Math.min(t.maxReps + 10, basis + d));
+  const feld = document.getElementById('rep-' + key);
+  if(feld) feld.value = n;
+  setRep(key, n);
+  stepSatz[id] = s;
+  stepperAnzeigen(id);
+}
+
 /* ================= Workout rendern ================= */
 const erledigteSaetze = () => Object.values(session.sets).filter(Boolean).length;
 
@@ -1579,6 +1638,7 @@ function einheitZurueckholen(){
 
 function selectDay(key){
   cancelHold(); stopRest();
+  stepSatz = {};
   abschluss = null;
   fokusIdx = null;
   setSession({ ...leereSession(), dayKey: key });
@@ -1729,6 +1789,7 @@ export function renderWorkout(){
       zuSchwerHtml(ex, lvl, t, verlauf[ex.id]) +
       (note ? '<div class="last-note">' + esc(__('lastNote', { date: fmtDate(note.d), text: note.t })) + '</div>' : '') +
       '<div class="sets" style="--saetze:' + t.sets + '">' + dots + '</div>' +
+      (!t.isHold && t.maxReps ? stepperHtml(ex, t) : '') +
       (t.isHold ? '<span class="hold-hint">' + esc(__('holdHint')) + '</span>' : '') +
       toplimitHtml(ex) +
       hint +
@@ -2223,6 +2284,7 @@ function dauerJetzt(){
 function markDone(key, el, s, ex){
   zeitNehmen();
   session.sets[key] = true;
+  stepperFolgt(key);
   el.closest('.ex')?.classList.add('begonnen');
   el.classList.add('done'); el.setAttribute('aria-pressed', 'true'); el.textContent = s + 1;
   /* Die kurze Bestaetigung nur hier, nicht in restoreSession(): sonst
@@ -2890,7 +2952,8 @@ export const actions = {
   'workout:discard':    () => einheitVerwerfen(),
   'workout:restore':    () => einheitZurueckholen(),
   'set:tap':            d => tapSet(d.ex, zahl(d.set)),
-  'set:reps':           (d, ev, el) => setRep(d.key, el.value),
+  'set:reps':           (d, ev, el) => { setRep(d.key, el.value); stepperFolgt(d.key); },
+  'set:step':           d => repsSchritt(d.ex, zahl(d.d)),
   'set:sek':            (d, ev, el) => setSek(d.key, el.value),
   'note:set':           (d, ev, el) => setNote(d.ex, el.value),
   'set:top':            (d, ev, el) => toggleTop(d.ex, el.checked),

@@ -4287,3 +4287,45 @@ describe('Rueckfrage bei offenen Saetzen', () => {
     expect(gespeichert().log).toHaveLength(1);
   });
 });
+
+describe('Stepper fuer Wiederholungen', () => {
+  it('korrigiert den zuletzt erledigten Satz um eins, ohne Tastatur', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const dot = wiederholungsPunkte()[0];
+    const key = dot.id.replace(/^set-/, '');
+    const id = key.slice(0, key.lastIndexOf('-'));
+    dot.click();
+    await ruhe();
+    const feld = document.getElementById('rep-' + key);
+    const vorher = Number(feld.value);
+    expect(Number.isInteger(vorher)).toBe(true);
+    const minus = document.querySelector('.ex[data-exid="' + id + '"] [data-action="set:step"][data-d="-1"]');
+    minus.click();
+    expect(Number(feld.value)).toBe(vorher - 1);
+    document.querySelector('.ex[data-exid="' + id + '"] [data-action="set:step"][data-d="1"]').click();
+    document.querySelector('.ex[data-exid="' + id + '"] [data-action="set:step"][data-d="1"]').click();
+    expect(Number(feld.value)).toBe(vorher + 1);
+    expect(document.getElementById('st-' + id).textContent).toContain(String(vorher + 1));
+    await ruhe();
+    await new Promise(r => setTimeout(r, 600));
+    expect(gespeichert().activeSession.reps[key]).toBe(vorher + 1);
+  });
+
+  it('folgt dem Feld, das von Hand geaendert wurde', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const dot = wiederholungsPunkte()[0];
+    dot.click();
+    await ruhe();
+    const key2 = wiederholungsPunkte()[1].id.replace(/^set-/, '');
+    const id = key2.slice(0, key2.lastIndexOf('-'));
+    const feld = document.getElementById('rep-' + key2);
+    feld.value = '5';
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('.ex[data-exid="' + id + '"] [data-action="set:step"][data-d="1"]').click();
+    expect(feld.value).toBe('6');
+  });
+});
