@@ -1,6 +1,6 @@
 /* AUTOMATISCH ERZEUGT von tools/gen-sw-manifest.js – nicht von Hand ändern.
    Neu erzeugen mit:  npm run sw:manifest  */
-self.__SW_VERSION = 'progression-e2ae48ca';
+self.__SW_VERSION = 'progression-84305c78';
 self.__SW_ASSETS = [
   './',
   './index.html',

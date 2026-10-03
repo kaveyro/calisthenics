@@ -4374,3 +4374,48 @@ describe('Stufenwechsel rueckgaengig', () => {
     expect(document.getElementById('toast').textContent).toMatch(/zurück/);
   });
 });
+
+describe('Pause kuerzen und Trainingsdauer', () => {
+  const pause = () => document.getElementById('restChip').style.display === 'flex' ? document.getElementById('restTime').textContent : null;
+  const sek = t => { const [m, s] = t.split(':').map(Number); return m * 60 + s; };
+
+  it('kuerzt eine laufende Pause um 15 Sekunden und startet ohne Pause keine', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    app.actions['rest:extend']({ sec: '-15' });
+    expect(pause()).toBeNull();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    const vorher = sek(pause());
+    app.actions['rest:extend']({ sec: '-15' });
+    expect(vorher - sek(pause())).toBeGreaterThanOrEqual(14);
+    expect(vorher - sek(pause())).toBeLessThanOrEqual(15);
+  });
+
+  it('nimmt den Ring als Anzeige und beendet die Pause nur ueber Weiter', () => {
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+    expect(html).toMatch(/<div class="fp-ring">/);
+    expect(html).toMatch(/class="fp-weiter" data-action="rest:stop"/);
+    expect(html).not.toMatch(/class="rest-main" data-action/);
+  });
+
+  it('zeigt in der Abschlussleiste die Minuten seit dem ersten Satz', async () => {
+    let jetzt = 1_800_000_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => jetzt);
+    try{
+      const app = await starten();
+      app.actions['day:select']({ key: 'A' });
+      await ruhe();
+      wiederholungsPunkte()[0].click();
+      await ruhe();
+      expect(document.getElementById('finishCount').textContent).not.toMatch(/Min/);
+      jetzt += 12 * 60 * 1000 + 5000;
+      wiederholungsPunkte()[1].click();
+      await ruhe();
+      expect(document.getElementById('finishCount').textContent).toMatch(/· 12 Min$/);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});

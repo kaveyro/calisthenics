@@ -151,13 +151,19 @@
          Pfeilen, darunter die Pause als Ring. Beide stehen außerhalb von
          #content, das bei jedem Neuzeichnen ersetzt wird. -->
     <div id="fokusNav"></div>
+    <!-- Der Ring ist eine Anzeige, kein Knopf: ein Tipp irgendwo darauf
+         beendete die Pause, auch versehentlich mit dem Handballen. Beendet
+         wird sie jetzt nur über "Weiter". -->
     <div class="fokus-pause" id="fokusPause" hidden>
-      <button class="fp-ring" data-action="rest:stop" aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
+      <button class="fp-plus" data-action="rest:extend" data-sec="-15"
+              aria-label="Pause um 15 Sekunden kürzen" data-i18n-aria-label="restShortenAria">−15</button>
+      <div class="fp-ring">
         <svg viewBox="0 0 120 120" aria-hidden="true" focusable="false"><circle class="fp-bahn" cx="60" cy="60" r="54"/><circle class="fp-wert" id="fokusPauseBogen" cx="60" cy="60" r="54"/></svg>
-        <span class="fp-mitte"><small data-i18n="restRingHint">Pause</small><b id="fokusPauseZeit">1:30</b><small data-i18n="restRingTap">Tippen beendet</small></span>
-      </button>
+        <span class="fp-mitte"><small data-i18n="restRingHint">Pause</small><b id="fokusPauseZeit">1:30</b></span>
+      </div>
       <button class="fp-plus" data-action="rest:extend" data-sec="30"
               aria-label="Pause um 30 Sekunden verlängern" data-i18n-aria-label="restExtendAria">+30</button>
+      <button class="fp-weiter" data-action="rest:stop"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-next"/></svg><span data-i18n="restSkip">Weiter</span></button>
     </div>
     <div id="content" class="raster"><div class="loading" data-i18n="loading">Lade deinen Fortschritt …</div></div>
   </section>
@@ -357,12 +363,13 @@
      verschachtelte <button> sind ungültig, und "Pause verlängern" ist eine
      eigene Handlung – ein Satz, der schlecht lief, braucht mehr Zeit. -->
 <div class="rest-chip" id="restChip">
-  <button class="rest-main" data-action="rest:stop"
-          aria-label="Pausen-Timer beenden" data-i18n-aria-label="restChipAria">
-    <small data-i18n="restChipHint">Pause · Tippen beendet</small><span id="restTime">1:30</span>
-  </button>
+  <div class="rest-main"><small data-i18n="restChipHint">Pause</small><span id="restTime">1:30</span></div>
+  <button class="rest-plus" data-action="rest:extend" data-sec="-15"
+          aria-label="Pause um 15 Sekunden kürzen" data-i18n-aria-label="restShortenAria">−15</button>
   <button class="rest-plus" data-action="rest:extend" data-sec="30"
           aria-label="Pause um 30 Sekunden verlängern" data-i18n-aria-label="restExtendAria">+30</button>
+  <button class="rest-plus rest-weiter" data-action="rest:stop"
+          aria-label="Pause beenden" data-i18n-aria-label="restChipAria"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-next"/></svg></button>
 </div>
 
 <!-- Einstellungen -->

@@ -734,7 +734,8 @@ details.acc li{margin-bottom:5px}
 .rest-main{padding:12px 16px;text-align:left}
 .rest-main small{display:block;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;opacity:.7;font-family:var(--body)}
 /* Eigene Trefferfläche, mindestens 44 px – wie die übrigen Bedienelemente. */
-.rest-plus{min-width:48px;min-height:48px;padding:0 14px;font-size:var(--text-md);border-left:1px solid rgba(127,127,127,.4)}
+.rest-plus{min-width:48px;min-height:48px;padding:0 12px;font-size:var(--text-md);border-left:1px solid rgba(127,127,127,.4)}
+.rest-weiter .i{width:20px;height:20px}
 .rest-plus:hover{background:rgba(127,127,127,.2)}
 
 /* ---------- Modal ---------- */
@@ -1030,7 +1031,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
 .fokus-pfeil .i{width:22px;height:22px}
 .fokus-pfeil:disabled{opacity:.35;cursor:default}
 .fokus-pfeil.bereit{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:var(--schatten-1)}
-.fokus-schalter:focus-visible,.fokus-pfeil:focus-visible,.fp-ring:focus-visible,.fp-plus:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.fokus-schalter:focus-visible,.fokus-pfeil:focus-visible,.fp-weiter:focus-visible,.fp-plus:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .fokus-mitte{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px}
 .fokus-zahl{font-family:var(--mono);font-size:var(--text-sm);font-weight:600;white-space:nowrap}
 .fokus-punkte{display:flex;flex-wrap:wrap;justify-content:center;gap:4px}
@@ -1039,9 +1040,9 @@ footer small{display:block;margin-top:4px;opacity:.6}
 .fokus-punkte i.jetzt{width:16px;background:var(--accent)}
 #content.fokus{display:block}
 #content.fokus > .ex:not(.fokus-aktiv),#content.fokus > .supersatz:not(.fokus-aktiv){display:none}
-.fokus-pause{display:flex;align-items:center;justify-content:center;gap:var(--abstand-4);margin:4px 0 12px}
+.fokus-pause{display:grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;gap:var(--abstand-3) var(--abstand-4);margin:4px 0 12px}
 .fokus-pause[hidden]{display:none}
-.fp-ring{position:relative;width:156px;height:156px;padding:0;border:none;border-radius:50%;background:none;color:var(--ink);cursor:pointer}
+.fp-ring{position:relative;width:156px;height:156px;color:var(--ink)}
 .fp-ring svg{display:block;width:100%;height:100%;transform:rotate(-90deg)}
 .fp-ring circle{fill:none;stroke-width:8}
 .fp-bahn{stroke:var(--line)}
@@ -1050,6 +1051,8 @@ footer small{display:block;margin-top:4px;opacity:.6}
 .fp-mitte b{font-family:var(--mono);font-size:calc(var(--text-xl) * 1.8);font-weight:600;line-height:1}
 .fp-mitte small{font-size:var(--text-xs);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
 .fp-plus{min-width:56px;min-height:56px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-family:var(--mono);font-size:var(--text-md);font-weight:600;cursor:pointer}
+/* Beendet die Pause – der Ring selbst nimmt keinen Tipp mehr an. */
+.fp-weiter{grid-column:1/-1;justify-self:center;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:999px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;cursor:pointer}
 @media print{.fokus-leiste,.fokus-pause{display:none!important}}
 
 /* Auf dem Touchgeraet hat jedes Eingabefeld mindestens 16 px Schrift.

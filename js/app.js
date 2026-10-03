@@ -47,6 +47,9 @@ let restEnde = 0;
    Anteil der verbleibenden Zeit zeigt. Eine Verlaengerung behaelt den
    Beginn, sonst sprange der Ring bei +30 auf voll. */
 let restStart = 0;
+/* Schreibt die Dauer in der Abschlussleiste fort; volle Minuten genuegen. */
+let dauerUhr = null;
+const DAUER_TAKT = 15000;
 /* Der Schritt, der im Fokus-Modus zu sehen ist, oder null: dann der erste
    offene (fokusStart()). Nur zur Laufzeit – nach dem Neuladen geht es beim
    ersten offenen weiter, und das ist in aller Regel derselbe. */
@@ -135,6 +138,7 @@ export function stop(){
   clearTimeout(schreibTimer); schreibTimer = null;
   if(holdTimer){ clearInterval(holdTimer.interval); holdTimer = null; }
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
+  clearInterval(dauerUhr); dauerUhr = null;
   [undoTimeout, erinnerungTimer, settingsUndoTimeout, toastTimer].forEach(t => clearTimeout(t));
 }
 
@@ -2423,7 +2427,11 @@ function updateFinish(){
     const ex = EX_BY_ID[id];
     return ex ? a + zielVon(ex.levels[lvlOf(ex)]).sets : a;
   }, 0);
-  document.getElementById('finishCount').textContent = done + '/' + total + ' ' + __('sets');
+  /* Dazu die bisherige Dauer ab dem ersten Satz – die Leiste zeigte nur
+     die Saetze, und wie lange man schon trainiert, stand nirgends. */
+  const sek = dauerJetzt();
+  document.getElementById('finishCount').textContent = done + '/' + total + ' ' + __('sets') +
+    (sek >= 60 ? ' · ' + __('elapsedMin', { n: Math.floor(sek / 60) }) : '');
   document.getElementById('finishBtn').disabled = done === 0;
 }
 
@@ -2497,6 +2505,8 @@ export function stopRest(){
    die Verlaengerung bei jetzt an, damit die Schaltflaeche nie ins Leere tippt. */
 function restVerlaengern(sek){
   const laeuft = restEnde > Date.now();
+  /* Kuerzen ohne laufende Pause gaebe eine, die sofort endet – mit Signal. */
+  if(sek < 0 && !laeuft) return;
   restBis((laeuft ? restEnde : Date.now()) + sek * 1000, laeuft ? restStart : Date.now());
   persistSession();
 }
@@ -2859,6 +2869,8 @@ function undoWorkout(){
    die Umgebung, und das Modul waere weiterhin nicht ohne Nebenwirkung zu
    laden. */
 function installGlobalListeners(){
+  clearInterval(dauerUhr);
+  dauerUhr = setInterval(() => { if(session.dayKey) updateFinish(); }, DAUER_TAKT);
   /* Ausstehendes Schreiben abschliessen, bevor die Seite verschwindet.
 
      visibilitychange auf 'hidden' ist auf Mobilgeraeten das verlaessliche
