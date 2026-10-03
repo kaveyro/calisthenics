@@ -2479,18 +2479,41 @@ function releaseWakeLock(){
    Bei einer selbst zusammengestellten Liste entfaellt die Pruefung, wie
    schon die Hervorhebung in renderWarmup(): die Zuordnung ueber den Index
    traegt dort nicht mehr. */
-async function warmupGeprueft(){
-  if(state.warmupCustom) return true;
-  if(!Object.keys(session.warm).length) return true;
+function offenesAufwaermen(){
+  if(state.warmupCustom) return [];
+  if(!Object.keys(session.warm).length) return [];
   /* Nur, was heute auch angezeigt wird: mit der Handgelenks-Routine im Tag
      steht der Pflichtpunkt gar nicht in der Liste. */
   const sichtbar = warmupPasst(WARMUP);
-  const offen = [...WARMUP_PFLICHT].filter(i => i < WARMUP.length && sichtbar[i] && !session.warm[i]);
-  if(!offen.length) return true;
-  return askConfirm(
-    __('warmupMissingTitle'),
-    __('warmupMissingBody', { list: offen.map(i => warmupText(i, WARMUP[i])).join(', ') }),
-    __('finishAnyway'));
+  return [...WARMUP_PFLICHT].filter(i => i < WARMUP.length && sichtbar[i] && !session.warm[i]);
+}
+
+/* Uebungen dieser Einheit mit mindestens einem offenen Satz. Abschliessen
+   ging bisher ohne jede Frage, sobald ein einziger Satz erledigt war – und
+   jede Uebung, die dabei nicht am oberen Limit landet, beginnt ihre Serie
+   bis zum Aufstieg von vorn. */
+function offeneUebungen(exIds){
+  return exIds.filter(id => {
+    const ex = EX_BY_ID[id];
+    if(!ex) return false;
+    const n = zielVon(ex.levels[lvlOf(ex)]).sets;
+    for(let s = 0; s < n; s++) if(!session.sets[id + '-' + s]) return true;
+    return false;
+  });
+}
+
+/* Eine Rueckfrage fuer beides, was vor dem Abschluss fehlen kann. Zwei
+   Dialoge nacheinander waeren eine Frage zu viel. */
+async function abschlussGeprueft(exIds){
+  const uebungen = offeneUebungen(exIds);
+  const warm = offenesAufwaermen();
+  if(!uebungen.length && !warm.length) return true;
+  const namen = uebungen.slice(0, 4).map(id => exName(EX_BY_ID[id])).join(', ') +
+    (uebungen.length > 4 ? ' ' + __('reviewMore', { n: uebungen.length - 4 }) : '');
+  const teile = [];
+  if(uebungen.length) teile.push(__(uebungen.length === 1 ? 'openExOne' : 'openExMany', { n: uebungen.length, list: namen }));
+  if(warm.length) teile.push(__('warmupMissingBody', { list: warm.map(i => warmupText(i, WARMUP[i])).join(', ') }));
+  return askConfirm(__(uebungen.length ? 'openExTitle' : 'warmupMissingTitle'), teile.join('\n\n'), __('finishAnyway'));
 }
 
 /* ================= Training abschließen mit Undo ================= */
@@ -2501,7 +2524,7 @@ async function finishWorkout(){
      wieder in einer Einheit, die weitergehen soll. */
   const exIds = sessionExerciseIds();
   if(!exIds.length){ toast(__('nothingToSave')); return; }
-  if(!await warmupGeprueft()) return;
+  if(!await abschlussGeprueft(exIds)) return;
 
   cancelHold(); stopRest(); releaseWakeLock();
   const need = cfg('streak');

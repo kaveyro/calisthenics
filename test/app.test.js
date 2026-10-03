@@ -47,6 +47,16 @@ async function starten(){
 
 const gespeichert = () => JSON.parse(localStorage.getItem(SPEICHER) || 'null');
 
+/* Abschliessen wie mit "Trotzdem abschliessen". Die meisten Tests haken nur
+   einen Satz ab, und bei offenen Saetzen fragt die App seit Runde 10 nach.
+   Wer die Rueckfrage selbst pruefen will, ruft die Aktion direkt auf. */
+async function abschliessen(app){
+  const fertig = app.actions['workout:finish']();
+  await ruhe();
+  document.querySelector('.overlay.open [data-dlg=ok]')?.click();
+  await fertig;
+}
+
 /* Das Datum, das die App fuer heute haelt: lokal, nicht UTC. Mit
    toISOString() allein rutschte es zwischen Mitternacht und dem UTC-Offset
    auf den Vortag, und die Tests schlugen jede Nacht bis zwei Uhr fehl. */
@@ -112,7 +122,7 @@ describe('Eine Einheit abschliessen', () => {
 
   it('schreibt genau einen Log-Eintrag – mit den trainierten Uebungen', async () => {
     const app = await einheitLaufen();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     const s = gespeichert();
@@ -127,7 +137,7 @@ describe('Eine Einheit abschliessen', () => {
      ein zweites Mal ins Log. */
   it('laesst nach dem Neuladen keine fertige Einheit wiederauferstehen', async () => {
     const app = await einheitLaufen();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().activeSession).toBeNull();
 
@@ -148,7 +158,7 @@ describe('Eine Einheit abschliessen', () => {
   it('holt die Einheit beim Rueckgaengigmachen zurueck', async () => {
     const app = await einheitLaufen();
     const vorher = document.querySelectorAll('.set-dot.done').length;
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     await app.actions['workout:undo']();
@@ -191,7 +201,7 @@ describe('Wiederholungen', () => {
     feld.dispatchEvent(new window.Event('input', { bubbles: true }));
     wiederholungsPunkte()[0].click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     document.querySelector('.day-btn').click();
@@ -581,7 +591,7 @@ describe('Ausruestung', () => {
     app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
     document.querySelector('.ex[data-exid="dips"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     const s = gespeichert();
@@ -603,7 +613,7 @@ describe('Ausruestung', () => {
     app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
     document.querySelector('.ex[data-exid="dips"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     expect(gespeichert().levels.dips).toBe(2);
@@ -733,7 +743,7 @@ describe('Ersetzen und Auslassen', () => {
     app.actions['exercise:skip']({ ex: 'pike' });
     await ruhe();
 
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     const eintrag = gespeichert().log[0];
     expect(eintrag.ex).toContain('pushup');
@@ -830,7 +840,7 @@ describe('Entlastungswoche', () => {
     app.actions['set:top']({ ex: 'pushup' }, null, { checked: true });
     document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     const s = gespeichert();
@@ -1210,7 +1220,7 @@ describe('Trainingsdauer', () => {
   it('misst vom ersten Haken bis zum Abschluss', async () => {
     const app = await einheit();
     const spy = vorspulen(27 * 60 * 1000);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     spy.mockRestore();
 
@@ -1226,7 +1236,7 @@ describe('Trainingsdauer', () => {
     document.querySelector('.day-btn').click();
     await ruhe();
     const spy = vorspulen(40 * 60 * 1000);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     spy.mockRestore();
 
@@ -1238,7 +1248,7 @@ describe('Trainingsdauer', () => {
   it('verwirft eine unrealistisch lange Einheit', async () => {
     const app = await einheit();
     const spy = vorspulen(9 * 60 * 60 * 1000);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     spy.mockRestore();
 
@@ -1254,7 +1264,7 @@ describe('Trainingsdauer', () => {
     document.body.innerHTML = KOERPER;
     const app = await starten();
     const spy = vorspulen(15 * 60 * 1000);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     spy.mockRestore();
 
@@ -1264,7 +1274,7 @@ describe('Trainingsdauer', () => {
   it('zeigt Dauer und Durchschnitt im Verlauf, aber nicht ohne Messung', async () => {
     const app = await einheit();
     const spy = vorspulen(32 * 60 * 1000);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     spy.mockRestore();
 
@@ -1341,7 +1351,7 @@ describe('Aufwaermen abhaken', () => {
     punkte().forEach(p => p.click());
     wiederholungsPunkte()[0].click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(punkte().every(p => !p.checked)).toBe(true);
   });
@@ -1352,7 +1362,7 @@ describe('Aufwaermen abhaken', () => {
     const app = await tagUndAufwaermen();
     wiederholungsPunkte()[0].click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(offen()).toBeNull();
     expect(gespeichert().log).toHaveLength(1);
@@ -1409,11 +1419,16 @@ describe('Aufwaermen abhaken', () => {
     expect(indizes()).not.toContain(3);
     expect(indizes()).toEqual(expect.arrayContaining([0, 2, 6, 7]));
     expect(document.querySelector('#warmupList .warm-note').textContent).toMatch(/Tag A/);
-    /* Und fragt beim Abschluss nicht nach einem Punkt, den es nicht gab. */
+    /* Und fragt beim Abschluss nicht nach einem Punkt, den es nicht gab:
+       die Rueckfrage nennt nur die offenen Saetze, nicht das Aufwaermen. */
     punkte().forEach(p => p.click());
     wiederholungsPunkte()[0].click();
     await ruhe();
-    await app.actions['workout:finish']();
+    const fertig = app.actions['workout:finish']();
+    await ruhe();
+    expect(offen().textContent).not.toMatch(/Stützübungen/);
+    offen().querySelector('[data-dlg=ok]').click();
+    await fertig;
     await ruhe();
     expect(offen()).toBeNull();
     expect(gespeichert().log).toHaveLength(1);
@@ -1959,7 +1974,7 @@ describe('Bestleistungen mit Masseinheit', () => {
     feld.dispatchEvent(new window.Event('input', { bubbles: true }));
     document.getElementById('set-pike-0').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     expect(prVon('pike')).toMatchObject({ n: 8, art: 'reps', lvl: 3 });
@@ -1973,7 +1988,7 @@ describe('Bestleistungen mit Masseinheit', () => {
     /* Stufe 0 ist eine Halteuebung: der Punkt startet einen Countdown. */
     document.getElementById('set-pike-0').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     expect(prVon('pike')).toMatchObject({ n: 12, art: 'reps' });
@@ -1989,7 +2004,7 @@ describe('Bestleistungen mit Masseinheit', () => {
     feld.dispatchEvent(new window.Event('input', { bubbles: true }));
     document.getElementById('set-pike-0').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
 
     expect(prVon('pike').n).toBe(15);
@@ -2683,7 +2698,7 @@ describe('Aufstiege im Log', () => {
     app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
     document.querySelector('.ex[data-exid="dips"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     return gespeichert();
   }
@@ -2904,7 +2919,7 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     tippe(app, 'pushup', alle('pushup', oben('pushup')));
     document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().streaks.pushup).toBe(1);
   });
@@ -2917,7 +2932,7 @@ describe('Oberes Limit aus den Wiederholungen', () => {
     tippe(app, 'pushup', alle('pushup', 1));
     document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().streaks.pushup).toBe(0);
   });
@@ -3054,7 +3069,7 @@ describe('Tagesziel auf der Karte', () => {
     app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
     document.querySelector('.ex[data-exid="dips"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     const s = gespeichert();
     expect(s.levels.dips).toBe(2);
@@ -3246,7 +3261,7 @@ describe('Gehaltene Sekunden', () => {
     await einheit();
     halte(0, 13);
     halte(1, 8);
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     const s = gespeichert();
     expect(s.prs.support).toMatchObject({ n: 13, art: 'sek' });
@@ -3531,7 +3546,7 @@ describe('Anstrengung erfassen', () => {
     const app = await einheit();
     tippe(app, 'pushup', Array(saetze('pushup')).fill(5));
     app.actions['effort:set']({ ex: 'pushup', v: 'h' });
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().log[0].an).toEqual({ pushup: 'h' });
   });
@@ -3550,7 +3565,7 @@ describe('Anstrengung erfassen', () => {
     const vorher = gespeichert() ? (gespeichert().levels || {}).pushup || 0 : 0;
     tippe(app, 'pushup', Array(saetze('pushup')).fill(oben('pushup')));
     app.actions['effort:set']({ ex: 'pushup', v: 'l' });
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().levels.pushup).toBe(vorher + 1);
     expect(gespeichert().log[0].ups).toContain('pushup');
@@ -3559,7 +3574,7 @@ describe('Anstrengung erfassen', () => {
   it('wartet oben ohne Angabe weiter auf die Serie', async () => {
     const app = await einheit();
     tippe(app, 'pushup', Array(saetze('pushup')).fill(oben('pushup')));
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(gespeichert().log[0].ups).not.toContain('pushup');
     expect(gespeichert().streaks.pushup).toBe(1);
@@ -3598,7 +3613,7 @@ describe('Abschlussblatt', () => {
     await ruhe();
     wiederholungsPunkte().slice(0, n).forEach(d => d.click());
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
   }
 
@@ -3665,7 +3680,7 @@ describe('Abschlussblatt', () => {
     app.actions['set:top']({ ex: 'dips' }, null, { checked: true });
     document.querySelector('.ex[data-exid="dips"] .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(document.getElementById('abschluss').textContent).toMatch(/Nächste Stufe von .* braucht/);
   });
@@ -3923,7 +3938,7 @@ describe('Fokus-Modus', () => {
     const app = await einheit();
     document.querySelector('#content .fokus-aktiv .set-dot').click();
     await ruhe();
-    await app.actions['workout:finish']();
+    await abschliessen(app);
     await ruhe();
     expect(document.getElementById('fokusNav').innerHTML).toBe('');
     expect(document.getElementById('fokusPause').hidden).toBe(true);
@@ -4233,5 +4248,42 @@ describe('Zifferntastatur', () => {
     expect(felder.length).toBeGreaterThan(0);
     felder.forEach(f => expect(f.getAttribute('inputmode')).toBe('numeric'));
     expect(document.getElementById('weightInput').getAttribute('inputmode')).toBe('decimal');
+  });
+});
+
+/* Abschliessen ging ohne Frage, sobald ein Satz erledigt war. */
+describe('Rueckfrage bei offenen Saetzen', () => {
+  const dialog = () => document.querySelector('.overlay.open');
+
+  it('nennt die offenen Uebungen, und Abbrechen laesst die Einheit laufen', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    const fertig = app.actions['workout:finish']();
+    await ruhe();
+    expect(dialog().textContent).toMatch(/Noch nicht fertig/);
+    expect(dialog().textContent).toMatch(/Übungen sind noch Sätze offen/);
+    dialog().querySelector('[data-dlg=abbrechen]').click();
+    await fertig; await ruhe();
+    expect(gespeichert().log || []).toHaveLength(0);
+    expect(gespeichert().activeSession.dayKey).toBe('A');
+  });
+
+  it('fragt nicht, wenn jede Uebung fertig ist', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const ids = [...document.querySelectorAll('.ex[data-exid]')].map(e => e.dataset.exid);
+    const bleibt = ids.find(id => document.querySelector('.ex[data-exid="' + id + '"] .rep-input'));
+    ids.filter(id => id !== bleibt).forEach(id => app.actions['exercise:skip']({ ex: id }));
+    await ruhe();
+    document.querySelectorAll('.ex[data-exid="' + bleibt + '"] .set-dot').forEach(d => d.click());
+    await ruhe();
+    await app.actions['workout:finish']();
+    await ruhe();
+    expect(dialog()).toBeNull();
+    expect(gespeichert().log).toHaveLength(1);
   });
 });
