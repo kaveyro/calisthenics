@@ -18,8 +18,8 @@ import { MAX_LOG_ENTRIES, MAX_WORKOUT_SECS, STATE_VERSION, besserePR, migrateSta
 import { gueltigePaare, partnerVon, pauseNachSatz } from './domain/supersatz.js';
 import { ZU_SCHWER_NACH, einstiegsziel, halteziel, limitErreicht, tagesziel, zielAuswerten, zielText as zielTextPure, zuSchwer } from './domain/target.js';
 import { anlaufSatz, passtZumTag, tagesMerkmale } from './domain/warmup.js';
-import { CATS, EXERCISES, EX_BY_ID, MILESTONES, PLAN_TEMPLATES, WARMUP, WARMUP_PFLICHT, WARMUP_WANN } from './exercises.js';
-import { LANGS, __, applyStaticTexts, catName, daySub, dayTitle, exName, exStage, exTips, getLang, msName, planName, setLang, warmupText } from './i18n/index.js';
+import { CATS, EXERCISES, EX_BY_ID, MILESTONES, MUSKELN, PLAN_TEMPLATES, WARMUP, WARMUP_PFLICHT, WARMUP_WANN } from './exercises.js';
+import { LANGS, __, applyStaticTexts, catName, daySub, dayTitle, exName, exStage, exTips, getLang, msName, muskelName, planName, setLang, warmupText } from './i18n/index.js';
 import { STORAGE_KEY, store } from './storage.js';
 import { installDelegation, zahl } from './ui/delegate.js';
 import { an, cfg, lauf, leereSession, session, setSession, setState, state } from './core/kern.js';
@@ -1460,6 +1460,19 @@ function letzteZeilen(ex, lvl, t, letzte){
   return html;
 }
 
+/* Welche Muskeln eine Uebung trainiert: die Hauptmuskeln, dahinter blasser
+   die Nebenmuskeln. Bei Mobility, was gedehnt oder mobilisiert wird – die
+   Beschriftung fuer den Screenreader sagt den Unterschied. Auch fuer die
+   Bibliothek. */
+export function muskelHtml(ex){
+  const m = ex.muskeln;
+  if(!m || !Array.isArray(m.haupt) || !m.haupt.length) return '';
+  const namen = ks => ks.filter(k => MUSKELN[k]).map(k => esc(muskelName(k, MUSKELN[k]))).join(' · ');
+  const neben = Array.isArray(m.neben) ? namen(m.neben) : '';
+  return '<div class="ex-muskeln"><span class="sr-only">' + esc(__(ex.cat === 'mobility' ? 'musclesMobility' : 'musclesWorked')) + ' </span>' +
+    namen(m.haupt) + (neben ? '<span class="neben"> + ' + neben + '</span>' : '') + '</div>';
+}
+
 /* Wie war's? Drei Knoepfe, einer davon gedrueckt oder keiner. Freiwillig:
    ohne Angabe steigt die Vorgabe wie bisher um einen Schritt.
 
@@ -1800,6 +1813,7 @@ export function renderWorkout(){
         '<button data-action="level:adjust" data-ex="' + ex.id +
         '" data-delta="1" title="' + esc(__('levelUp')) + '" aria-label="' + esc(__('levelUp')) + '">+</button></span></div>' +
       '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
+      muskelHtml(ex) +
       '<div class="ex-stage"><span>' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></span>' +
         '<span class="ex-rest">' + esc(__('restOf', { sec: restFor(ex) })) + '</span></div>' +
       /* Nur ein Hinweis, keine Sperre – der Ersetzen-Knopf steht weiter

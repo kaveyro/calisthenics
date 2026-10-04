@@ -351,6 +351,10 @@ details.acc li{margin-bottom:5px}
 .lvl-adjust button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-name{font-weight:700;font-size:var(--text-lg)}
+/* Die trainierten Muskeln unter dem Namen; Nebenmuskeln blasser. */
+.ex-muskeln{font-size:var(--text-sm);color:var(--ink);margin-top:2px}
+.ex-muskeln .neben{color:var(--ink-soft)}
+.lib-body .ex-muskeln{margin-top:6px}
 .ex-target{font-family:var(--mono);font-size:var(--text-md);font-weight:600;color:var(--accent);white-space:nowrap}
 .ex-stage{font-size:var(--text-md);color:var(--ink-soft);margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-rest{font-family:var(--mono);font-size:var(--text-xs);white-space:nowrap}

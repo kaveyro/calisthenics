@@ -18,6 +18,28 @@ export const CONTENT_EN = {
     core: 'Core', skill: 'Skills', mobility: 'Mobility'
   },
 
+  muscles: {
+    brust: 'chest',
+    trizeps: 'triceps',
+    schulter_vorn: 'front delts',
+    schulter_seite: 'side delts',
+    schulter_hinten: 'rear delts',
+    latissimus: 'lats',
+    oberer_ruecken: 'upper back',
+    bizeps: 'biceps',
+    unterarm: 'forearms',
+    handgelenke: 'wrists',
+    bauch: 'abs',
+    seitl_rumpf: 'obliques',
+    unterer_ruecken: 'lower back',
+    hueftbeuger: 'hip flexors',
+    gesaess: 'glutes',
+    quadrizeps: 'quads',
+    beinbeuger: 'hamstrings',
+    adduktoren: 'adductors',
+    waden: 'calves'
+  },
+
   exercises: {
     pushup: {
       name: 'Push-ups',

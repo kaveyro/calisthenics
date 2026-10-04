@@ -34,6 +34,11 @@ export function catName(key, fallback){
   return inhalt()?.cats?.[key] ?? fallback;
 }
 
+/* Muskelname zur Kennung aus MUSKELN; der deutsche ist der Rückfall. */
+export function muskelName(k, fallback){
+  return inhalt()?.muscles?.[k] ?? fallback ?? k;
+}
+
 export function exName(ex){
   return inhalt()?.exercises?.[ex.id]?.name ?? ex.name;
 }

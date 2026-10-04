@@ -10,7 +10,7 @@ import { CONTENT_EN } from '../js/data/content.en.js';
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const exercisesQuelle = readFileSync(ROOT + 'js/exercises.js', 'utf8').replace(/^export /gm, '');
 const DATEN = new Function(
-  exercisesQuelle + '; return { CATS, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP };')();
+  exercisesQuelle + '; return { CATS, MUSKELN, EXERCISES, PLAN_TEMPLATES, MILESTONES, WARMUP };')();
 
 describe('Oberflächentexte', () => {
   const sprachen = Object.keys(LANG);
@@ -84,6 +84,11 @@ describe('Übungsinhalte auf Englisch', () => {
   it('übersetzt jede Kategorie', () => {
     const fehlend = Object.keys(DATEN.CATS).filter(k => !CONTENT_EN.cats[k]);
     expect(fehlend).toEqual([]);
+  });
+
+  it('übersetzt jeden Muskel und nichts darüber hinaus', () => {
+    expect(Object.keys(CONTENT_EN.muscles).sort()).toEqual(Object.keys(DATEN.MUSKELN).sort());
+    expect(Object.values(CONTENT_EN.muscles).every(v => typeof v === 'string' && v.trim())).toBe(true);
   });
 
   it('übersetzt jede Übung', () => {

@@ -3,9 +3,9 @@
 import { tageZwischen, today } from '../domain/dates.js';
 import { esc } from '../domain/escape.js';
 import { letztesDatumJeUebung } from '../domain/log.js';
-import { CATS, EXERCISES, EX_BY_ID } from '../exercises.js';
-import { __, catName, exName, exStage, exTips } from '../i18n/index.js';
-import { fmtDate, getDay, getDays, lvlOf, save, zielText } from '../app.js';
+import { CATS, EXERCISES, EX_BY_ID, MUSKELN } from '../exercises.js';
+import { __, catName, exName, exStage, exTips, muskelName } from '../i18n/index.js';
+import { fmtDate, getDay, getDays, lvlOf, muskelHtml, save, zielText } from '../app.js';
 import { state } from '../core/kern.js';
 import { equipListe, fehlt, machbar } from './ausruestung.js';
 import { ikon, toast } from '../ui/hinweise.js';
@@ -72,7 +72,9 @@ export function renderLibrary(){
     /* Der Suchtext wird beim Aufbau festgeschrieben, damit filterLibrary()
        weder die Uebungsdaten noch die Uebersetzung erneut durchgehen muss.
        Ein Sprachwechsel laeuft ueber renderAll() und baut ohnehin neu auf. */
-    const suchtext = [exName(ex), ...ex.levels.map((l, i) => exStage(ex, i))]
+    /* Mit den Muskeln: wer "Bizeps" sucht, findet die Uebungen dafuer. */
+    const muskeln = ex.muskeln ? [...ex.muskeln.haupt, ...ex.muskeln.neben].map(k => muskelName(k, MUSKELN[k])) : [];
+    const suchtext = [exName(ex), ...ex.levels.map((l, i) => exStage(ex, i)), ...muskeln]
       .join(' ').toLowerCase();
     /* Nicht machbare Uebungen verschwinden nicht von selbst: sie bekommen
        einen Hinweis und lassen sich ueber das Kontrollkaestchen ausblenden.
@@ -97,6 +99,7 @@ export function renderLibrary(){
         '<div class="muted">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ' · ' + esc(__('equipment')) + ': ' + esc(equipListe(ex.equip)) +
           (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') +
           ' · ' + esc(zuletzt ? __('lastTrainedOn', { date: fmtDate(zuletzt) }) : __('neverTrained')) + '</div>' +
+        muskelHtml(ex) +
         /* Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen
            an der Bank machbar und erst die spaeteren brauchen Parallettes.
            Genau das soll hier ablesbar sein. */

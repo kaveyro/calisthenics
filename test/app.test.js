@@ -4745,3 +4745,28 @@ describe('Reserve an "Wie war\'s?"', () => {
     expect(document.querySelector('.effort-btn[data-ex="pushup"] small')).not.toBeNull();
   });
 });
+
+describe('Muskeln auf der Karte', () => {
+  it('nennt unter dem Namen Haupt- und Nebenmuskeln', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const zeile = document.querySelector('.ex[data-exid="pushup"] .ex-muskeln');
+    expect(zeile.textContent).toBe('Trainiert: Brust · Trizeps + vordere Schulter · Bauch');
+    expect(zeile.querySelector('.sr-only').textContent).toBe('Trainiert: ');
+    expect(zeile.querySelector('.neben').textContent).toBe(' + vordere Schulter · Bauch');
+    expect(document.querySelector('.ex[data-exid="wrist_prep"] .ex-muskeln .sr-only').textContent).toMatch(/^Dehnt/);
+  });
+
+  it('zeigt sie in der Bibliothek und findet Uebungen ueber den Muskel', async () => {
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    expect(document.querySelector('.lib-item[data-exid="pullup"] .ex-muskeln').textContent).toMatch(/Latissimus · Bizeps/);
+    expect(document.querySelector('.lib-item[data-exid="pullup"]').dataset.such).toContain('bizeps');
+    app.actions['setting:update']({ key: 'lang' }, null, { value: 'en', type: 'select-one' });
+    await ruhe();
+    expect(document.querySelector('.lib-item[data-exid="pullup"] .ex-muskeln').textContent).toBe('Works: lats · biceps + upper back · forearms');
+    app.actions['setting:update']({ key: 'lang' }, null, { value: 'de', type: 'select-one' });
+  });
+});
