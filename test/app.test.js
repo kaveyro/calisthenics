@@ -3690,6 +3690,17 @@ describe('Abschlussblatt', () => {
     expect(blatt.querySelector('.fertig-pr')).toBeNull();
   });
 
+  it('laesst den Aufstieg nur beim ersten Zeichnen aufleuchten', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
+    const app = await starten();
+    await einheit(app);
+    expect(document.getElementById('abschluss').classList.contains('neu')).toBe(true);
+    app.renderAll();
+    expect(document.getElementById('abschluss').classList.contains('neu')).toBe(false);
+    const css = readFileSync(join(ROOT, 'css/style.css'), 'utf8');
+    expect(css).toMatch(/\.fertig\.neu \.fertig-up\{[^}]*animation:aufstieg /);
+  });
+
   it('vergleicht mit der letzten Einheit desselben Tags', async () => {
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true }));
     const app = await starten();

@@ -661,6 +661,12 @@ details.acc li{margin-bottom:5px}
 .fertig-liste li{display:flex;gap:8px;align-items:flex-start}
 .fertig-liste .i{flex:none;width:18px;height:18px;margin-top:1px}
 .fertig-up{color:var(--accent);font-weight:600}
+/* Ein Aufstieg kostet Wochen; im Abschlussblatt leuchtet er einmal auf.
+   Bei reduzierter Bewegung steht er einfach da. */
+.fertig.neu .fertig-up{border-radius:8px;transform-origin:left center;animation:aufstieg .8s ease-out .3s both}
+@keyframes aufstieg{0%{transform:scale(1);background:transparent}35%{transform:scale(1.04);background:var(--accent-soft)}100%{transform:scale(1);background:transparent}}
+.toast.levelup.show{animation:aufstieg-schein 1s ease-out .3s 2}
+@keyframes aufstieg-schein{0%{box-shadow:0 0 0 0 var(--success)}100%{box-shadow:0 0 0 16px transparent}}
 .fertig-aktionen:empty{display:none}
 .fertig-aktionen{margin-top:var(--abstand-4)}
 .fertig-aktionen .undo-btn{margin:0}

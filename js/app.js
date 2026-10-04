@@ -501,7 +501,11 @@ function abschlussHtml(){
     })) + '</li>' : ''),
     ...a.ms.map(id => { const m = MILESTONES.find(x => x.id === id); return m ? '<li>' + esc(__('msDetectedToast', { name: msName(m) })) + '</li>' : ''; })
   ].join('');
-  return '<section class="card fertig" id="abschluss" aria-labelledby="abschluss-titel">' +
+  /* Der Aufstieg leuchtet einmal auf, beim ersten Zeichnen – nicht bei
+     jedem weiteren renderAll(), solange das Blatt offen steht. */
+  const neu = a.neu;
+  a.neu = false;
+  return '<section class="card fertig' + (neu ? ' neu' : '') + '" id="abschluss" aria-labelledby="abschluss-titel">' +
     '<div class="fertig-kopf"><h2 id="abschluss-titel" tabindex="-1">' + esc(__('summaryTitle')) + ' <span>' + titel + '</span></h2>' +
     '<button type="button" class="icon-btn" data-action="summary:close" aria-label="' + esc(__('summaryClose')) + '">' + ikon('close') + '</button></div>' +
     '<div class="fertig-zahlen">' + kacheln + '</div>' +
@@ -2847,7 +2851,8 @@ async function finishWorkout(){
     prs: exIds.filter(id => state.prs[id] && vorherPRs[id] && JSON.stringify(state.prs[id]) !== JSON.stringify(vorherPRs[id])),
     gesperrt,
     /* Nur der erste – sonst stehen nach dem Einstieg drei untereinander. */
-    ms: erkannteMs().slice(0, 1)
+    ms: erkannteMs().slice(0, 1),
+    neu: true
   };
 
   /* clearSession() VOR save(): es nullt state.activeSession nur im
