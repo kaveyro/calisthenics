@@ -4723,3 +4723,14 @@ describe('Puls am Pausenende', () => {
     expect(css).toMatch(/prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{[^}]*animation:none!important/);
   });
 });
+
+describe('Reserve an "Wie war\'s?"', () => {
+  it('nennt unter jedem Knopf die Wiederholungen in Reserve', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const texte = [...document.querySelectorAll('.effort-btn[data-ex="pushup"]')].map(b => b.textContent);
+    expect(texte).toEqual(['leicht3+ übrig', 'passt1–2 übrig', 'hartam Limit']);
+    expect(document.querySelector('.effort-btn[data-ex="pushup"] small')).not.toBeNull();
+  });
+});

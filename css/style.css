@@ -641,7 +641,10 @@ details.acc li{margin-bottom:5px}
 #warmupList .warm-note{list-style:none;margin-top:6px;font-size:var(--text-xs);color:var(--ink-soft)}
 .effort{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:10px}
 .effort-q{font-size:var(--text-xs);color:var(--ink-soft);margin-right:2px}
-.effort-btn{min-height:40px;padding:4px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:var(--text-sm)}
+.effort-btn{min-height:40px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:var(--text-sm);display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+/* Die Reserve unter dem Wort: wie viele Wiederholungen noch drin waren. */
+.effort-btn small{font-size:var(--text-xs);color:var(--ink-soft);font-weight:400}
+.effort-btn[aria-pressed="true"] small{color:inherit}
 .effort-btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .fertig{border-color:var(--accent)}
 .fertig-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--abstand-3)}
@@ -1014,6 +1017,10 @@ body.pause-aus::after{content:"";position:fixed;inset:0;z-index:60;pointer-event
    6.5vw ergibt bei 320px 20.8px (170px breit) und wächst bis 351px mit. */
 @media(max-width:351px){
   h1{font-size:6.5vw}
+  /* Mit der Reserve unter jedem Wort passen Frage und drei Knöpfe bei
+     320px nicht in eine Zeile, und der dritte Knopf rutschte allein nach
+     unten. Die Frage steht dann darüber, die Knöpfe beisammen. */
+  .effort-q{flex-basis:100%}
 }
 /* ---------- Navigation unten (Handy und Tablet) ----------
    Unter 1040px steht die Tableiste als feste Leiste am unteren Rand, in der

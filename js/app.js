@@ -1457,15 +1457,22 @@ function letzteZeilen(ex, lvl, t, letzte){
 }
 
 /* Wie war's? Drei Knoepfe, einer davon gedrueckt oder keiner. Freiwillig:
-   ohne Angabe steigt die Vorgabe wie bisher um einen Schritt. */
+   ohne Angabe steigt die Vorgabe wie bisher um einen Schritt.
+
+   Unter jedem Wort steht, wie viele Wiederholungen noch drin gewesen
+   waeren (RIR). "leicht" war fuer jeden etwas anderes; die Zahl macht die
+   Wahl wiederholbar und entspricht dem, was target.js daraus macht:
+   leicht +2, passt +1, hart 0. */
 const ANSTRENGUNG_TEXT = { l: 'effortEasy', p: 'effortOk', h: 'effortHard' };
+const ANSTRENGUNG_RIR = { l: 'effortEasyRir', p: 'effortOkRir', h: 'effortHardRir' };
 function anstrengungHtml(ex){
   const jetzt = session.an[ex.id];
   return '<div class="effort" role="group" aria-label="' + esc(__('effortAria', { ex: exName(ex) })) + '">' +
     '<span class="effort-q">' + esc(__('effortQuestion')) + '</span>' +
     Object.entries(ANSTRENGUNG_TEXT).map(([v, k]) =>
       '<button type="button" class="effort-btn" data-action="effort:set" data-ex="' + ex.id + '" data-v="' + v + '"' +
-      ' aria-pressed="' + (jetzt === v ? 'true' : 'false') + '">' + esc(__(k)) + '</button>').join('') +
+      ' aria-pressed="' + (jetzt === v ? 'true' : 'false') + '">' + esc(__(k)) +
+      '<small>' + esc(__(ANSTRENGUNG_RIR[v])) + '</small></button>').join('') +
     '</div>';
 }
 /* Noch einmal tippen nimmt die Angabe zurueck. */
