@@ -960,7 +960,14 @@ footer small{display:block;margin-top:4px;opacity:.6}
 
 /* Deckt keine per JavaScript ausgeloesten Bewegungen ab – window.scrollTo
    fragt die Einstellung in showTab() selbst ab. */
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Ende der Pause: ein Rahmen um den Bildschirm (pausePuls() in app.js).
+   Rand statt Schatten, weil der Kontrastmodus von Windows Schatten
+   entfernt. Ohne Animation – reduzierte Bewegung, unten – steht er ruhig
+   da, bis die Klasse nach 1,2 s geht. */
+body.pause-aus::after{content:"";position:fixed;inset:0;z-index:60;pointer-events:none;border:6px solid var(--accent);animation:pause-puls .6s ease-in-out 2 forwards}
+@keyframes pause-puls{0%{opacity:0}50%{opacity:1}100%{opacity:0}}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 
 /* Windows-Kontrastmodus. Dort ersetzt das System jede Farbe durch eine der
    wenigen Systemfarben – alles, was seinen Zustand allein über die Füllung

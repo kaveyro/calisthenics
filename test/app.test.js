@@ -4682,3 +4682,44 @@ describe('Wischen im Fokus-Modus', () => {
     expect(punkt.classList.contains('done')).toBe(true);
   });
 });
+
+describe('Puls am Pausenende', () => {
+  it('rahmt den Bildschirm kurz, wenn die Pause endet', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    expect(document.getElementById('restChip').style.display).toBe('flex');
+    expect(document.body.classList.contains('pause-aus')).toBe(false);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try{
+      /* Kuerzen ueber das Ende hinaus beendet die Pause sofort, wie der Ablauf. */
+      app.actions['rest:extend']({ sec: '-600' });
+      expect(document.getElementById('restChip').style.display).toBe('none');
+      expect(document.body.classList.contains('pause-aus')).toBe(true);
+      vi.advanceTimersByTime(1199);
+      expect(document.body.classList.contains('pause-aus')).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(document.body.classList.contains('pause-aus')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leuchtet nicht, wenn man die Pause selbst mit Weiter beendet', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await ruhe();
+    app.actions['rest:stop']();
+    expect(document.body.classList.contains('pause-aus')).toBe(false);
+  });
+
+  it('steht bei reduzierter Bewegung ruhig, auch als Pseudo-Element', () => {
+    const css = readFileSync(join(ROOT, 'css/style.css'), 'utf8');
+    expect(css).toMatch(/body\.pause-aus::after\{[^}]*border:6px solid var\(--accent\)/);
+    expect(css).toMatch(/prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{[^}]*animation:none!important/);
+  });
+});

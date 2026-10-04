@@ -141,7 +141,8 @@ export function stop(){
   if(holdTimer){ clearInterval(holdTimer.interval); holdTimer = null; }
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
   clearInterval(dauerUhr); dauerUhr = null;
-  [undoTimeout, erinnerungTimer, settingsUndoTimeout, toastTimer].forEach(t => clearTimeout(t));
+  [undoTimeout, erinnerungTimer, settingsUndoTimeout, toastTimer, pulsTimer].forEach(t => clearTimeout(t));
+  document.body.classList.remove('pause-aus');
 }
 
 /* Ein einmaliger Toast reichte nicht: wer ihn verpasst, trainiert
@@ -2497,7 +2498,7 @@ function pauseAnzeigen(){
   if(rem <= 0){
     stopRest();
     persistSession();
-    signal(false); toast(__('restOver'));
+    signal(false); pausePuls(); toast(__('restOver'));
     fokusWeiter();
     return;
   }
@@ -2532,6 +2533,22 @@ function pauseOrt(){
   document.getElementById('restChip').style.display = laeuft && !ring ? 'flex' : 'none';
   const fp = document.getElementById('fokusPause');
   if(fp) fp.hidden = !(laeuft && ring);
+}
+/* Das Ende der Pause auch zum Sehen: ein Rahmen um den ganzen Bildschirm,
+   der zweimal aufleuchtet. Ton und Vibration erreichen nicht jeden – mit
+   Kopfhoerern, stumm geschaltet oder auf dem iPhone, das nicht vibriert.
+   Bei reduzierter Bewegung steht der Rahmen ruhig (style.css). */
+const PULS_MS = 1200;
+let pulsTimer = null;
+function pausePuls(){
+  const b = document.body;
+  /* Neu ansetzen, falls der vorige noch laeuft – sonst startet die
+     Animation nicht von vorn. */
+  b.classList.remove('pause-aus');
+  void b.offsetWidth;
+  b.classList.add('pause-aus');
+  clearTimeout(pulsTimer);
+  pulsTimer = setTimeout(() => b.classList.remove('pause-aus'), PULS_MS);
 }
 export function stopRest(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
