@@ -178,6 +178,8 @@ export const VORSTUFEN = {
   handstand: ['wall_hs', 3],         /* Brust zur Wand, lang */
   planche: ['planche_lean', 2],
   hspu: ['pike', 3],                 /* Pike Push-ups */
+  false_grip: ['ring_row', 3],       /* waagerecht, Fuesse erhoeht */
+  ring_curl: ['ring_row', 1],
   lsit_hs: ['lsit', 3]
 };
 

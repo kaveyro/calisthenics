@@ -37,7 +37,8 @@ export const CONTENT_EN = {
     quadrizeps: 'quads',
     beinbeuger: 'hamstrings',
     adduktoren: 'adductors',
-    waden: 'calves'
+    waden: 'calves',
+    schienbein: 'shins'
   },
 
   exercises: {
@@ -219,6 +220,22 @@ export const CONTENT_EN = {
              'The arms lift via the shoulder blades, not the lower back – the belly stays on the floor.',
              'Strengthens the muscles between the shoulder blades that lose out when you push a lot.']
     },
+    false_grip: {
+      name: 'False grip progression',
+      levels: ['Seated, rings at chest height, part of the weight in the hands', 'Half hang, feet on the floor',
+               'Full false grip hang', 'False grip rows'],
+      tips: ['The wrist sits over the ring, the ring presses into the heel of the hand – not into the fingers.',
+             'At first the wrist and forearm pull noticeably. Build up slowly; pain in the joint means stop.',
+             'No slow ring muscle-up without a false grip: it saves the regrip in the transition.']
+    },
+    ring_curl: {
+      name: 'Ring biceps curls',
+      levels: ['Body upright, feet under the rings', 'Body lower', 'Almost horizontal',
+               'Almost horizontal, 3-second lowering'],
+      tips: ['The elbows stay in front at shoulder height; only the forearms move, the hands come to the forehead.',
+             'Body straight as in a plank, the hips do not sag.',
+             'Prepares the biceps tendon for straight-arm work – back lever, planche, ring muscle-up.']
+    },
     squat: {
       name: 'Squats',
       levels: ['Squats', 'Deep squats', 'Tempo squats (3 seconds down)', 'Bulgarian split squats',
@@ -255,6 +272,13 @@ export const CONTENT_EN = {
       tips: ['Lower slowly, pause briefly in the stretch at the bottom.',
              'Hold for one second at the top.',
              'Strengthens the ankles – helps when kicking up into a handstand.']
+    },
+    tibialis_raise: {
+      name: 'Tibialis raises',
+      levels: ['Against the wall, feet close', 'Against the wall, feet further out', 'Single leg against the wall'],
+      tips: ['Back and glutes against the wall, legs straight; pull the toes up towards the shins as far as you can.',
+             'The further the feet are from the wall, the harder it gets. The heels stay on the floor.',
+             'The counterpart to calf raises: strengthens the ankle flexion that deep squats and pistols need.']
     },
     nordic: {
       name: 'Hamstrings (nordic progression)',

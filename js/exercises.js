@@ -77,7 +77,8 @@ export const MUSKELN = {
   quadrizeps:      'Quadrizeps',
   beinbeuger:      'Beinbeuger',
   adduktoren:      'Adduktoren',
-  waden:           'Waden'
+  waden:           'Waden',
+  schienbein:      'Schienbein'
 };
 
 export const EXERCISES = [
@@ -442,6 +443,36 @@ export const EXERCISES = [
       'Stärkt die Muskeln zwischen den Schulterblättern, die bei viel Drücken zu kurz kommen.'
     ]
   },
+  {
+    id: 'false_grip', name: 'False-Grip-Reihe', cat: 'pull', muster: 'schulter', equip: ['rings'], prio: 3, rest: 90,
+    muskeln: { haupt: ['unterarm', 'handgelenke'], neben: ['bizeps', 'latissimus'] },
+    levels: [
+      { stage: 'Im Sitzen, Ringe auf Brusthöhe, Gewicht teilweise in den Händen', saetze: 3, sek: [15, 30] },
+      { stage: 'Halbhang, Füße am Boden', saetze: 3, sek: [15, 30] },
+      { stage: 'Voller False-Grip-Hang', saetze: 3, sek: [10, 20] },
+      { stage: 'False-Grip-Rudern', saetze: 3, wdh: [5, 8] }
+    ],
+    tips: [
+      'Das Handgelenk liegt über dem Ring, der Ring drückt in den Handballen – nicht in die Finger.',
+      'Anfangs zieht es deutlich in Handgelenk und Unterarm. Langsam steigern; Schmerz im Gelenk heißt aufhören.',
+      'Ohne False Grip kein langsamer Muscle-up an den Ringen: der Griff erspart das Umgreifen im Übergang.'
+    ]
+  },
+  {
+    id: 'ring_curl', name: 'Bizeps-Curls an den Ringen', cat: 'pull', muster: 'schulter', equip: ['rings'], prio: 3, rest: 60,
+    muskeln: { haupt: ['bizeps'], neben: ['unterarm', 'bauch'] },
+    levels: [
+      { stage: 'Körper steil, Füße unter den Ringen', saetze: 3, wdh: [8, 12] },
+      { stage: 'Körper flacher', saetze: 3, wdh: [8, 12] },
+      { stage: 'Fast waagerecht', saetze: 3, wdh: [6, 10] },
+      { stage: 'Fast waagerecht, 3 Sek ablassen', saetze: 3, wdh: [5, 8] }
+    ],
+    tips: [
+      'Die Ellbogen bleiben vorn auf Schulterhöhe stehen; nur die Unterarme bewegen sich, die Hände kommen zur Stirn.',
+      'Körper gestreckt wie im Plank, die Hüfte hängt nicht durch.',
+      'Bereitet die Bizepssehne auf Übungen mit gestreckten Armen vor – Back Lever, Planche, Muscle-up an den Ringen.'
+    ]
+  },
 
   /* ================= BEINE ================= */
   {
@@ -515,6 +546,20 @@ export const EXERCISES = [
       'Langsam ablassen, unten kurz dehnen.',
       'Oben 1 Sekunde halten.',
       'Stärkt Sprunggelenke – hilft bei Sprüngen in den Handstand.'
+    ]
+  },
+  {
+    id: 'tibialis_raise', name: 'Schienbeinheben', cat: 'legs', muster: 'wade', equip: ['none'], rest: 45,
+    muskeln: { haupt: ['schienbein'], neben: [] },
+    levels: [
+      { stage: 'An der Wand, Füße nah', saetze: 3, wdh: [15, 20] },
+      { stage: 'An der Wand, Füße weiter weg', saetze: 3, wdh: [15, 20] },
+      { stage: 'Einbeinig an der Wand', saetze: 3, wdh: [10, 15] }
+    ],
+    tips: [
+      'Rücken und Gesäß an die Wand, Beine gestreckt; die Fußspitzen so weit wie möglich Richtung Schienbein ziehen.',
+      'Je weiter die Füße von der Wand weg stehen, desto schwerer. Die Fersen bleiben am Boden.',
+      'Der Gegenspieler zum Wadenheben: kräftigt die Beugung im Sprunggelenk, die tiefe Kniebeugen und Pistols brauchen.'
     ]
   },
   {
