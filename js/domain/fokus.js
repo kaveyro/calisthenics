@@ -34,3 +34,29 @@ export function fokusNachSatz(schritte, aktuell){
   const davor = liste.findIndex(s => !fertig(s));
   return davor >= 0 ? davor : i;
 }
+
+/* Die Reihenfolge der Einheit, wenn Übungen auf später verschoben wurden –
+   etwa weil die Stange gerade belegt ist. Erst die übrigen in Planfolge,
+   dann die verschobenen in der Folge, in der sie verschoben wurden.
+
+   ids:      die Plan-Kennungen des Tages
+   spaeter:  verschobene Plan-Kennungen, älteste zuerst
+   paare:    Supersatz-Paare [a, b] aus gueltigePaare(); ein Paar bleibt
+             beisammen, und wird ein Teil verschoben, wandert das ganze.
+
+   Der Plan selbst bleibt unberührt – das gilt nur für heute. */
+export function spaeterOrdnen(ids, spaeter, paare){
+  const liste = Array.isArray(ids) ? ids : [];
+  const zurueck = Array.isArray(spaeter) ? spaeter : [];
+  const partner = new Map((Array.isArray(paare) ? paare : []).map(([a, b]) => [a, b]));
+  const bloecke = [];
+  for(let i = 0; i < liste.length; i++){
+    const b = partner.get(liste[i]);
+    if(b !== undefined && liste[i + 1] === b){ bloecke.push([liste[i], b]); i++; }
+    else bloecke.push([liste[i]]);
+  }
+  const rang = blk => Math.min(...blk.map(id => { const r = zurueck.indexOf(id); return r < 0 ? Infinity : r; }));
+  const vorn = bloecke.filter(blk => rang(blk) === Infinity);
+  const hinten = bloecke.filter(blk => rang(blk) !== Infinity).sort((x, y) => rang(x) - rang(y));
+  return [...vorn, ...hinten].flat();
+}

@@ -14,6 +14,9 @@ export const leereSession = () => ({
      bewusst in der Session und nicht im Plan – wer eine Uebung heute nicht
      machen kann, will deswegen nicht seinen Plan umbauen. */
   subs: {}, skip: {},
+  /* Auf später verschobene Plan-Kennungen, älteste zuerst – nur für heute,
+     wie subs und skip (js/domain/fokus.js, spaeterOrdnen). */
+  spaeter: [],
   /* Abgehakte Aufwaermpunkte, nach Position in der Liste. */
   warm: {},
   /* Wie sich jede Uebung angefuehlt hat: id -> 'l' | 'p' | 'h'. */

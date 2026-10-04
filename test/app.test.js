@@ -4560,3 +4560,64 @@ describe('Rueckgaengig im Einstellungsdialog', () => {
     expect(document.getElementById('settingsStatus').textContent).toBe('');
   });
 });
+
+describe('Uebung auf spaeter', () => {
+  const PLAN = { name: 'F', desc: '', days: [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'squat', 'prone_ytw', 'towel_row'], ss: [['prone_ytw', 'towel_row']] }] };
+  async function einheit(fokus = false){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, customPlan: PLAN, settings: { fokus } }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  const folge = () => [...document.querySelectorAll('#content .ex')].map(el => el.dataset.exid);
+
+  it('stellt die Uebung ans Ende und behaelt das ueber ein Neuladen', async () => {
+    await einheit();
+    document.querySelector('.ex[data-exid="pushup"] .set-dot').click();
+    document.querySelector('[data-action="exercise:later"][data-ex="pushup"]').click();
+    await ruhe();
+    expect(folge()).toEqual(['squat', 'prone_ytw', 'towel_row', 'pushup']);
+    /* Abgehakte Saetze bleiben abgehakt. */
+    expect(document.querySelector('.ex[data-exid="pushup"] .set-dot').classList.contains('done')).toBe(true);
+    expect(document.getElementById('toast').textContent).toMatch(/kommt ans Ende/);
+    expect(gespeichert().activeSession.spaeter).toEqual(['pushup']);
+    await starten();
+    expect(folge()).toEqual(['squat', 'prone_ytw', 'towel_row', 'pushup']);
+  });
+
+  it('verschiebt ein Supersatz-Paar ganz', async () => {
+    const app = await einheit();
+    app.actions['exercise:later']({ ex: 'towel_row' });
+    expect(folge()).toEqual(['pushup', 'squat', 'prone_ytw', 'towel_row']);
+    app.actions['exercise:later']({ ex: 'pushup' });
+    expect(folge()).toEqual(['squat', 'prone_ytw', 'towel_row', 'pushup']);
+    expect(document.querySelector('#content > .supersatz').querySelectorAll('.ex')).toHaveLength(2);
+  });
+
+  it('nimmt das Verschieben im Toast zurueck', async () => {
+    const app = await einheit();
+    app.actions['exercise:later']({ ex: 'pushup' });
+    document.querySelector('#toast [data-action="exercise:laterUndo"]').click();
+    await ruhe();
+    expect(folge()).toEqual(['pushup', 'squat', 'prone_ytw', 'towel_row']);
+    expect(gespeichert().activeSession.spaeter).toEqual([]);
+  });
+
+  it('zeigt im Fokus-Modus danach die naechste Uebung', async () => {
+    const app = await einheit(true);
+    expect(document.querySelector('#content .fokus-aktiv').dataset.exid).toBe('pushup');
+    app.actions['exercise:later']({ ex: 'pushup' });
+    expect(document.querySelector('#content .fokus-aktiv').dataset.exid).toBe('squat');
+  });
+
+  it('beginnt eine neue Einheit in Planfolge', async () => {
+    const app = await einheit();
+    app.actions['exercise:later']({ ex: 'pushup' });
+    app.actions['workout:discard']();
+    await ruhe();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    expect(folge()[0]).toBe('pushup');
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fokusStart, fokusNachSatz } from '../js/domain/fokus.js';
+import { fokusStart, fokusNachSatz, spaeterOrdnen } from '../js/domain/fokus.js';
 
 const schritte = (...fertig) => fertig.map(f => ({ fertig: f }));
 
@@ -34,5 +34,30 @@ describe('fokusNachSatz', () => {
     expect(fokusNachSatz(schritte(true, false), 9)).toBe(1);
     expect(fokusNachSatz(schritte(false, true), 'x')).toBe(0);
     expect(fokusNachSatz([], 3)).toBe(0);
+  });
+});
+
+describe('spaeterOrdnen', () => {
+  const tag = ['a', 'b', 'c', 'd', 'e'];
+  it('laesst die Reihenfolge ohne Verschobene, wie sie ist', () => {
+    expect(spaeterOrdnen(tag, [], [])).toEqual(tag);
+    expect(spaeterOrdnen(tag)).toEqual(tag);
+  });
+  it('stellt Verschobene ans Ende, in der Folge des Verschiebens', () => {
+    expect(spaeterOrdnen(tag, ['b'], [])).toEqual(['a', 'c', 'd', 'e', 'b']);
+    expect(spaeterOrdnen(tag, ['d', 'a'], [])).toEqual(['b', 'c', 'e', 'd', 'a']);
+  });
+  it('haelt ein Supersatz-Paar beisammen, egal welcher Teil verschoben wird', () => {
+    expect(spaeterOrdnen(tag, ['b'], [['b', 'c']])).toEqual(['a', 'd', 'e', 'b', 'c']);
+    expect(spaeterOrdnen(tag, ['c'], [['b', 'c']])).toEqual(['a', 'd', 'e', 'b', 'c']);
+  });
+  it('uebergeht Kennungen, die heute nicht im Plan stehen', () => {
+    expect(spaeterOrdnen(tag, ['x', 'a'], [])).toEqual(['b', 'c', 'd', 'e', 'a']);
+  });
+  it('veraendert die Eingaben nicht', () => {
+    const ids = [...tag], sp = ['a'];
+    spaeterOrdnen(ids, sp, []);
+    expect(ids).toEqual(tag);
+    expect(sp).toEqual(['a']);
   });
 });

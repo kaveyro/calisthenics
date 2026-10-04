@@ -8,7 +8,7 @@
 import { backupFaellig } from './domain/backup.js';
 import { fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf, today } from './domain/dates.js';
 import { esc } from './domain/escape.js';
-import { fokusNachSatz, fokusStart } from './domain/fokus.js';
+import { fokusNachSatz, fokusStart, spaeterOrdnen } from './domain/fokus.js';
 import { entryHasExercise, repsOf, sekOf, verlaufJeUebung } from './domain/log.js';
 import { tagFuerWochentag } from './domain/plan.js';
 import { planPruefen, tagesDauerSek, uebungErsetzen, vorlageAufloesen } from './domain/planbuilder.js';
@@ -265,7 +265,7 @@ function spiegleSession(){
       dayKey: session.dayKey, d: today(), tab: fensterId,
       sets: { ...session.sets }, top: { ...session.top },
       reps: { ...session.reps }, sek: { ...session.sek }, notes: { ...session.notes },
-      subs: { ...session.subs }, skip: { ...session.skip },
+      subs: { ...session.subs }, skip: { ...session.skip }, spaeter: [...session.spaeter],
       warm: { ...session.warm }, an: { ...session.an }, start: session.start || null,
       /* Absoluter Zeitpunkt, damit eine laufende Pause ein Neuladen
          uebersteht – eine Restdauer waere nach dem Laden wertlos. */
@@ -325,6 +325,7 @@ function restoreActiveSession(){
     dayKey: a.dayKey, sets: a.sets || {}, top: a.top || {},
     reps: a.reps || {}, sek: a.sek || {}, notes: a.notes || {},
     subs: a.subs || {}, skip: a.skip || {},
+    spaeter: Array.isArray(a.spaeter) ? a.spaeter.filter(id => typeof id === 'string') : [],
     warm: a.warm || {},
     an: a.an && typeof a.an === 'object' ? a.an : {},
     /* Ein verbogener Zeitstempel wuerde eine absurde Dauer ergeben; die
@@ -1670,14 +1671,16 @@ export function renderWorkout(){
      sie mitschreibt. Einmal fuer den ganzen Tag ermittelt, nicht je Uebung. */
   /* Was heute wirklich drankommt: der Plan-Tag, durch die Ersetzungen dieser
      Einheit gereicht. session.subs bleibt dabei unangetastet – der Plan auch. */
-  const heute = day.ex.map(origId => ({ origId, id: session.subs[origId] || origId }));
+  const paare = gueltigePaare(day);
+  /* Verschobene Uebungen am Ende, Paare beisammen (spaeterOrdnen). */
+  const heute = spaeterOrdnen(day.ex, session.spaeter, paare)
+    .map(origId => ({ origId, id: session.subs[origId] || origId }));
   const verlauf = verlaufJeUebung(state.log, heute.map(h => h.id), ZU_SCHWER_NACH, getDay);
   const letzte = Object.fromEntries(Object.keys(verlauf).map(id => [id, verlauf[id][0]]));
 
   /* Supersaetze: die beiden Karten eines Paares in einer Klammer. Das Paar
      haengt an den Plan-Kennungen, eine Ersetzung fuer heute bleibt also im
      Paar. */
-  const paare = gueltigePaare(day);
   const oeffnen = new Map(paare.map(p => [p[0], p[1]]));
   const schliessen = new Set(paare.map(p => p[1]));
   const angezeigt = o => EX_BY_ID[session.subs[o] || o];
@@ -1822,6 +1825,9 @@ export function renderWorkout(){
          zurueckdrehen. */
       '<button class="sub-btn" data-action="exercise:substitute" data-ex="' + origId + '">' + ikon('swap') + ' ' + __('substitute') + '</button>' +
       '<button class="sub-btn" data-action="exercise:skip" data-ex="' + origId + '">' + ikon('skip') + ' ' + __('skipToday') + '</button>' +
+      /* Stange belegt, Ringe noch nicht aufgehaengt: die Uebung ans Ende,
+         ohne den Plan zu aendern. */
+      '<button class="sub-btn" data-action="exercise:later" data-ex="' + origId + '">' + ikon('down') + ' ' + __('doLater') + '</button>' +
       '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
       '</details>' +
       '</div>';
@@ -2100,6 +2106,38 @@ function skipExercise(origId){
   persistSession();
   renderWorkout(); restoreSession(session.reps);
   updateFinish();
+}
+/* Ans Ende der Einheit. Im Fokus-Modus bleibt die Position stehen – dort
+   steht danach die naechste Uebung, und das ist genau, was man will. */
+let spaeterVorher = null, spaeterTimeout = null;
+function spaeterMachen(origId){
+  const day = getDay(session.dayKey);
+  if(!day || !day.ex.includes(origId)) return;
+  cancelHold();
+  clearTimeout(spaeterTimeout);
+  spaeterVorher = [...session.spaeter];
+  spaeterTimeout = setTimeout(() => { spaeterVorher = null; }, AKTION_MS);
+  session.spaeter = [...session.spaeter.filter(id => id !== origId), origId];
+  persistSession();
+  renderWorkout(); restoreSession(session.reps);
+  if(fokusAn()){
+    /* Ist die Uebung, die nachrueckt, schon fertig, weiter zur naechsten
+       offenen. */
+    const { status, idx } = fokusStand();
+    fokusIdx = fokusNachSatz(status, idx);
+    fokusAnwenden(); fokusZeigen();
+  }
+  const ex = EX_BY_ID[session.subs[origId] || origId];
+  toast(__('laterDone', { name: ex ? exName(ex) : origId }), false, { text: __('undo'), action: 'exercise:laterUndo' });
+}
+function spaeterZuruecknehmen(){
+  if(!spaeterVorher || !session.dayKey) return;
+  session.spaeter = spaeterVorher;
+  spaeterVorher = null;
+  clearTimeout(spaeterTimeout);
+  persistSession();
+  renderWorkout(); restoreSession(session.reps);
+  toast(__('laterUndone'));
 }
 function unskipExercise(origId){
   delete session.skip[origId];
@@ -3018,6 +3056,8 @@ export const actions = {
   'exercise:substitute': d => substituteExercise(d.ex),
   'exercise:skip':      d => skipExercise(d.ex),
   'exercise:unskip':    d => unskipExercise(d.ex),
+  'exercise:later':     d => spaeterMachen(d.ex),
+  'exercise:laterUndo': () => spaeterZuruecknehmen(),
   'exercise:history':   d => showExHistory(d.ex),
   'exHistory:close':    () => closeExHistory(),
   'workout:finish':     () => finishWorkout(),
