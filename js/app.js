@@ -32,7 +32,7 @@ import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanD
 import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, logUmschalten, logZurueckholen, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
 import { addCustomMilestone, erkannteMs, removeCustomMilestone, renderBests, renderMilestones, renderRoadmap, toggleMilestone } from './features/ziele.js';
 import { FOCUSABLE, askChoice, askConfirm, askText, closeDialog, openDialog, openDialogEl } from './ui/dialoge.js';
-import { ikon, melde, mitFokus, toast, toastTimer, wenigerBewegung } from './ui/hinweise.js';
+import { AKTION_MS, ikon, melde, mitFokus, toast, toastTimer, wenigerBewegung } from './ui/hinweise.js';
 
 let holdTimer = null, restTimer = null, wakeLock = null;
 let gestoppt = false;
@@ -1602,7 +1602,7 @@ function tagWahlUmschalten(){
 function einheitMerken(){
   clearTimeout(verworfenTimeout);
   verworfen = JSON.parse(JSON.stringify(session));
-  verworfenTimeout = setTimeout(() => { verworfen = null; }, 12000);
+  verworfenTimeout = setTimeout(() => { verworfen = null; }, AKTION_MS);
 }
 function einheitAnbieten(){
   const d = getDay(verworfen.dayKey);
@@ -1991,7 +1991,7 @@ function adjustLevel(id, d){
      Aufstieg, ohne Weg zurueck. Der Toast bietet jetzt beides zurueck. */
   clearTimeout(stufeTimeout);
   stufeVorher = { id, lvl: cur, streak: state.streaks[id] || 0, gesetzt: id in state.levels };
-  stufeTimeout = setTimeout(() => { stufeVorher = null; }, 12000);
+  stufeTimeout = setTimeout(() => { stufeVorher = null; }, AKTION_MS);
   state.levels[id] = next; state.streaks[id] = 0;
   stufeAnwenden();
   toast(__('levelSetTo', { name: exName(ex), stage: exStage(ex, next) }), false,

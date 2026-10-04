@@ -14,7 +14,7 @@ import { dauerText, dayTitleOf, fmtDate, getDay, getDays, lvlOf, renderAll, save
 import { cfg, state } from '../core/kern.js';
 import { BILANZ_KAT, bilanzGruppe } from './planeditor.js';
 import { askConfirm, askDialog, dialogFuss, dialogKopf } from '../ui/dialoge.js';
-import { ikon, toast } from '../ui/hinweise.js';
+import { AKTION_MS, ikon, toast } from '../ui/hinweise.js';
 
 /* Wie sich die Saetze der letzten Woche auf die Kategorien verteilen –
    Saetze, nicht Wiederholungen, siehe js/domain/volume.js.
@@ -460,7 +460,7 @@ export async function removeLogEntry(i){
   if(!l) return;
   clearTimeout(geloeschtTimeout);
   geloescht = { l, i, workouts: state.workouts || 0, lastDate: state.lastDate };
-  geloeschtTimeout = setTimeout(() => { geloescht = null; }, 12000);
+  geloeschtTimeout = setTimeout(() => { geloescht = null; }, AKTION_MS);
 
   state.log.splice(i, 1);
   offeneEintraege.delete(l);

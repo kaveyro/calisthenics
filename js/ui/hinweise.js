@@ -71,6 +71,10 @@ export const wenigerBewegung = () =>
   window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export let toastTimer = null;
+/* So lange steht ein Hinweis mit Rueckgaengig – und so lange muss das
+   Rueckgaengig auch wirken. Die Einstellungen liessen es nach 5 s verfallen,
+   waehrend der Knopf noch 7 s weiter dastand. */
+export const AKTION_MS = 12000;
 /* aktion: optional { text, action } – haengt eine Schaltflaeche an, die ueber
    die Aktionstabelle laeuft wie jedes andere Element auch. Bewusst
    createElement statt innerHTML: so stellt sich die Frage nach dem Escapen
@@ -88,5 +92,5 @@ export function toast(msg, big, aktion){
   }
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? 12000 : big ? 5000 : 3200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), aktion ? AKTION_MS : big ? 5000 : 3200);
 }

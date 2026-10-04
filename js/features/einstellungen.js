@@ -13,16 +13,13 @@ import { renderPlanTab } from './planeditor.js';
 import { renderHistory } from './verlauf.js';
 import { renderBests, renderMilestones, renderRoadmap } from './ziele.js';
 import { closeDialog, openDialog } from '../ui/dialoge.js';
-import { toast } from '../ui/hinweise.js';
+import { AKTION_MS, toast } from '../ui/hinweise.js';
 
 export function openSettings(){
   /* Alle Schluessel der Vorgabe, keine eigene Liste: die stand hier von Hand
      und vergass den Vorlauf-Schalter – er zeigte "aus", obwohl er an war.
      Dass jeder Schluessel einen Schalter hat, prueft test/schema.test.js. */
-  Object.keys(SETTINGS_DEFAULTS).forEach(k => {
-    const el = document.getElementById('cfg-' + k); if(!el) return;
-    if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
-  });
+  Object.keys(SETTINGS_DEFAULTS).forEach(schalterZeigen);
   const da = new Set(state.equipment || []);
   EQUIP.filter(e => e !== 'none').forEach(e => {
     const el = document.getElementById('eq-' + e);
@@ -33,7 +30,37 @@ export function openSettings(){
   zeigeTeilenSchalter();
   openDialog(document.getElementById('settingsOverlay'));
 }
-export function closeSettings(){ closeDialog(document.getElementById('settingsOverlay')); }
+function schalterZeigen(k){
+  const el = document.getElementById('cfg-' + k); if(!el) return;
+  if(el.type === 'checkbox') el.checked = !!cfg(k); else el.value = String(cfg(k));
+}
+export function closeSettings(){
+  statusZeigen('');
+  closeDialog(document.getElementById('settingsOverlay'));
+}
+const dialogOffen = () => !!document.getElementById('settingsOverlay')?.classList.contains('open');
+
+/* Rueckmeldung im Dialog statt im Toast. Der Toast liegt hinter dem offenen
+   Dialog und ist dann inert (js/ui/dialoge.js) – sein Rueckgaengig war genau
+   dort nicht zu bedienen, wo Einstellungen geaendert werden. */
+let statusTimer = null;
+function statusZeigen(text, mitRueckgaengig){
+  const el = document.getElementById('settingsStatus');
+  if(!el) return false;
+  clearTimeout(statusTimer);
+  el.textContent = text;
+  if(!text) return true;
+  if(mitRueckgaengig){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-btn';
+    b.textContent = __('undo');
+    b.dataset.action = 'setting:undo';
+    el.appendChild(b);
+  }
+  statusTimer = setTimeout(() => { el.textContent = ''; }, AKTION_MS);
+  return true;
+}
 /* Escape wird in addKeyboardShortcuts() behandelt – ein zweiter Listener hier
    hat closeSettings() pro Tastendruck doppelt aufgerufen. */
 
@@ -61,7 +88,8 @@ export async function erinnerungErlauben(){
     const el = document.getElementById('cfg-reminder');
     if(el) el.checked = false;
   }
-  toast(__(erlaubt ? 'reminderEnabled' : 'reminderDenied'));
+  const text = __(erlaubt ? 'reminderEnabled' : 'reminderDenied');
+  if(!(dialogOffen() && statusZeigen(text))) toast(text);
   return erlaubt;
 }
 /* Die Erinnerung lief bisher aus start(): wer die App an einem
@@ -127,15 +155,25 @@ export let settingsUndoTimeout = null;
 export function updateSetting(k, v){
   /* Vorherigen Wert merken, falls der Nutzer zurueck will. */
   const vorher = state.settings[k];
-  state.settings[k] = v; save();
   /* Rueckgaengig anbieten – aber nicht fuer die Sprache (dort wuerde ein
      Undo die Oberflaeche mitten im Wechsel zurueckreissen). */
   if(k !== 'lang'){
     clearTimeout(settingsUndoTimeout);
     settingsUndo = { k, vorher };
-    settingsUndoTimeout = setTimeout(() => { settingsUndo = null; }, 5000);
-    toast(__('settingChanged'), false, { text: __('undo'), action: 'setting:undo' });
+    settingsUndoTimeout = setTimeout(() => { settingsUndo = null; }, AKTION_MS);
+    if(!(dialogOffen() && statusZeigen(__('settingChanged'), true))){
+      toast(__('settingChanged'), false, { text: __('undo'), action: 'setting:undo' });
+    }
   }
+  einstellungAnwenden(k, v);
+}
+
+/* Schreiben und alles nachziehen, was an der Einstellung haengt. Auch fuer
+   das Rueckgaengig: es setzte bisher nur den Wert zurueck – eine laufende
+   Einheit behielt die alte Satzzahl, und der Schalter im Dialog zeigte
+   weiter den neuen Stand. */
+function einstellungAnwenden(k, v){
+  state.settings[k] = v; save();
   if(k === 'reminder' && v) erinnerungErlauben();
   if(k === 'lang'){
     setLang(v);
@@ -158,11 +196,17 @@ export function updateSetting(k, v){
 
 export function einstellungZuruecknehmen(){
   if(!settingsUndo) return;
-  state.settings[settingsUndo.k] = settingsUndo.vorher;
+  const { k, vorher } = settingsUndo;
   settingsUndo = null;
   clearTimeout(settingsUndoTimeout);
-  save(); renderAll();
-  toast(__('settingUndone'));
+  einstellungAnwenden(k, vorher);
+  schalterZeigen(k);
+  if(dialogOffen()){
+    statusZeigen(__('settingUndone'));
+    /* Der Knopf ist mit dem neuen Text verschwunden; der Fokus geht an den
+       Schalter, dessen Aenderung zurueckgenommen wurde, statt an body. */
+    document.getElementById('cfg-' + k)?.focus();
+  } else toast(__('settingUndone'));
 }
 
 /* Haken, die es nach einer geaenderten Satzzahl nicht mehr gibt.

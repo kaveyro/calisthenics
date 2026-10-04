@@ -526,6 +526,11 @@
       <p class="data-hint" data-i18n="resetAllHint">Löscht Stufen, Verlauf, Plan und Einstellungen auf diesem Gerät. Lade vorher ein Backup herunter.</p>
       <button class="btn secondary btn--gefahr" data-action="backup:resetAll" data-i18n="resetAll">Alles zurücksetzen</button>
     </div>
+
+    <!-- Rueckmeldung zu einer Aenderung, mit Rueckgaengig. Im Dialog statt im
+         Toast: der ist hinter dem offenen Dialog inert. Klebt unten, damit
+         sie neben dem gerade geaenderten Schalter zu sehen ist. -->
+    <div class="settings-status" id="settingsStatus" role="status" aria-live="polite"></div>
   </div>
 </div>
 

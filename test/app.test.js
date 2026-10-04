@@ -4497,6 +4497,66 @@ describe('Einstellungen gegliedert', () => {
     await schalten(app, true);
     expect(gespeichert().settings.reminder).toBe(false);
     expect(document.getElementById('cfg-reminder').checked).toBe(false);
-    expect(document.getElementById('toast').textContent).toMatch(/blockiert/);
+    expect(document.getElementById('settingsStatus').textContent).toMatch(/blockiert/);
+  });
+});
+
+describe('Rueckgaengig im Einstellungsdialog', () => {
+  const umlegen = (app, k) => {
+    const el = document.getElementById('cfg-' + k);
+    el.checked = !el.checked;
+    app.actions['setting:update']({ key: k }, null, el);
+    return el;
+  };
+
+  it('bietet Rueckgaengig im Dialog an, nicht im inerten Toast', async () => {
+    const app = await starten();
+    app.actions['settings:open']();
+    const el = umlegen(app, 'sound');
+    expect(gespeichert().settings.sound).toBe(false);
+    const knopf = document.querySelector('#settingsStatus [data-action="setting:undo"]');
+    expect(knopf).not.toBeNull();
+    expect(knopf.closest('[inert]')).toBeNull();
+    knopf.click();
+    await ruhe();
+    /* Vorher stand der Schluessel gar nicht da – es galt die Vorgabe. */
+    expect(gespeichert().settings.sound ?? true).toBe(true);
+    expect(el.checked).toBe(true);
+    expect(document.activeElement).toBe(el);
+    expect(document.getElementById('settingsStatus').textContent).toMatch(/zurückgesetzt/);
+  });
+
+  it('haelt das Rueckgaengig so lange wie den Hinweis', async () => {
+    const app = await starten();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try{
+      app.actions['settings:open']();
+      umlegen(app, 'sound');
+      vi.advanceTimersByTime(8000);
+      document.querySelector('#settingsStatus [data-action="setting:undo"]').click();
+      expect(document.getElementById('cfg-sound').checked).toBe(true);
+      umlegen(app, 'sound');
+      vi.advanceTimersByTime(12001);
+      expect(document.getElementById('settingsStatus').textContent).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('nutzt ohne offenen Dialog weiter den Toast', async () => {
+    const app = await starten();
+    const el = document.getElementById('cfg-sound');
+    el.checked = false;
+    app.actions['setting:update']({ key: 'sound' }, null, el);
+    expect(document.querySelector('#toast [data-action="setting:undo"]')).not.toBeNull();
+    expect(document.getElementById('settingsStatus').textContent).toBe('');
+  });
+
+  it('leert die Rueckmeldung beim Schliessen', async () => {
+    const app = await starten();
+    app.actions['settings:open']();
+    umlegen(app, 'sound');
+    app.actions['settings:close']();
+    expect(document.getElementById('settingsStatus').textContent).toBe('');
   });
 });
