@@ -50,6 +50,8 @@ let restStart = 0;
 /* Schreibt die Dauer in der Abschlussleiste fort; volle Minuten genuegen. */
 let dauerUhr = null;
 const DAUER_TAKT = 15000;
+/* Ab dieser waagerechten Strecke blaettert ein Wisch im Fokus-Modus. */
+const WISCH_MIN = 60;
 /* Der Schritt, der im Fokus-Modus zu sehen ist, oder null: dann der erste
    offene (fokusStart()). Nur zur Laufzeit – nach dem Neuladen geht es beim
    ersten offenen weiter, und das ist in aller Regel derselbe. */
@@ -2940,6 +2942,39 @@ function installGlobalListeners(){
       e.preventDefault(); e.returnValue = '';
     }
   });
+
+  /* Wischen im Fokus-Modus: nach links zur naechsten Uebung, nach rechts
+     zur vorigen. Die Pfeile oben bleiben – Wischen ist eine Abkuerzung,
+     kein einziger Weg. Nicht in Feldern, die selbst auf Ziehen reagieren
+     koennen, und erst ab einer deutlich waagerechten Strecke, damit das
+     Scrollen der Karte nicht blaettert. */
+  let wischStart = null, klickSperre = false;
+  an(document, 'touchstart', e => {
+    wischStart = null;
+    if(!fokusAn() || e.touches.length !== 1) return;
+    const ziel = e.target instanceof Element ? e.target : null;
+    if(!ziel || !ziel.closest('#content') || ziel.closest('input, textarea, select, .rungs')) return;
+    wischStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  an(document, 'touchcancel', () => { wischStart = null; }, { passive: true });
+  an(document, 'touchend', e => {
+    const s = wischStart;
+    wischStart = null;
+    const t = e.changedTouches && e.changedTouches[0];
+    if(!s || !t || !fokusAn()) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if(Math.abs(dx) < WISCH_MIN || Math.abs(dx) <= 1.5 * Math.abs(dy)) return;
+    /* Der Klick, den manche Browser nach dem Loslassen noch schicken, haekte
+       sonst den Satz ab, auf dem der Wisch begann. */
+    klickSperre = true;
+    setTimeout(() => { klickSperre = false; }, 400);
+    fokusSchritt(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  an(document, 'click', e => {
+    if(!klickSperre) return;
+    klickSperre = false;
+    e.preventDefault(); e.stopPropagation();
+  }, { capture: true });
 
   /* Der Browser meldet die Installierbarkeit mit diesem Ereignis, statt
      selbst zu fragen. preventDefault() unterdrueckt nur seinen eigenen

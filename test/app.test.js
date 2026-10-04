@@ -4621,3 +4621,64 @@ describe('Uebung auf spaeter', () => {
     expect(folge()[0]).toBe('pushup');
   });
 });
+
+describe('Wischen im Fokus-Modus', () => {
+  const PLAN = { name: 'F', desc: '', days: [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'squat', 'plank'] }] };
+  async function einheit(fokus = true){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, customPlan: PLAN, settings: { fokus } }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+  /* jsdom kennt keinen Touch-Konstruktor; die Listener lesen nur die Koordinaten. */
+  const beruehrung = (el, typ, x, y) => {
+    const ev = new Event(typ, { bubbles: true, cancelable: true });
+    const punkte = [{ clientX: x, clientY: y }];
+    Object.defineProperty(ev, typ === 'touchend' ? 'changedTouches' : 'touches', { value: punkte });
+    el.dispatchEvent(ev);
+  };
+  const wische = (el, dx, dy = 0) => {
+    beruehrung(el, 'touchstart', 200, 300);
+    beruehrung(el, 'touchend', 200 + dx, 300 + dy);
+  };
+  const aktiv = () => document.querySelector('#content .fokus-aktiv')?.dataset.exid;
+
+  it('blaettert nach links weiter und nach rechts zurueck', async () => {
+    await einheit();
+    const karte = document.querySelector('#content .fokus-aktiv .ex-name');
+    wische(karte, -120);
+    expect(aktiv()).toBe('squat');
+    wische(document.querySelector('#content .fokus-aktiv .ex-name'), 120);
+    expect(aktiv()).toBe('pushup');
+  });
+
+  it('haekt den Satz nicht ab, auf dem der Wisch beginnt', async () => {
+    await einheit();
+    const punkt = document.querySelector('#content .fokus-aktiv .set-dot');
+    wische(punkt, -120);
+    punkt.click();
+    expect(punkt.classList.contains('done')).toBe(false);
+    expect(aktiv()).toBe('squat');
+  });
+
+  it('reagiert nicht auf kurze, schraege oder in Feldern begonnene Bewegungen', async () => {
+    await einheit();
+    wische(document.querySelector('#content .fokus-aktiv .ex-name'), -40);
+    wische(document.querySelector('#content .fokus-aktiv .ex-name'), -100, -90);
+    wische(document.querySelector('#content .fokus-aktiv .rep-input'), -150);
+    expect(aktiv()).toBe('pushup');
+  });
+
+  it('tut ausserhalb des Fokus-Modus nichts', async () => {
+    await einheit(false);
+    const vorher = document.querySelectorAll('#content .ex').length;
+    wische(document.querySelector('#content .ex .ex-name'), -150);
+    expect(document.querySelectorAll('#content .ex')).toHaveLength(vorher);
+    expect(document.getElementById('content').classList.contains('fokus')).toBe(false);
+    /* Kein Klick wird verschluckt. */
+    const punkt = document.querySelector('#content .ex .set-dot');
+    punkt.click();
+    expect(punkt.classList.contains('done')).toBe(true);
+  });
+});
