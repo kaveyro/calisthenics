@@ -9,7 +9,8 @@ import { backupFaellig } from './domain/backup.js';
 import { fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf, today } from './domain/dates.js';
 import { esc } from './domain/escape.js';
 import { fokusNachSatz, fokusStart, spaeterOrdnen } from './domain/fokus.js';
-import { entryHasExercise, repsOf, sekOf, verlaufJeUebung } from './domain/log.js';
+import { entryHasExercise, repsOf, sekOf, stufenVerlauf, verlaufJeUebung } from './domain/log.js';
+import { treppenPfad } from './domain/diagramm.js';
 import { tagFuerWochentag, wochenStand } from './domain/plan.js';
 import { planPruefen, tagesDauerSek, uebungErsetzen, vorlageAufloesen } from './domain/planbuilder.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
@@ -25,7 +26,7 @@ import { installDelegation, zahl } from './ui/delegate.js';
 import { an, cfg, lauf, leereSession, session, setSession, setState, state } from './core/kern.js';
 import { equipListe, fehlt, machbar, stufeMachbar, toggleEquipment } from './features/ausruestung.js';
 import { exportCSV, exportICS, exportJSON, exportText, importCSV, importJSON, resetAll, shareJSON } from './features/backup.js';
-import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR, setLibFilter, setLibSort, toggleLib } from './features/bibliothek.js';
+import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR, setLibFilter, setLibSort, stufenListeHtml, toggleLib } from './features/bibliothek.js';
 import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
 import { einstiegBeenden, einstiegLaufen } from './features/einstieg.js';
 import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanDragAndDrop, moveEx, paarRueckgaengig, paarSchalten, planTempo, removeDay, removeEx, renameDay, renderPlanTab, resetPlan, setWeekPlan } from './features/planeditor.js';
@@ -1473,7 +1474,7 @@ function vorschauHtml(key){
     const vg = heuteVorgabe(ex, lvl, t, v && v[0]);
     const zahlen = vg && Array.isArray(vg.werte) && vg.werte.length ? mitEinheit(vg.werte, t.isHold) : zielText(level);
     const luecke = fehlt(ex, lvl);
-    return '<li class="vs-zeile" data-cat="' + ex.cat + '"><button type="button" class="vs-knopf" data-action="exercise:history" data-ex="' + ex.id + '">' +
+    return '<li class="vs-zeile" data-cat="' + ex.cat + '"><button type="button" class="vs-knopf" data-action="exercise:sheet" data-ex="' + ex.id + '">' +
       '<span class="vs-name">' + esc(exName(ex)) + '</span>' +
       '<span class="vs-ziel">' + esc(zahlen) + '</span>' +
       '<span class="vs-stufe">' + esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) + '</span>' +
@@ -1874,7 +1875,9 @@ export function renderWorkout(){
          vor dem Namen – ausserhalb von .ex-name, das der Fokus-Modus als
          Schrittnamen vorliest. */
       '<div class="ex-head"><span class="sr-only">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ': </span>' +
-        '<div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
+        /* Der Name oeffnet die Uebung im Detail: Leiter, Verlauf, Tipps. */
+        '<div class="ex-name"><button type="button" class="ex-name-btn" data-action="exercise:sheet" data-ex="' + ex.id + '">' + esc(exName(ex)) + '</button></div>' +
+        '<div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
       muskelHtml(ex) +
       '<div class="ex-top">' +
         /* --sprossen: so breit muss die Leiter mindestens sein (12px je
@@ -1919,8 +1922,7 @@ export function renderWorkout(){
         ' data-action-input="note:set" data-ex="' + ex.id + '"' +
         ' placeholder="' + esc(__('notePlaceholder')) + '">' +
         esc(session.notes[ex.id] || '') + '</textarea>' +
-      '<button class="tip-btn" data-action="tips:toggle" data-ex="' + ex.id + '">' + __('tips') + '</button>' +
-      '<ul class="tips" id="tips-' + ex.id + '">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+
       /* Ersetzen und Auslassen greifen auf die PLAN-Zeile zu, nicht auf die
          gerade angezeigte Uebung – sonst liesse sich eine Ersetzung nicht
          zurueckdrehen. */
@@ -1929,7 +1931,7 @@ export function renderWorkout(){
       /* Stange belegt, Ringe noch nicht aufgehaengt: die Uebung ans Ende,
          ohne den Plan zu aendern. */
       '<button class="sub-btn" data-action="exercise:later" data-ex="' + origId + '">' + ikon('down') + ' ' + __('doLater') + '</button>' +
-      '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
+      '<button class="tip-btn" data-action="exercise:sheet" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('sheetOpen') + '</button>' +
       '</details>' +
       '</div>';
   };
@@ -2111,6 +2113,7 @@ function stufeAnwenden(){
      Satz, den man nicht mehr sieht. */
   if(session.dayKey){ cancelHold(); renderWorkout(); restoreSession(session.reps); }
   if(!document.getElementById('view-library').hidden) renderLibrary();
+  blattAuffrischen();
 }
 function stufeZuruecknehmen(){
   const v = stufeVorher;
@@ -2247,8 +2250,16 @@ function unskipExercise(origId){
   updateFinish();
 }
 
-/* ================= Per-Exercise History ================= */
-function showExHistory(id){
+/* ================= Uebungsblatt =================
+   Alles zu einer Uebung an einer Stelle: Kategorie, Muskeln, Geraet, die
+   Leiter mit ±, die Stufe ueber die Zeit, die letzten Einheiten und die
+   Tipps. Vorher lag das verteilt: Tipps im "Mehr" der Karte, der Verlauf in
+   einem eigenen Dialog, die Leiter nur in der Bibliothek.
+
+   Auf dem Handy kommt es als Blatt von unten (CSS .modal--blatt). Die
+   Bestleistung steht nur als Text: das Eingabefeld der Bibliothek liest
+   savePR() ueber seine id, ein zweites mit derselben id wuerde kollidieren. */
+function uebungsBlatt(id){
   const ex = EX_BY_ID[id]; if(!ex) return;
   /* Der Eintrag selbst weiss seit v6, welche Uebungen trainiert wurden. Der
      Plan-Tag dient nur noch als Rueckfall fuer Altbestaende – vorher war er
@@ -2257,12 +2268,24 @@ function showExHistory(id){
   const logEntries = (state.log || [])
     .filter(l => entryHasExercise(l, id, getDay(l.day)))
     .slice(-15).reverse();
-  /* role/aria-modal fehlten hier komplett – anders als beim statischen
-     Einstellungsdialog wurde dieses Overlay als gewoehnliches div angesagt. */
-  let html = '<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-label="' + esc(__('exerciseHistory', { name: exName(ex) })) + '">' +
-    '<div class="modal-head">' +
-    esc(__('exerciseHistory', { name: exName(ex) })) +
-    '<button data-action="exHistory:close" aria-label="' + esc(__('close')) + '">' + ikon('close') + '</button></div>';
+  const lvl = lvlOf(ex);
+  const pr = (state.prs || {})[id];
+  const titel = 'blatt-titel-' + id;
+  /* role/aria-modal fehlten hier frueher komplett – anders als beim
+     statischen Einstellungsdialog wurde das Overlay als div angesagt. */
+  let html = '<div class="modal modal--narrow modal--blatt" role="dialog" aria-modal="true" aria-labelledby="' + titel + '" data-cat="' + ex.cat + '">' +
+    '<div class="modal-head"><span id="' + titel + '">' + esc(exName(ex)) + '</span>' +
+    '<button data-action="sheet:close" aria-label="' + esc(__('close')) + '">' + ikon('close') + '</button></div>' +
+    '<div class="blatt-meta"><span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span>' +
+      '<span>' + esc(__('equipment')) + ': ' + esc(equipListe(ex.equip)) + '</span>' +
+      '<span>' + esc(__('restOf', { sec: restFor(ex) })) + '</span></div>' +
+    muskelHtml(ex) +
+    '<h3 class="section-title">' + esc(__('sheetLevels')) + '</h3>' +
+    stufenListeHtml(ex, lvl) +
+    '<div class="inline-row"><button data-action="sheet:level" data-ex="' + ex.id + '" data-delta="-1">− ' + esc(__('level')) + '</button>' +
+      '<button data-action="sheet:level" data-ex="' + ex.id + '" data-delta="1">+ ' + esc(__('level')) + '</button></div>' +
+    blattTreppe(ex) +
+    '<h3 class="section-title">' + esc(__('sheetSessions')) + '</h3>';
   if(!logEntries.length) html += '<div class="muted">' + esc(__('noLogs')) + '</div>';
   else {
     html += topsatzKurve(logEntries, id);
@@ -2283,14 +2306,38 @@ function showExHistory(id){
     });
     html += '</table>';
   }
-  html += '</div>';
-  const overlay = document.getElementById('exHistoryOverlay') || (() => {
-    const o = document.createElement('div'); o.id = 'exHistoryOverlay';
-    o.className = 'overlay'; o.onclick = function(e){ if(e.target === this) closeExHistory(); };
+  html += '<h3 class="section-title">' + esc(__('tips')) + '</h3>' +
+    '<ul class="tips open tips--inline">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+    (pr ? '<div class="pr-line">' + esc(__('best')) + ': ' + esc(pr.v) + ' (' + fmtDate(pr.d) + ')</div>' : '') +
+    '</div>';
+  const overlay = document.getElementById('uebungOverlay') || (() => {
+    const o = document.createElement('div'); o.id = 'uebungOverlay';
+    o.className = 'overlay overlay--blatt'; o.onclick = function(e){ if(e.target === this) blattSchliessen(); };
     document.body.appendChild(o); return o;
   })();
+  overlay.dataset.ex = id;
   overlay.innerHTML = html;
   openDialog(overlay);
+}
+/* Nach einer Stufenaenderung im offenen Blatt: neu zeichnen. openDialog()
+   tut fuer ein schon offenes Overlay nichts, der Stapel bleibt also, wie er
+   ist; den Fokus setzt mitFokus() zurueck auf den gedrueckten Knopf. */
+function blattAuffrischen(){
+  const o = document.getElementById('uebungOverlay');
+  if(o && o.classList.contains('open') && o.dataset.ex) uebungsBlatt(o.dataset.ex);
+}
+/* Die Stufe ueber die Zeit als Treppe. Nur mit mindestens zwei bekannten
+   Punkten – ein einzelner waere ein Strich ohne Aussage. Das Bild ist fuer
+   den Screenreader stumm; der Satz darunter sagt dasselbe. */
+function blattTreppe(ex){
+  const punkte = stufenVerlauf(state.log, ex.id);
+  if(punkte.length < 2) return '';
+  const von = punkte[0], bis = punkte[punkte.length - 1];
+  const pfad = treppenPfad(punkte, { von: von.d, bis: today(), maxLvl: ex.levels.length - 1, hoehe: 48 });
+  return '<h3 class="section-title">' + esc(__('sheetLevelHistory')) + '</h3>' +
+    '<svg class="treppe" viewBox="0 0 300 48" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<path d="' + pfad + '" fill="none" stroke="var(--kat,var(--accent))" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>' +
+    '<div class="spark-caption">' + esc(__('stairCaption', { von: von.lvl + 1, bis: bis.lvl + 1, date: fmtDate(von.d) })) + '</div>';
 }
 /* Der beste Satz je Einheit als Kurve, in zeitlicher Reihenfolge – die
    Tabelle darunter ist umgekehrt sortiert.
@@ -2336,8 +2383,8 @@ function topsatzKurve(logEntries, id){
     '</svg><div class="spark-caption">' + esc(__('sparkCaption')) + '</div>';
 }
 
-function closeExHistory(){
-  const o = document.getElementById('exHistoryOverlay');
+function blattSchliessen(){
+  const o = document.getElementById('uebungOverlay');
   if(o) closeDialog(o);
 }
 
@@ -2544,7 +2591,6 @@ function toggleTop(id, on){
    Einheit spaeter ist er wieder zu. */
 const offeneMehr = new Set();
 
-function toggleTips(id){ document.getElementById('tips-' + id).classList.toggle('open'); }
 
 /* Die Uebungen der laufenden Einheit. Faellt auf die Session selbst zurueck,
    wenn der Trainingstag zwischenzeitlich aus dem Plan geloescht wurde –
@@ -3204,14 +3250,17 @@ export const actions = {
      betaetigte Element verschwindet dabei und der Fokus fiele auf <body>. */
   'level:adjust':       d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
   'level:undo':         () => stufeZuruecknehmen(),
-  'tips:toggle':        d => toggleTips(d.ex),
   'exercise:substitute': d => substituteExercise(d.ex),
   'exercise:skip':      d => skipExercise(d.ex),
   'exercise:unskip':    d => unskipExercise(d.ex),
   'exercise:later':     d => spaeterMachen(d.ex),
   'exercise:laterUndo': () => spaeterZuruecknehmen(),
-  'exercise:history':   d => showExHistory(d.ex),
-  'exHistory:close':    () => closeExHistory(),
+  'exercise:sheet':     d => uebungsBlatt(d.ex),
+  'sheet:close':        () => blattSchliessen(),
+  /* Eigene Aktion statt level:adjust: mitFokus findet den Knopf ueber
+     Aktion und Daten wieder, und level:adjust stuende zuerst auf der Karte
+     hinter dem Blatt. */
+  'sheet:level':        d => mitFokus(() => adjustLevel(d.ex, zahl(d.delta))),
   'workout:finish':     () => finishWorkout(),
   'workout:undo':       () => undoWorkout(),
   'summary:close':      () => abschlussSchliessen(),

@@ -100,16 +100,7 @@ export function renderLibrary(){
           (ex.rest ? ' · ' + esc(__('restOf', { sec: ex.rest })) : '') +
           ' · ' + esc(zuletzt ? __('lastTrainedOn', { date: fmtDate(zuletzt) }) : __('neverTrained')) + '</div>' +
         muskelHtml(ex) +
-        /* Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen
-           an der Bank machbar und erst die spaeteren brauchen Parallettes.
-           Genau das soll hier ablesbar sein. */
-        '<ul class="lvl-list">' + ex.levels.map((l, i) => {
-          const luecke = fehlt(ex, i);
-          return '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + (luecke.length ? ' gesperrt' : '') + '">' +
-            '<span>' + (i + 1) + '. ' + esc(exStage(ex, i)) +
-            (luecke.length ? ' <small>(' + esc(__('needsEquip', { list: equipListe(luecke) })) + ')</small>' : '') +
-            '</span><span class="t">' + esc(zielText(l)) + '</span></li>';
-        }).join('') + '</ul>' +
+        stufenListeHtml(ex, lvl) +
         '<div class="inline-row"><button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="-1">− ' + __('level') + '</button>' +
           '<button data-action="level:adjust" data-ex="' + ex.id + '" data-delta="1">+ ' + __('level') + '</button></div>' +
         /* Der Platzhalter war die einzige Beschriftung; er verschwindet beim
@@ -120,10 +111,25 @@ export function renderLibrary(){
           '<button data-action="pr:save" data-ex="' + ex.id + '">' + __('save') + '</button></div>' +
         (pr ? '<div class="pr-line">' + esc(__('prUpdated')) + ' ' + fmtDate(pr.d) + '</div>' : '') +
         '<ul class="tips open tips--inline">' + exTips(ex).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-        '<button class="tip-btn" data-action="exercise:history" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('perExercise') + '</button>' +
+        '<button class="tip-btn" data-action="exercise:sheet" data-ex="' + ex.id + '">' + ikon('chart') + ' ' + __('sheetOpen') + '</button>' +
       '</div></div>';
   }).join('') : '';
   filterLibrary();
+}
+
+/* Die Leiter einer Uebung als Liste, je Stufe mit Ziel und fehlendem Geraet.
+   Je Stufe, nicht je Uebung: bei Dips sind die ersten beiden Stufen an der
+   Bank machbar und erst die spaeteren brauchen Parallettes. Genau das soll
+   ablesbar sein. Fuer Bibliothek und Uebungsblatt. */
+export function stufenListeHtml(ex, lvl){
+  return '<ul class="lvl-list">' + ex.levels.map((l, i) => {
+    const luecke = fehlt(ex, i);
+    return '<li class="' + (i === lvl ? 'at' : (i < lvl ? 'passed' : '')) + (luecke.length ? ' gesperrt' : '') + '"' +
+      (i === lvl ? ' aria-current="step"' : '') + '>' +
+      '<span>' + (i + 1) + '. ' + esc(exStage(ex, i)) +
+      (luecke.length ? ' <small>(' + esc(__('needsEquip', { list: equipListe(luecke) })) + ')</small>' : '') +
+      '</span><span class="t">' + esc(zielText(l)) + '</span></li>';
+  }).join('') + '</ul>';
 }
 
 /* Blendet aus, was nicht zur Suche passt – ohne die Liste anzufassen. Damit

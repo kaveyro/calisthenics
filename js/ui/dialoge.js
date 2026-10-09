@@ -44,7 +44,7 @@ const hintergrundInert = an => HINTERGRUND.forEach(sel => {
 });
 
 export function openDialog(overlay){
-  /* Dasselbe Overlay zweimal oeffnen: showExHistory() benutzt einen
+  /* Dasselbe Overlay zweimal oeffnen: uebungsBlatt() benutzt einen
      wiederverwendeten Knoten. Ohne diese Zeile setzt er inert auf sich selbst
      und closeDialog() loest nur den ersten Stapeleintrag – .wrap bliebe
      dauerhaft unerreichbar. */

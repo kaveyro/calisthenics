@@ -814,16 +814,16 @@ describe('Dialoge und Hintergrund', () => {
       expect(document.querySelector(sel).hasAttribute('inert'), sel).toBe(false));
   });
 
-  /* showExHistory() benutzt einen wiederverwendeten Knoten. Ohne Schutz setzt
+  /* uebungsBlatt() benutzt einen wiederverwendeten Knoten. Ohne Schutz setzt
      ein zweiter Aufruf inert auf das Overlay selbst, und closeDialog() loest
      nur den ersten Stapeleintrag – .wrap bliebe dauerhaft unerreichbar. */
   it('oeffnet dasselbe Overlay kein zweites Mal', async () => {
     const app = await starten();
-    app.actions['exercise:history']({ ex: 'pushup' });
-    app.actions['exercise:history']({ ex: 'pushup' });
+    app.actions['exercise:sheet']({ ex: 'pushup' });
+    app.actions['exercise:sheet']({ ex: 'pushup' });
     await ruhe();
 
-    const overlay = document.getElementById('exHistoryOverlay');
+    const overlay = document.getElementById('uebungOverlay');
     expect(overlay.hasAttribute('inert')).toBe(false);
     overlay.querySelector('[data-action="exercise:historyClose"], [data-dlg=abbrechen], button').click();
     await ruhe();
@@ -1092,9 +1092,9 @@ describe('Verlauf je Uebung', () => {
   async function oeffnen(log){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 7, workouts: log.length, log }));
     const app = await starten();
-    app.actions['exercise:history']({ ex: 'pushup' });
+    app.actions['exercise:sheet']({ ex: 'pushup' });
     await ruhe();
-    return document.getElementById('exHistoryOverlay');
+    return document.getElementById('uebungOverlay');
   }
 
   it('zeichnet die Topsaetze als Kurve', async () => {
@@ -1127,9 +1127,9 @@ describe('Verlauf je Uebung', () => {
         sek: { 'support-0': 24, 'support-1': 22 } }
     ]}));
     const app = await starten();
-    app.actions['exercise:history']({ ex: 'support' });
+    app.actions['exercise:sheet']({ ex: 'support' });
     await ruhe();
-    const zeile = document.querySelector('#exHistoryOverlay table tr:nth-child(2)').textContent;
+    const zeile = document.querySelector('#uebungOverlay table tr:nth-child(2)').textContent;
     expect(zeile).toContain('24 · 22');
     /* Stufe 1 gespeichert, also die zweite Stufe. */
     expect(zeile).toContain('2');
@@ -3430,13 +3430,15 @@ describe('Bereich Mehr auf der Karte', () => {
   }
   const mehr = () => document.querySelector('[data-exid="pushup"] details.ex-mehr');
 
-  it('ist zu und enthaelt Notiz, Tipps, Ersetzen, Auslassen und Verlauf', async () => {
+  it('ist zu und enthaelt Notiz, Ersetzen, Auslassen, Spaeter und das Uebungsblatt', async () => {
     await einheit();
     expect(mehr().open).toBe(false);
-    for(const sel of ['.note-input', '[data-action="tips:toggle"]', '[data-action="exercise:substitute"]',
-      '[data-action="exercise:skip"]', '[data-action="exercise:history"]']){
+    for(const sel of ['.note-input', '[data-action="exercise:substitute"]',
+      '[data-action="exercise:skip"]', '[data-action="exercise:later"]', '[data-action="exercise:sheet"]']){
       expect(mehr().querySelector(sel), sel).not.toBeNull();
     }
+    /* Die Tipps stehen seit Runde 12 im Uebungsblatt. */
+    expect(mehr().querySelector('.tips')).toBeNull();
   });
 
   it('laesst die Saetze und das obere Limit draussen', async () => {
@@ -4868,3 +4870,84 @@ describe('Ruhigere Uebungskarte', () => {
     expect(css).toMatch(/\n\.ex\{[^}]*border-left:4px solid var\(--kat/);
   });
 });
+
+describe('Uebungsblatt', () => {
+  const blatt = () => document.getElementById('uebungOverlay');
+  async function einheit(stand = {}){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, ...stand }));
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    return app;
+  }
+
+  it('oeffnet sich vom Namen auf der Karte mit Leiter, Muskeln und Tipps', async () => {
+    await einheit();
+    const name = document.querySelector('.ex[data-exid="pushup"] .ex-name-btn');
+    expect(name.textContent).toBe('Liegestütze');
+    name.click();
+    await ruhe();
+    const o = blatt();
+    expect(o.classList.contains('open')).toBe(true);
+    expect(o.querySelector('[role="dialog"]').getAttribute('aria-labelledby')).toBe('blatt-titel-pushup');
+    expect(o.querySelector('#blatt-titel-pushup').textContent).toBe('Liegestütze');
+    expect(o.querySelector('.cat-chip').textContent).toBe('Drücken');
+    expect(o.querySelector('.ex-muskeln').textContent).toMatch(/Brust/);
+    expect(o.querySelectorAll('.lvl-list li').length).toBeGreaterThan(3);
+    expect(o.querySelector('.lvl-list li[aria-current="step"]').classList.contains('at')).toBe(true);
+    expect(o.querySelectorAll('.tips li').length).toBeGreaterThan(0);
+    expect(document.querySelector('.wrap').hasAttribute('inert')).toBe(true);
+  });
+
+  it('aendert die Stufe mit ± und zeichnet sich neu', async () => {
+    const app = await einheit();
+    app.actions['exercise:sheet']({ ex: 'pushup' });
+    await ruhe();
+    blatt().querySelector('[data-action="sheet:level"][data-delta="1"]').click();
+    await ruhe();
+    expect(gespeichert().levels.pushup).toBe(1);
+    expect(blatt().classList.contains('open')).toBe(true);
+    expect([...blatt().querySelectorAll('.lvl-list li')].findIndex(li => li.classList.contains('at'))).toBe(1);
+    /* Die Karte dahinter zieht mit. */
+    expect(document.querySelector('.ex[data-exid="pushup"] .rung-label').textContent).toMatch(/^2\//);
+  });
+
+  it('schliesst mit Escape und gibt den Fokus zurueck', async () => {
+    await einheit();
+    const name = document.querySelector('.ex[data-exid="pushup"] .ex-name-btn');
+    name.focus();
+    name.click();
+    await ruhe();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await ruhe();
+    expect(blatt().classList.contains('open')).toBe(false);
+    expect(document.activeElement).toBe(name);
+  });
+
+  it('zeigt die Stufe ueber die Zeit als Treppe', async () => {
+    const e = (d, lvl, ups = []) => ({ d, day: 'A', sets: 4, ex: ['pushup'], lv: { pushup: lvl }, reps: { 'pushup-0': 8 }, ups });
+    await einheit({ log: [e(isoDaysAgo(30), 0), e(isoDaysAgo(20), 0, ['pushup']), e(isoDaysAgo(10), 1), e(isoDaysAgo(5), 2)] });
+    document.querySelector('.ex[data-exid="pushup"] .ex-name-btn').click();
+    await ruhe();
+    const pfad = blatt().querySelector('svg.treppe path').getAttribute('d');
+    expect(pfad).toMatch(/^M0 /);
+    expect(pfad.match(/V/g)).toHaveLength(2);
+    expect(blatt().querySelector('svg.treppe').getAttribute('aria-hidden')).toBe('true');
+    expect(blatt().textContent).toMatch(/Von Stufe 1 auf 3 seit/);
+  });
+
+  it('oeffnet sich auch aus Vorschau und Bibliothek', async () => {
+    const app = await starten();
+    document.querySelector('#content .vs-knopf[data-ex="pushup"]').click();
+    await ruhe();
+    expect(blatt().dataset.ex).toBe('pushup');
+    app.actions['sheet:close']();
+    app.actions['tab:show']({ tab: 'library' });
+    await ruhe();
+    document.querySelector('.lib-item[data-exid="pike"] [data-action="exercise:sheet"]').click();
+    await ruhe();
+    expect(blatt().dataset.ex).toBe('pike');
+    expect(blatt().classList.contains('open')).toBe(true);
+  });
+});
+

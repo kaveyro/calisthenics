@@ -183,3 +183,30 @@ export function zaehleJeTag(log){
 export function lastRepsFor(log, exId, dayOf, ausser){
   return lastRepsByExercise(log, [exId], dayOf, ausser)[exId] || null;
 }
+
+/* Die Stufe einer Uebung ueber die Zeit: [{ d, lvl }], aelteste zuerst.
+
+   Jeder Eintrag haelt seit v15 in `lv` fest, auf welcher Stufe die Zahlen
+   entstanden. Steht die Uebung zugleich in `ups`, ist sie in dieser Einheit
+   aufgestiegen – dann kommt am selben Tag ein Punkt eine Stufe hoeher dazu,
+   sonst zeigte die Linie den Aufstieg erst bei der naechsten Einheit.
+   Eintraege ohne `lv` (Altbestand, CSV) werden uebergangen: ihre Stufe ist
+   unbekannt, eine geratene waere eine falsche Treppe.
+
+   Stufenwechsel von Hand (±) oder durch eine lange Pause stehen nicht im
+   Log; sie zeigen sich als Sprung bei der naechsten Einheit. */
+export function stufenVerlauf(log, exId){
+  const eintraege = (Array.isArray(log) ? log : [])
+    .filter(l => l && typeof l.d === 'string' && l.lv && Number.isInteger(l.lv[exId]))
+    .map((l, i) => ({ l, i }))
+    /* Nach Datum, bei gleichem Datum in Log-Reihenfolge: ein CSV-Import
+       kann aeltere Eintraege hinten angehaengt haben. */
+    .sort((a, b) => (a.l.d < b.l.d ? -1 : a.l.d > b.l.d ? 1 : a.i - b.i));
+  const out = [];
+  for(const { l } of eintraege){
+    out.push({ d: l.d, lvl: l.lv[exId] });
+    if(Array.isArray(l.ups) && l.ups.includes(exId)) out.push({ d: l.d, lvl: l.lv[exId] + 1 });
+  }
+  return out;
+}
+

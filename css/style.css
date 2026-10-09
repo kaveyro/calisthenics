@@ -293,6 +293,11 @@ h1 .thin{color:var(--accent)}
 .hk-stand.voll{color:var(--success)}
 .heute-karte > .hk-los{grid-column:2;grid-row:1 / span 4;align-self:center;justify-self:end;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:10px 18px;font-weight:700;font-size:var(--text-md)}
 .day-select.klein{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+/* ---------- Uebungsblatt ---------- */
+.blatt-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:var(--text-sm);color:var(--ink-soft);margin-bottom:6px}
+.modal--blatt .lvl-list{margin-top:4px}
+.modal--blatt .tips{margin-top:0}
+.treppe{display:block;width:100%;height:48px;margin-top:4px}
 /* Ohne Einheit: eine schmale Umschaltleiste, welcher Tag gezeigt wird. */
 .day-select.vs-tage{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
 .day-select.vs-tage:empty{display:none}
@@ -387,6 +392,11 @@ details.acc li{margin-bottom:5px}
 .lvl-adjust button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-name{font-weight:700;font-size:var(--text-lg)}
+/* Der Name ist ein Knopf zum Uebungsblatt, sieht aber aus wie Text mit
+   dezenter Unterstreichung. */
+.ex-name-btn{all:unset;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.ex-name-btn:hover{text-decoration-color:var(--accent)}
+.ex-name-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
 /* Die trainierten Muskeln unter dem Namen; Nebenmuskeln blasser. */
 .ex-muskeln{font-size:var(--text-sm);color:var(--ink);margin-top:2px}
 .ex-muskeln .neben{color:var(--ink-soft)}
@@ -1018,6 +1028,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
    entfernt. Ohne Animation – reduzierte Bewegung, unten – steht er ruhig
    da, bis die Klasse nach 1,2 s geht. */
 body.pause-aus::after{content:"";position:fixed;inset:0;z-index:60;pointer-events:none;border:6px solid var(--accent);animation:pause-puls .6s ease-in-out 2 forwards}
+@keyframes blatt-rein{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
 @keyframes pause-puls{0%{opacity:0}50%{opacity:1}100%{opacity:0}}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
@@ -1096,6 +1107,9 @@ body.pause-aus::after{content:"";position:fixed;inset:0;z-index:60;pointer-event
      Training – in Verlauf, Plan und Zielen stehen die Zahlen ohnehin
      ausführlicher. */
   body[data-tab]:not([data-tab="train"]) .stats{display:none}
+  /* Das Uebungsblatt kommt auf dem Handy von unten, in Daumenreichweite. */
+  .overlay--blatt{align-items:flex-end;padding:0}
+  .modal--blatt{max-width:none;border-radius:18px 18px 0 0;max-height:90vh;padding-bottom:calc(18px + env(safe-area-inset-bottom));animation:blatt-rein .2s ease-out}
   /* Kompakter Kopf ausserhalb des Trainings: Wortmarke klein, ohne Planname
      und Phasenzeile. Der Kopf brauchte auf jedem Tab rund 130px, bevor
      etwas kam; Plan und Phase gehoeren zum Training. Nicht klebend: unten
