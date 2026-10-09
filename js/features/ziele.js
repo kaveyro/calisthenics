@@ -2,7 +2,7 @@
 
 import { today } from '../domain/dates.js';
 import { esc } from '../domain/escape.js';
-import { erkannteMeilensteine, meilensteinStatus } from '../domain/milestones.js';
+import { erkannteMeilensteine, meilensteinStatus, naechsteMeilensteine } from '../domain/milestones.js';
 import { istSkill } from '../domain/skills.js';
 import { EXERCISES, EX_BY_ID, MILESTONES } from '../exercises.js';
 import { __, exName, exStage, msName } from '../i18n/index.js';
@@ -102,6 +102,42 @@ export function renderMilestones(){
   }).join('');
 
   document.getElementById('msList').innerHTML = html;
+  const zahl = document.getElementById('msZahl');
+  if(zahl){
+    const gesamt = MILESTONES.length + customMilestones().length;
+    const erreicht = Object.keys(state.milestones || {}).length;
+    zahl.textContent = __('msCount', { n: erreicht, total: gesamt });
+  }
+  renderNaechste();
+}
+
+/* Als Naechstes: zuerst, was die Zahlen schon erfuellen und nur noch
+   uebernommen werden will, dann die drei, zu denen am wenigsten fehlt. */
+function renderNaechste(){
+  const el = document.getElementById('msNaechste');
+  if(!el) return;
+  const ctx = { levels: state.levels, prs: state.prs, exById: EX_BY_ID, milestones: state.milestones };
+  const nachId = id => MILESTONES.find(m => m.id === id);
+  const erkannt = erkannteMs().map(nachId).filter(Boolean);
+  const offen = naechsteMeilensteine(MILESTONES, ctx, 3).map(n => ({ m: nachId(n.id), n })).filter(x => x.m);
+  if(!erkannt.length && !offen.length){
+    el.innerHTML = '<div class="empty-hint">' + esc(__('msNextEmpty')) + '</div>';
+    return;
+  }
+  el.innerHTML = erkannt.map(m =>
+    '<div class="ms-row erkannt"><span class="ms-name">' + esc(msName(m)) +
+      ' <span class="cat-chip">' + esc(__('msLooksDone')) + '</span></span>' +
+      '<button type="button" class="mini-btn" data-action="milestone:accept" data-id="' + m.id + '">' + esc(__('msAccept')) + '</button></div>'
+  ).join('') + offen.map(({ m, n }) => {
+    const s = msStatus(m);
+    const ex = EX_BY_ID[m.when.ex];
+    return '<div class="ms-row ms-naechst"><span><span class="ms-name">' + esc(msName(m)) + '</span>' +
+      '<br><span class="ms-need">' + esc(fehltText(s.fehlt)) +
+        (ex ? ' · ' + esc(__('msNow', { stage: lvlOf(ex) + 1 })) : '') + '</span></span>' +
+      (n.anteil > 0 && !n.abstand
+        ? '<span class="ms-balken" role="img" aria-label="' + esc(__('msShare', { pct: Math.round(n.anteil * 100) })) + '"><i style="width:' + Math.round(n.anteil * 100) + '%"></i></span>'
+        : '') + '</div>';
+  }).join('');
 }
 
 /* Alle erkannten, noch nicht eingetragenen Meilensteine. */
@@ -147,9 +183,12 @@ export function renderRoadmap(){
   document.getElementById('roadmap').innerHTML = skills.map(ex => {
     const lvl = lvlOf(ex);
     const pct = Math.round(lvl / (ex.levels.length - 1) * 100);
-    return '<div class="roadmap-item">' +
-      '<div class="lib-head roadmap-head"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
-      '<span class="lib-meta">' + pct + '%</span></div>' +
+    /* Ein Balken statt nur der Zahl: zwoelf Prozentwerte untereinander
+       vergleicht man schlecht. Ein Tipp oeffnet die Uebung. */
+    return '<div class="roadmap-item" data-cat="' + ex.cat + '">' +
+      '<button type="button" class="lib-head roadmap-head" data-action="exercise:sheet" data-ex="' + ex.id + '"><span class="lib-name">' + esc(exName(ex)) + '</span>' +
+      '<span class="lib-meta">' + pct + '%</span></button>' +
+      '<span class="rm-balken" aria-hidden="true"><i style="width:' + pct + '%"></i></span>' +
       '<div class="muted">' + esc(__('nextStage', { name: exStage(ex, lvl), stage: '' })).replace(/\s*$/, ' ') +
       (lvl < ex.levels.length - 1 ? esc(exStage(ex, lvl + 1)) : esc(__('maxLevelReached'))) + '</div></div>';
   }).join('');

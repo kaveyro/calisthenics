@@ -5007,3 +5007,50 @@ describe('Verlauf: Stufen vorn, drei Bereiche', () => {
     expect(document.getElementById('uebungOverlay').dataset.ex).toBe('pushup');
   });
 });
+
+describe('Ziele: Als Naechstes oben', () => {
+  async function mitStand(){
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      v: 18, onboarded: true,
+      levels: { pullup: 3, pushup: 3 },
+      prs: { pullup: { v: '5 Wdh', n: 5, d: '2026-07-01', art: 'reps', lvl: 3 }, pushup: { v: '12 Wdh', n: 12, d: '2026-07-01', art: 'reps', lvl: 3 } }
+    }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'milestones' });
+    await ruhe();
+    return app;
+  }
+
+  it('zeigt erkannte Meilensteine zum Uebernehmen und die naechsten offenen', async () => {
+    await mitStand();
+    const oben = document.getElementById('msNaechste');
+    const erkannt = [...oben.querySelectorAll('.ms-row.erkannt')].map(r => r.querySelector('[data-action="milestone:accept"]').dataset.id);
+    expect(erkannt).toContain('pullup1');
+    expect(erkannt).toContain('pushup5');
+    const naechste = [...oben.querySelectorAll('.ms-naechst')];
+    expect(naechste.length).toBeGreaterThan(0);
+    expect(naechste.length).toBeLessThanOrEqual(3);
+    /* 15 Liegestuetze: Stufe passt, 12 von 15 – das naechstliegende. */
+    expect(naechste[0].textContent).toMatch(/15 volle Liegestütze/);
+    expect(naechste[0].querySelector('.ms-balken').getAttribute('aria-label')).toBe('80 Prozent des Zielwerts');
+  });
+
+  it('uebernimmt aus "Als Naechstes" und klappt die volle Liste ein', async () => {
+    await mitStand();
+    expect(document.querySelector('details.ms-alle').open).toBe(false);
+    expect(document.getElementById('msZahl').textContent).toBe('0 von 20');
+    document.querySelector('#msNaechste [data-action="milestone:accept"][data-id="pullup1"]').click();
+    await ruhe();
+    expect(gespeichert().milestones.pullup1).toBeTruthy();
+    expect(document.querySelector('#msNaechste [data-id="pullup1"]')).toBeNull();
+    expect(document.getElementById('msZahl').textContent).toBe('1 von 20');
+  });
+
+  it('oeffnet aus dem Fahrplan das Uebungsblatt', async () => {
+    await mitStand();
+    document.querySelector('#roadmap [data-action="exercise:sheet"]').click();
+    await ruhe();
+    expect(document.getElementById('uebungOverlay').classList.contains('open')).toBe(true);
+    expect(document.querySelector('#roadmap .rm-balken i').getAttribute('style')).toMatch(/^width:\d+%$/);
+  });
+});

@@ -205,9 +205,15 @@ describe('Layout auf breiten Schirmen', () => {
     }
   });
 
-  it('stellt in den Zielen das lange Panel an den Anfang', () => {
-    const ziele = html.split('class="raster raster--ziele"')[1];
-    expect(ziele.indexOf('class="panel panel--lang"')).toBeLessThan(ziele.indexOf('class="panel"'));
+  /* Seit Runde 12 beginnen die Ziele mit dem, was als Naechstes kommt;
+     die volle Liste steht eingeklappt am Ende. */
+  it('stellt in den Zielen "Als Naechstes" an den Anfang und klappt die Liste ein', () => {
+    const ziele = html.split('class="raster raster--ziele"')[1].split('</section>')[0];
+    const panels = [...ziele.matchAll(/<div class="panel"[^>]*>/g)].map(m => m.index);
+    expect(ziele.indexOf('id="msNaechste"')).toBeGreaterThan(panels[0]);
+    expect(ziele.indexOf('id="msNaechste"')).toBeLessThan(panels[1]);
+    expect(ziele.indexOf('id="msList"')).toBeGreaterThan(ziele.indexOf('<details class="acc ms-alle">'));
+    expect(ziele.indexOf('id="msList"')).toBeGreaterThan(panels[panels.length - 1]);
   });
 
   it('klammert Kennzahlen und Navigation im Markup zusammen', () => {

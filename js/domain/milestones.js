@@ -64,3 +64,36 @@ export function erkannteMeilensteine(milestones, { levels, prs, exById, mileston
     .filter(ms => meilensteinStatus(ms, { levels, prs, exById }).erfuellt)
     .map(ms => ms.id);
 }
+
+/* Die naechsten offenen Meilensteine: die, zu denen am wenigsten fehlt.
+   Fuer "Als Naechstes" oben im Ziele-Tab – eine Liste von zwanzig
+   Haekchen sagt nicht, worauf man gerade hinarbeitet.
+
+   Nur bekannte, nicht eingetragene und noch nicht erfuellte (die
+   erfuellten stehen dort ohnehin, mit "Uebernehmen"). Sortiert nach dem
+   Abstand in Stufen, bei gleichem Abstand nach dem Anteil, den die
+   Bestleistung vom Zielwert schon hat, dann in Listenreihenfolge.
+
+   Zurueck: [{ id, abstand, anteil }], hoechstens n. */
+export function naechsteMeilensteine(milestones, { levels, prs, exById, milestones: eingetragen } = {}, n = 3){
+  const schon = objekt(eingetragen);
+  return (Array.isArray(milestones) ? milestones : [])
+    .map((ms, i) => ({ ms, i, s: ms && ms.id && !schon[ms.id] ? meilensteinStatus(ms, { levels, prs, exById }) : null }))
+    .filter(({ s }) => s && s.bekannt && !s.erfuellt)
+    .map(({ ms, i, s }) => {
+      const w = ms.when;
+      const stufe = Number(objekt(levels)[w.ex]) || 0;
+      const zielWert = s.art === 'reps' ? w.reps : w.sek;
+      const pr = objekt(prs)[w.ex];
+      const wert = (pr && pr.art === s.art) ? prNumber(pr) : 0;
+      return {
+        id: ms.id, i,
+        abstand: Math.max(0, w.lvl - stufe),
+        anteil: zielWert > 0 ? Math.max(0, Math.min(1, wert / zielWert)) : 0
+      };
+    })
+    .sort((a, b) => a.abstand - b.abstand || b.anteil - a.anteil || a.i - b.i)
+    .slice(0, Math.max(0, n))
+    .map(({ id, abstand, anteil }) => ({ id, abstand, anteil }));
+}
+

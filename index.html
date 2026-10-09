@@ -333,19 +333,19 @@
 
   <!-- ============ ZIELE ============ -->
   <section id="view-milestones" hidden role="tabpanel" aria-labelledby="tab-milestones" tabindex="0">
-    <!-- Meilensteine sind die lange Liste: links über zwei Zeilen, rechts
-         Bestleistungen und Fahrplan gestapelt. -->
+    <!-- Was als Nächstes kommt, steht oben: erkannte Meilensteine zum
+         Übernehmen und die, zu denen am wenigsten fehlt. Der Tab begann
+         bisher mit einer Checkliste aus zwanzig Einträgen samt Suchfeld,
+         der Fahrplan stand ganz unten. -->
     <div class="raster raster--ziele">
-    <div class="panel panel--lang">
-    <div class="section-title" data-i18n="milestonesTitle">Meilensteine</div>
-    <div class="data-btns">
-      <button class="btn secondary btn--standalone" data-action="milestone:add" data-i18n="addMilestone">Eigener Meilenstein</button>
+    <div class="panel" id="msNaechstePanel">
+    <div class="section-title" data-i18n="msNext">Als Nächstes</div>
+    <div class="card" id="msNaechste"></div>
     </div>
-    <div class="inline-row" style="margin-bottom:10px">
-      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen" data-i18n-placeholder="milestoneSearch" data-i18n-aria-label="milestoneSearchAria">
-    </div>
-    <div class="card" id="msList"></div>
-    <p class="muted" data-i18n="milestoneNote">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert. „Sieht geschafft aus" ist ein Hinweis aus deinen Zahlen, kein Urteil über die Ausführung.</p>
+
+    <div class="panel">
+    <div class="section-title" data-i18n="roadmap">Skill-Fahrplan</div>
+    <div class="card" id="roadmap"></div>
     </div>
 
     <!-- Bestleistungen lagen bisher verstreut in 42 Bibliothekseinträgen. -->
@@ -354,9 +354,20 @@
     <div class="card" id="bestsList"></div>
     </div>
 
+    <!-- Die volle Liste, eingeklappt: zum Abhaken, Suchen und für eigene
+         Meilensteine. -->
     <div class="panel">
-    <div class="section-title" data-i18n="roadmap">Skill-Fahrplan</div>
-    <div class="card" id="roadmap"></div>
+    <details class="acc ms-alle">
+    <summary><span data-i18n="milestonesAll">Alle Meilensteine</span> <span class="ms-zahl" id="msZahl"></span></summary>
+    <div class="data-btns">
+      <button class="btn secondary btn--standalone" data-action="milestone:add" data-i18n="addMilestone">Eigener Meilenstein</button>
+    </div>
+    <div class="inline-row" style="margin-bottom:10px">
+      <input type="search" id="msSearch" placeholder="Meilenstein suchen …" data-action-input="milestone:search" aria-label="Meilenstein suchen" data-i18n-placeholder="milestoneSearch" data-i18n-aria-label="milestoneSearchAria">
+    </div>
+    <div class="card" id="msList"></div>
+    <p class="muted" data-i18n="milestoneNote">Hak einen Meilenstein ab, sobald du ihn zum ersten Mal sauber geschafft hast – das Datum wird gespeichert. „Sieht geschafft aus" ist ein Hinweis aus deinen Zahlen, kein Urteil über die Ausführung.</p>
+    </details>
     </div>
     </div>
   </section>

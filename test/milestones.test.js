@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meilensteinStatus, erkannteMeilensteine } from '../js/domain/milestones.js';
+import { meilensteinStatus, erkannteMeilensteine, naechsteMeilensteine } from '../js/domain/milestones.js';
 import { MILESTONES, EX_BY_ID } from '../js/exercises.js';
 
 const leiter = n => Array.from({ length: n }, (_, i) => ({ stage: 'S' + i, saetze: 4, wdh: [8, 8] }));
@@ -140,5 +140,36 @@ describe('MILESTONES gegen die echten Uebungsdaten', () => {
       });
       expect(erreichbar, m.id).toBe(true);
     });
+  });
+});
+
+describe('naechsteMeilensteine', () => {
+  const ex = { a: { id: 'a', levels: leiter(6) }, b: { id: 'b', levels: leiter(6) }, c: { id: 'c', levels: leiter(6) } };
+  const ms = [
+    { id: 'weit', when: { ex: 'a', lvl: 5, reps: 1 } },
+    { id: 'nah', when: { ex: 'b', lvl: 1, reps: 10 } },
+    { id: 'naeher', when: { ex: 'c', lvl: 1, reps: 10 } },
+    { id: 'kaputt', when: { ex: 'gibtsnicht', lvl: 1, reps: 1 } },
+    { id: 'erfuellt', when: { ex: 'a', lvl: 0, reps: 1 } }
+  ];
+  const pr = v => ({ v: v + ' Wdh', art: 'reps', n: v });
+  const ctx = { levels: { a: 1, b: 1, c: 1 }, prs: { a: pr(3), b: pr(4), c: pr(8) }, exById: ex };
+
+  it('sortiert nach Stufenabstand, dann nach dem Anteil am Zielwert', () => {
+    expect(naechsteMeilensteine(ms, ctx, 3).map(n => n.id)).toEqual(['naeher', 'nah', 'weit']);
+    const [erster] = naechsteMeilensteine(ms, ctx, 1);
+    expect(erster).toEqual({ id: 'naeher', abstand: 0, anteil: 0.8 });
+  });
+  it('laesst erfuellte, eingetragene und unbekannte weg', () => {
+    const ids = naechsteMeilensteine(ms, { ...ctx, milestones: { naeher: '2026-07-01' } }, 10).map(n => n.id);
+    expect(ids).toEqual(['nah', 'weit']);
+  });
+  it('zaehlt eine Bestleistung der anderen Masseinheit nicht', () => {
+    const [n] = naechsteMeilensteine([ms[1]], { ...ctx, prs: { b: { v: '30 Sek', art: 'sek', n: 30 } } }, 1);
+    expect(n.anteil).toBe(0);
+  });
+  it('vertraegt fehlende Angaben', () => {
+    expect(naechsteMeilensteine(null, {}, 3)).toEqual([]);
+    expect(naechsteMeilensteine(ms, ctx, 0)).toEqual([]);
   });
 });
