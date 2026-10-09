@@ -133,10 +133,12 @@
     <!-- Was heute ansteht, sobald ein Wochenrhythmus eingerichtet ist.
          Nur eine Ansage, keine Sperre. -->
     <div class="muted" id="heuteHinweis" hidden></div>
-    <!-- Der fällige Tag als große Karte; darunter alle Tage zur freien Wahl. -->
+    <!-- Ohne Einheit: oben die Umschaltleiste der Tage, darunter der gewählte
+         Tag als große Karte zum Starten; die Vorschau steht in #content.
+         Während einer Einheit steht hier die Zeile "Läuft gerade". -->
     <div id="rueckblick"></div>
-    <div id="heuteKarte"></div>
     <div class="day-select" id="daySelect" role="group" data-i18n-aria-label="chooseDay" aria-label="Trainingstag wählen"></div>
+    <div id="heuteKarte"></div>
 
     <!-- Der Hinzufügen-Button lag früher IM <summary>. Verschachtelte
          interaktive Elemente sind ungültig, und die Tastaturaktivierung von

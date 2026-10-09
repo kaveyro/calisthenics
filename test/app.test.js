@@ -57,6 +57,15 @@ async function abschliessen(app){
   await fertig;
 }
 
+/* Einen Tag starten wie von Hand: in der Umschaltleiste waehlen, dann die
+   Heute-Karte antippen. Bis Runde 12 startete schon ein Tipp auf einen der
+   Tagesknoepfe die Einheit. Bei nur einem Tag gibt es keine Leiste. */
+function tagStarten(n = 0){
+  const tage = document.querySelectorAll('#daySelect .vs-tag');
+  if(tage.length) tage[n].click();
+  document.querySelector('#heuteKarte .heute-karte').click();
+}
+
 /* Das Datum, das die App fuer heute haelt: lokal, nicht UTC. Mit
    toISOString() allein rutschte es zwischen Mitternacht und dem UTC-Offset
    auf den Vortag, und die Tests schlugen jede Nacht bis zwei Uhr fehl. */
@@ -86,7 +95,7 @@ afterEach(() => { vi.useRealTimers(); });
 describe('Start', () => {
   it('rendert Trainingstage und legt einen Stand an', async () => {
     await starten();
-    expect(document.getElementById('daySelect').querySelectorAll('.day-btn').length)
+    expect(document.getElementById('daySelect').querySelectorAll('.vs-tag').length)
       .toBeGreaterThan(0);
     expect(document.getElementById('content').textContent).not.toBe('');
   });
@@ -111,7 +120,7 @@ describe('Start', () => {
 describe('Eine Einheit abschliessen', () => {
   async function einheitLaufen(){
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     const punkte = wiederholungsPunkte();
     expect(punkte.length).toBeGreaterThan(0);
@@ -176,7 +185,7 @@ describe('Wiederholungen', () => {
     /* 0 ist eine gueltige Eingabe. Zwei Falsy-Pruefungen liessen sie beim
        Neuzeichnen verschwinden. */
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
 
     const feld = document.querySelector('.rep-input');
@@ -193,7 +202,7 @@ describe('Wiederholungen', () => {
 
   it('zeigt beim naechsten Mal, was zuletzt geschafft wurde', async () => {
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
 
     const feld = document.querySelector('.rep-input');
@@ -204,7 +213,7 @@ describe('Wiederholungen', () => {
     await abschliessen(app);
     await ruhe();
 
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     expect(document.querySelector('.last-reps:not(.heute)').textContent).toContain('11');
   });
@@ -324,7 +333,7 @@ describe('Abgleich zwischen zwei Fenstern', () => {
 
   it('behaelt die hier laufende Einheit und schreibt sie zurueck', async () => {
     await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     wiederholungsPunkte()[0].click();
     await ruhe();
@@ -348,7 +357,7 @@ describe('Abgleich zwischen zwei Fenstern', () => {
      sich beide gegenseitig endlos ueber. */
   it('ueberschreibt die laufende Einheit eines anderen Fensters nicht', async () => {
     await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     wiederholungsPunkte()[0].click();
     await ruhe();
@@ -1234,7 +1243,7 @@ describe('Design', () => {
 describe('Trainingsdauer', () => {
   async function einheit(n = 2){
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     wiederholungsPunkte().slice(0, n).forEach(d => d.click());
     await ruhe();
@@ -1264,7 +1273,7 @@ describe('Trainingsdauer', () => {
      Aufwaermen. Wer gar nichts abhakt, hat keine gemessene Dauer. */
   it('zaehlt erst ab dem ersten Satz, nicht ab der Tagesauswahl', async () => {
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     const spy = vorspulen(40 * 60 * 1000);
     await abschliessen(app);
@@ -1340,7 +1349,7 @@ describe('Aufwaermen abhaken', () => {
 
   async function tagUndAufwaermen(n = 0){
     const app = await starten();
-    document.querySelectorAll('.day-btn')[n].click();
+    tagStarten(n);
     await ruhe();
     return app;
   }
@@ -1372,7 +1381,7 @@ describe('Aufwaermen abhaken', () => {
     await ruhe();
     /* Waehrend der Einheit sind die Tage eingeklappt. */
     document.querySelector('[data-action="day:change"]').click();
-    document.querySelectorAll('.day-btn')[1].click();
+    document.querySelectorAll('#daySelect .day-btn')[1].click();
     await ruhe();
     expect(punkte().every(p => !p.checked)).toBe(true);
   });
@@ -1606,7 +1615,7 @@ describe('Tastatur: zwischen den Uebungen springen', () => {
     const app = await starten();
     /* jsdom kennt scrollIntoView nicht. */
     window.HTMLElement.prototype.scrollIntoView = function(){};
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     return app;
   }
@@ -1986,7 +1995,7 @@ describe('Bestleistungen mit Masseinheit', () => {
   async function mitStand(prs, levels){
     localStorage.setItem(SPEICHER, JSON.stringify({ v: 10, onboarded: true, prs, levels }));
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     return app;
   }
@@ -2260,18 +2269,19 @@ describe('Wochenrhythmus', () => {
     expect(hinweis().hidden).toBe(true);
   });
 
-  it('nennt den Tag von heute und schlaegt ihn vor', async () => {
+  it('schlaegt den Tag von heute auf der Karte vor', async () => {
     await mitPlan({ [heuteWd()]: 'B' });
-    expect(hinweis().hidden).toBe(false);
-    expect(hinweis().textContent).toMatch(/^Heute: B/);
     expect(abzeichen()).toBe('B');
+    expect(document.querySelector('#heuteKarte .heute-karte').textContent).toMatch(/^Heute dran/);
+    /* Die Zeile darueber wiederholte das; sie meldet nur noch den Ruhetag. */
+    expect(hinweis().hidden).toBe(true);
   });
 
   /* Nie eine Sperre: am Ruhetag laesst sich trotzdem trainieren. */
   it('meldet einen Ruhetag, ohne etwas zu verbieten', async () => {
     await mitPlan({ [morgenWd()]: 'A' });
     expect(hinweis().textContent).toMatch(/Ruhetag/);
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     expect(document.querySelectorAll('.set-dot').length).toBeGreaterThan(0);
   });
@@ -2816,7 +2826,7 @@ describe('Tableiste als senkrechte Schiene', () => {
   it('loest in der Schiene nicht zusaetzlich den Uebungssprung aus', async () => {
     breiteVortaeuschen(true);
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     app.actions['tab:show']({ tab: 'train' });
     document.getElementById('tab-train').focus();
@@ -2834,7 +2844,7 @@ describe('Tableiste als senkrechte Schiene', () => {
 describe('Sprachwechsel waehrend einer Einheit', () => {
   async function laufendeEinheit(){
     const app = await starten();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     return app;
   }
@@ -3557,7 +3567,7 @@ describe('Plan-Check nach Fortschritt', () => {
 
   it('schweigt waehrend einer laufenden Einheit', async () => {
     await mitStand();
-    document.querySelector('.day-btn').click();
+    tagStarten();
     await ruhe();
     expect(banner()).toBeUndefined();
   });
@@ -3802,20 +3812,20 @@ describe('Heute-Karte und Kennzahlen', () => {
     expect(karte.dataset.key).toBe('B');
     expect(karte.textContent).toMatch(/Als Nächstes/);
     expect(karte.textContent).toMatch(/ca\. \d+ Min/);
-    expect(document.getElementById('daySelect').classList.contains('klein')).toBe(true);
-    /* Alle Tage bleiben waehlbar, ohne Abzeichen. */
-    expect(document.querySelectorAll('#daySelect .day-btn')).toHaveLength(2);
+    /* Alle Tage bleiben waehlbar – als schmale Umschaltleiste, ohne Abzeichen. */
+    expect(document.querySelectorAll('#daySelect .vs-tag')).toHaveLength(2);
+    expect(document.querySelector('#daySelect [aria-pressed="true"]').dataset.key).toBe('B');
     expect(document.querySelector('#daySelect .badge')).toBeNull();
     karte.click();
     await ruhe();
     expect(gespeichert().activeSession.dayKey).toBe('B');
     expect(document.querySelector('#heuteKarte .heute-karte')).toBeNull();
-    expect(document.getElementById('daySelect').classList.contains('klein')).toBe(false);
+    expect(document.querySelector('#daySelect .vs-tag')).toBeNull();
     app.actions['tab:show']({ tab: 'plan' });
     expect(document.body.dataset.tab).toBe('plan');
   });
 
-  it('zeigt den Wochenring und wird mit dem Ziel voll', async () => {
+  it('zeigt die Woche als Leiste und den Stand gegen das Ziel', async () => {
     const einheit = { d: isoDaysAgo(0), day: 'A', ex: ['pushup'], sets: 4, reps: {}, dauer: 0 };
     const mit = async n => {
       vi.resetModules();
@@ -3823,22 +3833,88 @@ describe('Heute-Karte und Kennzahlen', () => {
       localStorage.setItem(SPEICHER, JSON.stringify({ v: 17, onboarded: true, settings: { weekGoal: 3 },
         log: Array.from({ length: n }, () => ({ ...einheit })) }));
       await starten();
-      return document.querySelector('#heuteKarte .hk-ring');
+      return document.querySelector('#heuteKarte .hk-woche');
     };
-    let ring = await mit(0);
-    expect(ring.textContent).toBe('0/3');
-    /* Ohne Einheit nur die Bahn, sonst zeichnete ein Bogen der Laenge 0 einen Punkt. */
-    expect(ring.querySelector('.hk-ring-wert')).toBeNull();
-    ring = await mit(2);
-    expect(ring.textContent).toBe('2/3');
-    expect(ring.classList.contains('voll')).toBe(false);
+    let leiste = await mit(0);
+    expect(leiste.querySelectorAll('.hk-tag')).toHaveLength(7);
+    expect(leiste.querySelectorAll('.hk-tag.heute')).toHaveLength(1);
+    expect(leiste.querySelector('.hk-tag.trainiert')).toBeNull();
+    expect(leiste.querySelector('.hk-stand').textContent).toBe('0/3');
+    leiste = await mit(2);
+    /* Zwei Einheiten an einem Tag sind ein Haken, aber zwei im Stand. */
+    expect(leiste.querySelectorAll('.hk-tag.trainiert')).toHaveLength(1);
+    expect(leiste.querySelector('.hk-tag.heute').classList.contains('trainiert')).toBe(true);
+    expect(leiste.querySelector('.hk-stand').textContent).toBe('2/3');
+    expect(leiste.querySelector('.hk-stand').classList.contains('voll')).toBe(false);
+    expect(leiste.getAttribute('aria-hidden')).toBe('true');
     expect(document.querySelector('#heuteKarte .sr-only').textContent).toBe('Diese Woche 2 von 3 Einheiten.');
-    ring = await mit(4);
-    expect(ring.textContent).toBe('4/3');
-    expect(ring.classList.contains('voll')).toBe(true);
-    /* Ein voller Ring ist voll, nicht mehr als voll. */
-    const [bogen, umfang] = ring.querySelector('.hk-ring-wert').getAttribute('stroke-dasharray').split(' ');
-    expect(bogen).toBe(umfang);
+    leiste = await mit(4);
+    expect(leiste.querySelector('.hk-stand').classList.contains('voll')).toBe(true);
+  });
+
+  it('markiert geplante Tage des Wochenrhythmus', async () => {
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, wochenplan: { 1: 'A', 3: 'B', 5: 'A' } }));
+    await starten();
+    const tage = [...document.querySelectorAll('#heuteKarte .hk-tag')];
+    /* Montag zuerst: Mo, Mi und Fr sind geplant, sofern dort nicht schon trainiert wurde. */
+    expect(tage.map(t => t.classList.contains('geplant'))).toEqual([true, false, true, false, true, false, false]);
+  });
+});
+
+describe('Heute-Seite: Vorschau und Umschalter', () => {
+  it('zeigt vor dem Start die Uebungen des vorgeschlagenen Tags', async () => {
+    await starten();
+    const vorschau = document.querySelector('#content .vorschau');
+    expect(vorschau.querySelector('h2').textContent).toMatch(/^Das steht an: A · /);
+    const namen = [...vorschau.querySelectorAll('.vs-name')].map(n => n.textContent);
+    expect(namen).toContain('Liegestütze');
+    expect(namen.length).toBeGreaterThan(4);
+    const zeile = vorschau.querySelector('.vs-knopf[data-ex="pushup"]');
+    expect(zeile.querySelector('.vs-ziel').textContent).toMatch(/\d/);
+    expect(zeile.querySelector('.vs-stufe').textContent).toMatch(/^Stufe 1 von \d+: /);
+    expect(zeile.querySelector('.ex-muskeln').tagName).toBe('SPAN');
+    /* Nichts davon darf wie eine Trainingskarte aussehen: Leertaste,
+       Fokus-Modus und Pfeiltasten suchen nach diesen Klassen. */
+    expect(document.querySelector('#content .ex, #content .supersatz, #content .set-dot')).toBeNull();
+  });
+
+  it('wechselt mit der Leiste nur die Vorschau und startet ueber die Karte', async () => {
+    await starten();
+    document.querySelector('#daySelect .vs-tag[data-key="B"]').click();
+    await ruhe();
+    expect(gespeichert()?.activeSession ?? null).toBeNull();
+    expect(document.querySelector('#daySelect .vs-tag[data-key="B"]').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('#daySelect .vs-tag[data-key="A"]').getAttribute('aria-pressed')).toBe('false');
+    const karte = document.querySelector('#heuteKarte .heute-karte');
+    expect(karte.dataset.key).toBe('B');
+    expect(karte.textContent).toMatch(/^Ausgewählt/);
+    expect(document.querySelector('#content .vorschau h2').textContent).toMatch(/: B · /);
+    karte.click();
+    await ruhe();
+    expect(gespeichert().activeSession.dayKey).toBe('B');
+  });
+
+  it('kehrt nach der Einheit zum Vorschlag zurueck', async () => {
+    const app = await starten();
+    document.querySelector('#daySelect .vs-tag[data-key="B"]').click();
+    document.querySelector('#heuteKarte .heute-karte').click();
+    await ruhe();
+    wiederholungsPunkte()[0].click();
+    await abschliessen(app);
+    await ruhe();
+    /* Nach B ist A dran – nicht wieder der zuletzt gewaehlte B. */
+    expect(document.querySelector('#heuteKarte .heute-karte').dataset.key).toBe('A');
+    expect(document.querySelector('#heuteKarte .heute-karte').textContent).toMatch(/^Als Nächstes/);
+  });
+
+  it('zeigt einen Supersatz als Klammer', async () => {
+    const PLAN = { name: 'F', desc: '', days: [{ key: 'A', title: 'A', sub: '', ex: ['pushup', 'prone_ytw', 'towel_row'], ss: [['prone_ytw', 'towel_row']] }] };
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, customPlan: PLAN }));
+    await starten();
+    const paar = document.querySelector('#content .vs-paar');
+    expect([...paar.querySelectorAll('.vs-knopf')].map(k => k.dataset.ex)).toEqual(['prone_ytw', 'towel_row']);
+    /* Nur ein Tag: keine Leiste. */
+    expect(document.querySelector('#daySelect .vs-tag')).toBeNull();
   });
 });
 

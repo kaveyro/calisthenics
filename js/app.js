@@ -10,7 +10,7 @@ import { fmtDate as fmtDatePure, isoWeek, calcGlobalStreak as streakOf, today } 
 import { esc } from './domain/escape.js';
 import { fokusNachSatz, fokusStart, spaeterOrdnen } from './domain/fokus.js';
 import { entryHasExercise, repsOf, sekOf, verlaufJeUebung } from './domain/log.js';
-import { tagFuerWochentag } from './domain/plan.js';
+import { tagFuerWochentag, wochenStand } from './domain/plan.js';
 import { planPruefen, tagesDauerSek, uebungErsetzen, vorlageAufloesen } from './domain/planbuilder.js';
 import { detectPlateaus as plateausOf } from './domain/plateau.js';
 import { wochenRueckblick } from './domain/rueckblick.js';
@@ -56,6 +56,10 @@ const WISCH_MIN = 60;
    offene (fokusStart()). Nur zur Laufzeit – nach dem Neuladen geht es beim
    ersten offenen weiter, und das ist in aller Regel derselbe. */
 let fokusIdx = null;
+/* Der Tag, den die Heute-Seite gerade zeigt, oder null: dann der
+   vorgeschlagene (nextSuggestedKey). Nur zur Laufzeit; der Start einer
+   Einheit setzt ihn zurueck, sodass danach wieder der Vorschlag gilt. */
+let vorschauKey = null;
 /* Zuletzt angekuendigte Restsekunde – gegen vier Toene pro Sekunde. */
 let restLetzteSek = 0;
 let storageOK = true, lastWorkoutSnapshot = null, undoTimeout = null;
@@ -457,9 +461,7 @@ export function renderAll(){
      Einheit beenden oder verwerfen, setzen session.dayKey vorher auf null. */
   if(session.dayKey){ fokusAnwenden(); return; }
   fokusIdx = null;
-  document.getElementById('content').innerHTML = abschlussHtml() +
-    '<div class="empty-hint">' + esc(__('selectDay')) + '.<br><br>' +
-    esc(__('selectDayHint')) + '</div>';
+  document.getElementById('content').innerHTML = abschlussHtml() + vorschauHtml(vorschauTag());
   fokusAnwenden();
 }
 
@@ -631,6 +633,17 @@ function nextSuggestedKey(){
   if(!last) return days[0].key;
   const i = days.findIndex(d => d.key === last.day);
   return days[(i + 1) % days.length].key;
+}
+
+/* Der Tag, den die Heute-Seite zeigt: der gewaehlte, solange es ihn im
+   Plan gibt, sonst der vorgeschlagene. */
+function vorschauTag(){
+  return vorschauKey && getDay(vorschauKey) ? vorschauKey : nextSuggestedKey();
+}
+function vorschauWaehlen(key){
+  if(session.dayKey || !getDay(key)) return;
+  vorschauKey = key;
+  renderAll();
 }
 
 /* ================= Kopfbereich ================= */
@@ -1149,7 +1162,7 @@ function addKeyboardShortcuts(){
 
 /* ================= Trainingstag wählen ================= */
 export function renderDaySelect(){
-  const sug = nextSuggestedKey();
+  const sug = vorschauTag();
   renderRueckblick();
   renderHeuteKarte(sug);
   const sel = document.getElementById('daySelect');
@@ -1166,10 +1179,23 @@ export function renderDaySelect(){
       ikon('swap') + esc(__(tagWahlOffen ? 'dayChangeClose' : 'dayChange')) + '</button>' +
     '<button type="button" class="tl-btn tl-weg" data-action="workout:discard" aria-label="' + esc(__('workoutDiscardAria')) +
       '" title="' + esc(__('workoutDiscardAria')) + '">' + ikon('close') + '</button></div>' : '';
-  /* Neben der Heute-Karte werden die Tage klein: gewaehlt wird dort nur,
-     wer heute etwas anderes machen will. */
-  sel.classList.toggle('klein', (!session.dayKey && !!sug) || tagWahlOffen);
+  sel.classList.toggle('klein', tagWahlOffen);
+  sel.classList.toggle('vs-tage', !laeuft);
   if(laeuft && !tagWahlOffen){ sel.innerHTML = zeile; renderHeute(); return; }
+  /* Ohne Einheit eine schmale Umschaltleiste: sie wechselt nur, welcher Tag
+     auf der Karte und in der Vorschau darunter steht. Gestartet wird ueber
+     die Karte. Vorher standen hier alle Tage noch einmal als grosse Karten,
+     die den Vorschlag darueber wiederholten und auf einen Tipp sofort eine
+     Einheit begannen. */
+  if(!laeuft){
+    const tage = getDays();
+    sel.innerHTML = tage.length > 1 ? tage.map(d =>
+      '<button type="button" class="vs-tag" data-action="day:preview" data-key="' + esc(d.key) + '" aria-pressed="' + (d.key === sug) + '">' +
+        '<b>' + esc(d.key) + '</b><span>' + esc(dayTitleOf(d)) + '</span></button>').join('')
+      : tage.length ? '' : '<div class="empty-hint">' + esc(__('noPlanDays') + __('noPlanDaysHint')) + '</div>';
+    renderHeute();
+    return;
+  }
   sel.innerHTML = zeile + getDays().map(d =>
     /* Der Tag-Key stammt aus einer Nutzereingabe und darf nicht in einen
        JS-String im Attribut interpoliert werden – esc() hilft dort nicht,
@@ -1246,32 +1272,32 @@ function renderHeuteKarte(sug){
   if(!el) return;
   const d = !session.dayKey && sug ? getDay(sug) : null;
   if(!d){ el.innerHTML = ''; return; }
+  const vorschlag = d.key === nextSuggestedKey();
   const tempo = planTempo();
   const sek = tagesDauerSek(d, EX_BY_ID, cfg('setsMode')) * (tempo ? tempo.faktor : 1);
   const meta = [__('exercisesCount', { n: d.ex.length }), sek ? __('aboutMinutes', { n: Math.round(sek / 60) }) : ''].filter(Boolean).join(' · ');
   el.innerHTML = '<button class="heute-karte" data-action="day:select" data-key="' + esc(d.key) + '">' +
-    '<span class="hk-label">' + esc(__(heutigerPlanTag() === d.key ? 'todayPlanned' : 'upNextLong')) + '</span>' +
+    '<span class="hk-label">' + esc(__(!vorschlag ? 'previewChosen' : heutigerPlanTag() === d.key ? 'todayPlanned' : 'upNextLong')) + '</span>' +
     '<span class="hk-titel">' + esc(d.key) + ' · ' + esc(dayTitleOf(d)) + '</span>' +
     (daySubOf(d) ? '<span class="hk-sub">' + esc(daySubOf(d)) + '</span>' : '') +
     '<span class="hk-meta">' + esc(meta) + '</span>' +
-    wochenRingHtml(einheitenDieseWoche(), cfg('weekGoal')) +
-    '<span class="hk-los" aria-hidden="true">' + esc(__('startDay')) + '</span></button>';
+    '<span class="hk-los" aria-hidden="true">' + esc(__('startDay')) + '</span>' +
+    wochenLeisteHtml(einheitenDieseWoche(), cfg('weekGoal')) + '</button>';
 }
 
-/* Der Wochenring: wie viel vom Wochenziel schon geschafft ist, als Ring
-   ueber dem Start. Die Zahl stand bisher nur klein in der Kennzahlenzeile;
-   am Ring sieht man vor dem Start, ob die Einheit heute das Ziel schliesst.
-   Voll wird er gruen. Ohne Einheit bleibt nur die Bahn – ein Bogen der
-   Laenge 0 zeichnete mit runden Enden einen Punkt. Fuer den Screenreader
-   steht derselbe Stand als Satz im Knopf. */
-function wochenRingHtml(n, ziel){
-  const anteil = ziel > 0 ? Math.min(n / ziel, 1) : 0;
-  const umfang = 2 * Math.PI * 18;
-  return '<span class="hk-ring' + (ziel > 0 && n >= ziel ? ' voll' : '') + '" aria-hidden="true">' +
-    '<svg viewBox="0 0 44 44" focusable="false"><circle class="hk-ring-bahn" cx="22" cy="22" r="18"/>' +
-    (anteil > 0 ? '<circle class="hk-ring-wert" cx="22" cy="22" r="18" stroke-dasharray="' +
-      (anteil * umfang).toFixed(1) + ' ' + umfang.toFixed(1) + '"/>' : '') + '</svg>' +
-    '<span class="hk-ring-zahl">' + n + '/' + ziel + '</span></span>' +
+/* Die Wochenleiste: Montag bis Sonntag, trainierte Tage mit Haken, laut
+   Rhythmus geplante mit Punkt, heute umrandet, daneben "2/4". Sie ersetzt
+   den Ring, der nur die Zahl zeigte – an der Leiste sieht man auch, wann:
+   ob die Woche gleichmaessig lief und was noch ansteht. Voll wird die Zahl
+   gruen. Fuer den Screenreader steht der Stand als Satz im Knopf; die
+   Leiste selbst ist Bild. */
+function wochenLeisteHtml(n, ziel){
+  const namen = wochentage();
+  const tage = wochenStand(state.log, state.wochenplan, today()).map((t, i) =>
+    '<span class="hk-tag' + (t.trainiert ? ' trainiert' : t.geplant ? ' geplant' : '') + (t.heute ? ' heute' : '') + '">' +
+      '<small>' + esc(namen[i]) + '</small><i></i></span>').join('');
+  return '<span class="hk-woche" aria-hidden="true">' + tage +
+    '<span class="hk-stand' + (ziel > 0 && n >= ziel ? ' voll' : '') + '">' + n + '/' + ziel + '</span></span>' +
     '<span class="sr-only">' + esc(__('weekRingSr', { n, ziel })) + '</span>';
 }
 
@@ -1283,13 +1309,11 @@ function wochenRingHtml(n, ziel){
 function renderHeute(){
   const el = document.getElementById('heuteHinweis');
   if(!el) return;
-  if(!rhythmusAktiv()){ el.textContent = ''; el.hidden = true; return; }
-  el.hidden = false;
-  const key = heutigerPlanTag();
-  const d = key && getDay(key);
-  el.textContent = d
-    ? __('todayIs', { day: d.key + ' · ' + dayTitleOf(d) })
-    : __('restDay');
+  /* Nur noch der Ruhetag: an einem Trainingstag sagt die Karte "Heute
+     dran" dasselbe, und waehrend der Einheit die Zeile "Laeuft gerade". */
+  const key = rhythmusAktiv() ? heutigerPlanTag() : null;
+  el.hidden = !rhythmusAktiv() || !!key;
+  el.textContent = el.hidden ? '' : __('restDay');
 }
 /* Der frühere Sonder-Listener für #daySelect ist entfallen – die Tag-Buttons
    laufen jetzt über dieselbe Aktionstabelle wie alles andere. */
@@ -1427,6 +1451,50 @@ function vorgabeFuer(ex){
   return heuteVorgabe(ex, lvl, t, v && v[0]);
 }
 
+/* Die Vorschau der Einheit auf der Heute-Seite: je Uebung Name, die Zahlen
+   fuer heute, Stufe und Muskeln. Vorher stand ohne Einheit hier nur "Waehle
+   oben deinen Trainingstag" – was ansteht, sah man erst nach dem Start.
+
+   Bewusst ohne .ex, .supersatz und .set-dot: Leertaste, Fokus-Modus und
+   ↑/↓ suchen nach diesen Klassen. Ein Tipp auf eine Zeile oeffnet die
+   Uebung im Detail. */
+function vorschauHtml(key){
+  const d = key ? getDay(key) : null;
+  if(!d) return '';
+  const paare = gueltigePaare(d);
+  const zweite = new Set(paare.map(p => p[1]));
+  const erste = new Set(paare.map(p => p[0]));
+  const verlauf = verlaufJeUebung(state.log, d.ex, 1, getDay);
+  const zeile = id => {
+    const ex = EX_BY_ID[id];
+    if(!ex) return '';
+    const lvl = lvlOf(ex), level = ex.levels[lvl], t = zielVon(level);
+    const v = verlauf[id];
+    const vg = heuteVorgabe(ex, lvl, t, v && v[0]);
+    const zahlen = vg && Array.isArray(vg.werte) && vg.werte.length ? mitEinheit(vg.werte, t.isHold) : zielText(level);
+    const luecke = fehlt(ex, lvl);
+    return '<li class="vs-zeile" data-cat="' + ex.cat + '"><button type="button" class="vs-knopf" data-action="exercise:history" data-ex="' + ex.id + '">' +
+      '<span class="vs-name">' + esc(exName(ex)) + '</span>' +
+      '<span class="vs-ziel">' + esc(zahlen) + '</span>' +
+      '<span class="vs-stufe">' + esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) + '</span>' +
+      muskelHtml(ex, 'span') +
+      (luecke.length ? '<span class="vs-warn">' + esc(__('needsEquip', { list: equipListe(luecke) })) + '</span>' : '') +
+      '</button></li>';
+  };
+  let liste = '';
+  d.ex.forEach(id => {
+    if(zweite.has(id)) return;
+    if(erste.has(id)){
+      const b = paare.find(p => p[0] === id)[1];
+      liste += '<li class="vs-paar"><span class="vs-paar-label">' + esc(__('supersetLabel')) + '</span><ul>' + zeile(id) + zeile(b) + '</ul></li>';
+    } else liste += zeile(id);
+  });
+  return '<section class="vorschau" aria-labelledby="vorschau-titel">' +
+    '<h2 class="section-title" id="vorschau-titel">' + esc(__('previewTitle', { day: d.key + ' · ' + dayTitleOf(d) })) + '</h2>' +
+    '<ul class="vs-liste">' + liste + '</ul>' +
+    '<p class="muted vs-hinweis">' + esc(__('selectDayHint')) + '</p></section>';
+}
+
 function letzteZeilen(ex, lvl, t, letzte){
   const bekannt = !!letzte && Number.isInteger(letzte.lvl) && letzte.lvl < ex.levels.length;
   const andere = bekannt && letzte.lvl !== lvl;
@@ -1464,13 +1532,13 @@ function letzteZeilen(ex, lvl, t, letzte){
    die Nebenmuskeln. Bei Mobility, was gedehnt oder mobilisiert wird – die
    Beschriftung fuer den Screenreader sagt den Unterschied. Auch fuer die
    Bibliothek. */
-export function muskelHtml(ex){
+export function muskelHtml(ex, tag = 'div'){
   const m = ex.muskeln;
   if(!m || !Array.isArray(m.haupt) || !m.haupt.length) return '';
   const namen = ks => ks.filter(k => MUSKELN[k]).map(k => esc(muskelName(k, MUSKELN[k]))).join(' · ');
   const neben = Array.isArray(m.neben) ? namen(m.neben) : '';
-  return '<div class="ex-muskeln"><span class="sr-only">' + esc(__(ex.cat === 'mobility' ? 'musclesMobility' : 'musclesWorked')) + ' </span>' +
-    namen(m.haupt) + (neben ? '<span class="neben"> + ' + neben + '</span>' : '') + '</div>';
+  return '<' + tag + ' class="ex-muskeln"><span class="sr-only">' + esc(__(ex.cat === 'mobility' ? 'musclesMobility' : 'musclesWorked')) + ' </span>' +
+    namen(m.haupt) + (neben ? '<span class="neben"> + ' + neben + '</span>' : '') + '</' + tag + '>';
 }
 
 /* Wie war's? Drei Knoepfe, einer davon gedrueckt oder keiner. Freiwillig:
@@ -1673,6 +1741,7 @@ function einheitZurueckholen(){
 function selectDay(key){
   cancelHold(); stopRest();
   stepSatz = {};
+  vorschauKey = null;
   abschluss = null;
   fokusIdx = null;
   setSession({ ...leereSession(), dayKey: key });
@@ -3121,6 +3190,7 @@ export const actions = {
 
   /* Training */
   'day:select':         d => tagWaehlen(d.key),
+  'day:preview':        d => mitFokus(() => vorschauWaehlen(d.key)),
   'day:change':         () => tagWahlUmschalten(),
   'workout:discard':    () => einheitVerwerfen(),
   'workout:restore':    () => einheitZurueckholen(),

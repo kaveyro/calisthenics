@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tagFuerWochentag, naechsteTermine, wochentageVorschlag } from '../js/domain/plan.js';
+import { tagFuerWochentag, naechsteTermine, wochentageVorschlag, wochenStand } from '../js/domain/plan.js';
 import { AUFTEILUNG } from '../js/domain/planbuilder.js';
 
 /* 2026-08-03 ist ein Montag. 0 = Sonntag … 6 = Samstag (Date.getDay). */
@@ -116,5 +116,30 @@ describe('wochentageVorschlag', () => {
     expect(wochentageVorschlag(['A', 'B', 'C', 'D', 'E', 'F', 'G'])).toEqual({});
     expect(wochentageVorschlag(null)).toEqual({});
     expect(wochentageVorschlag(['A', '', 3])).toEqual({ 1: 'A' });
+  });
+});
+
+describe('wochenStand', () => {
+  /* 2026-10-07 ist ein Mittwoch. */
+  const HEUTE = '2026-10-07';
+  it('liefert Montag bis Sonntag der laufenden Woche', () => {
+    const w = wochenStand([], {}, HEUTE);
+    expect(w.map(t => t.d)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+    expect(w.map(t => t.heute)).toEqual([false, false, true, false, false, false, false]);
+  });
+  it('markiert trainierte Tage, auch bei zwei Einheiten an einem Tag nur einmal', () => {
+    const log = [{ d: '2026-10-05' }, { d: '2026-10-07' }, { d: '2026-10-07' }, { d: '2026-09-30' }];
+    expect(wochenStand(log, {}, HEUTE).map(t => t.trainiert)).toEqual([true, false, true, false, false, false, false]);
+  });
+  it('markiert die Tage des Wochenrhythmus als geplant', () => {
+    const w = wochenStand([], { 1: 'A', 4: 'B', 0: 'A' }, HEUTE);
+    expect(w.map(t => t.geplant)).toEqual([true, false, false, true, false, false, true]);
+  });
+  it('beginnt auch am Sonntag beim Montag davor', () => {
+    expect(wochenStand([], {}, '2026-10-11')[0].d).toBe('2026-10-05');
+  });
+  it('liefert bei kaputtem Datum nichts', () => {
+    expect(wochenStand([], {}, 'quatsch')).toEqual([]);
+    expect(wochenStand(null, null, HEUTE)).toHaveLength(7);
   });
 });

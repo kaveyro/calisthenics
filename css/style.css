@@ -278,15 +278,46 @@ h1 .thin{color:var(--accent)}
 .hk-titel{font-family:var(--display);font-size:var(--text-xl);text-transform:uppercase;line-height:1.1}
 .hk-sub,.hk-meta{font-size:var(--text-sm);color:var(--ink-soft)}
 /* Rechts oben der Wochenring, darunter der Start. */
-.heute-karte > .hk-ring{grid-column:2;grid-row:1 / span 2;justify-self:center;align-self:start;position:relative;width:44px;height:44px}
-.hk-ring svg{display:block;width:100%;height:100%;transform:rotate(-90deg)}
-.hk-ring circle{fill:none;stroke-width:4}
-.hk-ring-bahn{stroke:var(--line)}
-.hk-ring-wert{stroke:var(--accent);stroke-linecap:round}
-.hk-ring.voll .hk-ring-wert{stroke:var(--success)}
-.hk-ring-zahl{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:var(--text-xs);font-weight:700}
-.heute-karte > .hk-los{grid-column:2;grid-row:3 / span 2;align-self:end;justify-self:end;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:10px 18px;font-weight:700;font-size:var(--text-md)}
+/* Wochenleiste unten auf der Karte: Mo–So, Haken fuer trainiert, Punkt fuer
+   geplant, heute umrandet; rechts der Stand gegen das Wochenziel. */
+.heute-karte > .hk-woche{grid-column:1 / -1;display:flex;align-items:flex-end;gap:4px;margin-top:var(--abstand-3);padding-top:var(--abstand-3);border-top:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.hk-tag{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.hk-tag small{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft);text-transform:uppercase}
+.hk-tag i{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-style:normal;font-size:var(--text-xs);font-weight:700}
+.hk-tag.geplant i{border-style:dashed;border-color:var(--accent)}
+.hk-tag.trainiert i{background:var(--success);border-color:var(--success)}
+.hk-tag.trainiert i::after{content:"✓";color:var(--on-accent)}
+.hk-tag.heute small{color:var(--accent);font-weight:700}
+.hk-tag.heute i{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--accent)}
+.hk-stand{flex:none;margin-left:var(--abstand-2);font-family:var(--mono);font-size:var(--text-md);font-weight:700;align-self:center}
+.hk-stand.voll{color:var(--success)}
+.heute-karte > .hk-los{grid-column:2;grid-row:1 / span 4;align-self:center;justify-self:end;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:10px 18px;font-weight:700;font-size:var(--text-md)}
 .day-select.klein{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+/* Ohne Einheit: eine schmale Umschaltleiste, welcher Tag gezeigt wird. */
+.day-select.vs-tage{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.day-select.vs-tage:empty{display:none}
+.vs-tag{display:inline-flex;align-items:center;gap:6px;min-height:40px;max-width:100%;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font:inherit;font-size:var(--text-sm);cursor:pointer}
+.vs-tag b{font-family:var(--display);font-size:var(--text-md)}
+.vs-tag span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16ch;color:var(--ink-soft)}
+.vs-tag[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.vs-tag[aria-pressed="true"] span{color:var(--ink)}
+.vs-tag:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* ---------- Vorschau der Einheit ---------- */
+.vorschau{grid-column:1 / -1}
+.vs-liste,.vs-paar ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.vs-paar{border:1px dashed var(--line);border-radius:var(--radius);padding:6px 8px 8px}
+.vs-paar-label{display:block;font-family:var(--mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:0 0 6px 4px}
+.vs-knopf{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:2px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--kat,var(--line));border-radius:12px;padding:10px 12px;color:var(--ink);font:inherit;cursor:pointer}
+.vs-knopf:hover{border-color:var(--accent);border-left-color:var(--kat,var(--accent))}
+.vs-knopf:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.vs-name{font-weight:700}
+.vs-ziel{font-family:var(--mono);font-size:var(--text-sm);font-weight:600;color:var(--accent);white-space:nowrap}
+.vs-stufe,.vs-knopf .ex-muskeln,.vs-warn{grid-column:1 / -1;font-size:var(--text-sm)}
+.vs-stufe{color:var(--ink-soft)}
+.vs-knopf .ex-muskeln{margin:0}
+.vs-warn{color:var(--warn)}
+.vs-hinweis{margin-top:var(--abstand-3);font-size:var(--text-sm)}
 .day-select.klein .day-btn{padding:10px 12px;border-width:1px}
 .day-select.klein .day-btn .tag{font-size:var(--text-md)}
 .day-select.klein .day-btn .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -952,6 +983,8 @@ footer small{display:block;margin-top:4px;opacity:.6}
   /* Der Kalender ist leer, solange es kein Log gibt – dann soll er auch
      keine Zelle belegen. */
   .raster > .panel:empty{display:none}
+  /* Die Vorschau der Einheit zweispaltig; ein Supersatz bleibt eine Zelle. */
+  .vs-liste{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
 
   /* Ein Panel, das deutlich länger ist als seine Nachbarn, belegt zwei
      Zeilen, und die kurzen stapeln sich daneben. Die letzte Zeile ist 1fr,

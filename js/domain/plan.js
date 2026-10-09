@@ -20,6 +20,10 @@
    js/domain/dates.js. */
 
 const objekt = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+/* Lokal formatieren, nicht ueber toISOString – sonst rutscht das Datum je
+   nach Zeitzone auf den Vor- oder Folgetag. */
+const lokalIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+  '-' + String(d.getDate()).padStart(2, '0');
 
 /* Der Plan-Tag fuer ein Datum, oder null.
 
@@ -48,13 +52,7 @@ export function naechsteTermine(wochenplan, vonIso, tage){
     d.setDate(d.getDate() + i);
     const key = objekt(wochenplan)[String(d.getDay())];
     if(!key) continue;
-    /* Lokal formatieren, nicht ueber toISOString – sonst rutscht das Datum
-       je nach Zeitzone auf den Vor- oder Folgetag. */
-    out.push({
-      d: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
-        '-' + String(d.getDate()).padStart(2, '0'),
-      key
-    });
+    out.push({ d: lokalIso(d), key });
   }
   return out;
 }
@@ -81,4 +79,25 @@ export function wochentageVorschlag(keys){
   const tage = VORSCHLAG[liste.length];
   if(!tage) return {};
   return Object.fromEntries(tage.map((wd, i) => [String(wd), liste[i]]));
+}
+
+/* Die laufende Woche Montag bis Sonntag, fuer die Wochenleiste auf der
+   Heute-Karte: je Tag das Datum, ob an ihm trainiert wurde, ob er laut
+   Rhythmus geplant ist und ob er heute ist.
+
+   Trainiert heisst: mindestens ein Eintrag im Log mit diesem Datum. Zwei
+   Einheiten an einem Tag sind ein Haken – gezaehlt wird die Zahl der
+   Einheiten daneben, nicht hier. */
+export function wochenStand(log, wochenplan, heuteIso){
+  const heute = new Date(String(heuteIso) + 'T12:00:00');
+  if(Number.isNaN(heute.getTime())) return [];
+  const montag = new Date(heute.getTime());
+  montag.setDate(heute.getDate() - (heute.getDay() + 6) % 7);
+  const trainiert = new Set((Array.isArray(log) ? log : []).map(l => l && l.d));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(montag.getTime());
+    d.setDate(montag.getDate() + i);
+    const iso = lokalIso(d);
+    return { d: iso, trainiert: trainiert.has(iso), geplant: !!tagFuerWochentag(wochenplan, iso), heute: iso === heuteIso };
+  });
 }

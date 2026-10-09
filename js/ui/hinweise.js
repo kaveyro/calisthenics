@@ -34,7 +34,9 @@ export function melde(text){
 const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta'];
 function fokusKennung(el){
   if(!el || el === document.body) return null;
-  if(el.id) return '#' + CSS.escape(el.id);
+  /* CSS.escape fehlt in aelteren Umgebungen (und in jsdom); eine id aus
+     Buchstaben, Ziffern und Bindestrichen braucht es nicht. */
+  if(el.id) return '#' + (globalThis.CSS && CSS.escape ? CSS.escape(el.id) : el.id.replace(/[^\w-]/g, '\\$&'));
   const art = el.dataset.action ? '' : el.dataset.actionChange ? '-change' : el.dataset.actionInput ? '-input' : null;
   if(art === null) return null;
   const name = el.dataset.action || el.dataset.actionChange || el.dataset.actionInput;
