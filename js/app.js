@@ -1798,11 +1798,17 @@ export function renderWorkout(){
        Halte-Hinweis (nur davor) und "Wie war's?" (erst danach) – beides
        per CSS, damit markDone() die Karte nicht neu zeichnen muss. */
     html += '<div class="ex' + (uebungBegonnen(ex.id) ? ' begonnen' : '') + '" data-exid="' + ex.id + '" data-cat="' + ex.cat + '">' +
-      /* Kategorie, Leiter, Stufe und ± in einer Zeile. Die Leiter stand
-         darunter in einer eigenen; bei hoechstens sieben Sprossen passt sie
-         auch auf 320px neben den Rest. */
-      '<div class="ex-top"><span class="cat-chip kat">' + esc(catName(ex.cat, CATS[ex.cat].name)) + '</span>' +
-        /* --sprossen: so breit muss die Leiter mindestens sein (14px je
+      /* Der Name zuerst, dann die Muskeln, dann Leiter und ±, dann Stufe
+         und Pause. Vorher stand oben eine Zeile aus Kategorie-Chip, Leiter
+         und ±, und alles war gleich laut. Die Kategorie zeigt jetzt der
+         farbige Streifen links; fuer den Screenreader steht sie als Text
+         vor dem Namen – ausserhalb von .ex-name, das der Fokus-Modus als
+         Schrittnamen vorliest. */
+      '<div class="ex-head"><span class="sr-only">' + esc(catName(ex.cat, CATS[ex.cat].name)) + ': </span>' +
+        '<div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
+      muskelHtml(ex) +
+      '<div class="ex-top">' +
+        /* --sprossen: so breit muss die Leiter mindestens sein (12px je
            Sprosse plus 2px Linie), sonst bricht die Zeile um. */
         '<div class="rungs" style="--sprossen:' + ex.levels.length + '" role="img" aria-label="' +
           esc(__('levelOfNamed', { n: lvl + 1, total: ex.levels.length, stage: exStage(ex, lvl) })) +
@@ -1812,8 +1818,6 @@ export function renderWorkout(){
         '" data-delta="-1" title="' + esc(__('levelDown')) + '" aria-label="' + esc(__('levelDown')) + '">−</button>' +
         '<button data-action="level:adjust" data-ex="' + ex.id +
         '" data-delta="1" title="' + esc(__('levelUp')) + '" aria-label="' + esc(__('levelUp')) + '">+</button></span></div>' +
-      '<div class="ex-head"><div class="ex-name">' + esc(exName(ex)) + '</div><div class="ex-target">' + esc(zielText(level)) + '</div></div>' +
-      muskelHtml(ex) +
       '<div class="ex-stage"><span>' + esc(__('currentStage')) + ': <b>' + esc(exStage(ex, lvl)) + '</b></span>' +
         '<span class="ex-rest">' + esc(__('restOf', { sec: restFor(ex) })) + '</span></div>' +
       /* Nur ein Hinweis, keine Sperre – der Ersetzen-Knopf steht weiter

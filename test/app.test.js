@@ -4770,3 +4770,25 @@ describe('Muskeln auf der Karte', () => {
     app.actions['setting:update']({ key: 'lang' }, null, { value: 'de', type: 'select-one' });
   });
 });
+
+describe('Ruhigere Uebungskarte', () => {
+  it('stellt den Namen vor Leiter und Stufe und nennt die Kategorie nur fuer den Screenreader', async () => {
+    const app = await starten();
+    app.actions['day:select']({ key: 'A' });
+    await ruhe();
+    const karte = document.querySelector('.ex[data-exid="pushup"]');
+    const kinder = [...karte.children].map(k => k.className.split(' ')[0]);
+    expect(kinder.indexOf('ex-head')).toBeLessThan(kinder.indexOf('ex-muskeln'));
+    expect(kinder.indexOf('ex-muskeln')).toBeLessThan(kinder.indexOf('ex-top'));
+    expect(kinder.indexOf('ex-top')).toBeLessThan(kinder.indexOf('ex-stage'));
+    expect(karte.querySelector('.cat-chip')).toBeNull();
+    expect(karte.querySelector('.ex-head .sr-only').textContent).toBe('Drücken: ');
+    /* Der Schrittname im Fokus-Modus bleibt der reine Uebungsname. */
+    expect(karte.querySelector('.ex-name').textContent).toBe('Liegestütze');
+  });
+
+  it('kennzeichnet die Kategorie mit einem Streifen links', () => {
+    const css = readFileSync(join(ROOT, 'css/style.css'), 'utf8');
+    expect(css).toMatch(/\n\.ex\{[^}]*border-left:4px solid var\(--kat/);
+  });
+});

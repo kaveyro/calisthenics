@@ -319,7 +319,8 @@ details.acc li{margin-bottom:5px}
 .cat-chip.stale{border-color:var(--line);color:var(--ink-soft)}
 
 /* ---------- Übungskarte ---------- */
-.ex{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--kat,var(--line));border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-5);box-shadow:var(--schatten-1)}
+/* Die Kategorie als Streifen links statt als Chip in der Kopfzeile. */
+.ex{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--kat,var(--line));border-radius:var(--radius);padding:var(--abstand-4);margin-bottom:var(--abstand-5);box-shadow:var(--schatten-1)}
 
 /* ---------- Kategorie-Farbe ----------
    data-cat an Karte, Bibliothekseintrag und Plan-Zeile setzt --kat. */
@@ -337,10 +338,14 @@ details.acc li{margin-bottom:5px}
 .ex .rung.current{border-color:var(--kat,var(--accent));background:var(--kat,var(--accent));box-shadow:0 0 0 4px color-mix(in srgb,var(--kat,var(--accent)) 22%,transparent)}
 .lib-item[data-cat]{border-left:3px solid var(--kat);padding-left:var(--abstand-3)}
 .plan-ex[data-cat] .nm::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--kat);margin-right:var(--abstand-2);vertical-align:1px}
-.ex-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-bottom:9px}
+.ex-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:8px 0 2px}
 /* Wird es zu eng – sieben Sprossen im Supersatz-Rahmen bei 320px –, bricht
    die Zeile um, statt dass die Leiter über Stufe und ± läuft. */
-.ex-top .rungs{flex:1;min-width:min(calc(var(--sprossen,7) * 16px),100%);margin:0 4px}
+.ex-top .rungs{flex:1;min-width:min(calc(var(--sprossen,7) * 14px),100%);margin:0 4px 0 0}
+/* Auf der Karte etwas kleinere Sprossen: die Leiter ist Orientierung, der
+   Name und die Saetze sind die Hauptsache. */
+.ex .rung{width:12px;height:12px}
+.ex .rung.done::after{inset:2px}
 .ex-top .rung-line{min-width:2px}
 .ex-top .lvl-adjust{margin-left:auto}
 .rung-label{font-family:var(--mono);font-size:var(--text-xs);color:var(--ink-soft)}
@@ -356,7 +361,7 @@ details.acc li{margin-bottom:5px}
 .ex-muskeln .neben{color:var(--ink-soft)}
 .lib-body .ex-muskeln{margin-top:6px}
 .ex-target{font-family:var(--mono);font-size:var(--text-md);font-weight:600;color:var(--accent);white-space:nowrap}
-.ex-stage{font-size:var(--text-md);color:var(--ink-soft);margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ex-stage{font-size:var(--text-sm);color:var(--ink-soft);margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .ex-rest{font-family:var(--mono);font-size:var(--text-xs);white-space:nowrap}
 .ex.begonnen .hold-hint{display:none}
 .toplimit[hidden]{display:none}
