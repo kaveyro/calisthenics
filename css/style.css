@@ -298,6 +298,27 @@ h1 .thin{color:var(--accent)}
 .modal--blatt .lvl-list{margin-top:4px}
 .modal--blatt .tips{margin-top:0}
 .treppe{display:block;width:100%;height:48px;margin-top:4px}
+
+/* ---------- Verlauf: Bereiche ---------- */
+.seg-leiste{display:flex;gap:4px;padding:4px;margin:0 0 12px;background:var(--card);border:1px solid var(--line);border-radius:999px}
+.seg{flex:1;min-height:40px;border:none;border-radius:999px;background:none;color:var(--ink-soft);font:inherit;font-size:var(--text-md);font-weight:600;cursor:pointer}
+.seg[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.seg:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#view-history[data-seg="fortschritt"] .raster--verlauf > [data-seg]:not([data-seg="fortschritt"]),
+#view-history[data-seg="trainings"] .raster--verlauf > [data-seg]:not([data-seg="trainings"]),
+#view-history[data-seg="koerper"] .raster--verlauf > [data-seg]:not([data-seg="koerper"]),
+#view-history[data-seg="koerper"] .hist-zeitraum{display:none}
+
+/* ---------- Stufen-Fortschritt ---------- */
+.st-liste{list-style:none;margin:0;padding:0}
+.st-liste li + li{border-top:1px solid var(--line)}
+.st-knopf{width:100%;display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) auto;align-items:center;gap:10px;min-height:44px;padding:6px 0;border:none;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.st-knopf:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.st-name{font-weight:600;font-size:var(--text-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-treppe{display:block;width:100%;height:28px}
+.st-stand{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);white-space:nowrap}
+.st-stand .plus{color:var(--success)}
+.st-stand .minus{color:var(--warn)}
 /* Ohne Einheit: eine schmale Umschaltleiste, welcher Tag gezeigt wird. */
 .day-select.vs-tage{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
 .day-select.vs-tage:empty{display:none}
@@ -592,11 +613,6 @@ details.acc li{margin-bottom:5px}
    Flex-Spalte fallen die Raender von Karte und Ueberschrift nicht mehr
    zusammen; der negative Rand nimmt den der Karte wieder heraus. */
 @media(max-width:1039.98px){
-  .raster--verlauf{display:flex;flex-direction:column}
-  .raster--verlauf > *{order:2;margin-bottom:calc(-1 * var(--abstand-4))}
-  .raster--verlauf > .panel:nth-child(-n+2){order:0}
-  .raster--verlauf > .panel--lang{order:1}
-  .raster--verlauf > .panel:empty{margin-bottom:0}
 }
 .log-item:last-child{border-bottom:none}
 .log-date{font-family:var(--mono);font-size:var(--text-sm);color:var(--ink-soft);white-space:nowrap}
@@ -1009,7 +1025,7 @@ footer small{display:block;margin-top:4px;opacity:.6}
      daneben über die dritte und vierte. Der Kalender rückt in die vierte
      links nach. Ändert sich die Zahl der Panels vor der Liste, muss die
      Vorlage mit – test/css.test.js leitet sie aus dem Markup her. */
-  .raster--verlauf{grid-template-rows:auto auto auto 1fr}
+  .panel--breit{grid-column:1 / -1}
   .raster--ziele{grid-template-rows:auto 1fr}
 
   /* Bibliothek: aus den Zeilen einer Karte werden eigenständige Kacheln, die

@@ -2,9 +2,10 @@
    Nachtragen, Gewicht, Koerpermasse und Jahresrueckblick. */
 
 import { istBilanz, istLuecken, wochenTage, wochenbilanz } from '../domain/bilanz.js';
-import { isoWeek, today } from '../domain/dates.js';
+import { isoDaysAgo, isoWeek, today } from '../domain/dates.js';
 import { esc } from '../domain/escape.js';
-import { entryExercises, repsOf, sekOf } from '../domain/log.js';
+import { treppenPfad } from '../domain/diagramm.js';
+import { entryExercises, repsOf, sekOf, stufenVerlauf } from '../domain/log.js';
 import { naechsteTermine } from '../domain/plan.js';
 import { MAX_LOG_ENTRIES, MAX_SERIES_ENTRIES } from '../domain/state.js';
 import { volumenJeGruppe } from '../domain/volume.js';
@@ -125,6 +126,71 @@ export function setHistRange(v){
   histRange = HIST_RANGES[v] ? v : '8w';
   renderHistory();
 }
+/* Der erste Tag des Zeitraums, fuer die Stufen. "Alles" beginnt beim
+   ersten Eintrag. */
+function histVon(){
+  if(histRange === '26w') return isoDaysAgo(26 * 7);
+  if(histRange === '12m') return isoDaysAgo(365);
+  if(histRange === 'all') return (state.log || []).reduce((a, l) => (l && l.d && (!a || l.d < a)) ? l.d : a, null) || today();
+  return isoDaysAgo(8 * 7);
+}
+
+/* Der gezeigte Bereich: Fortschritt, Trainings oder Koerper. Wie der
+   Zeitraum nur zur Laufzeit gemerkt. */
+const HIST_SEGS = ['fortschritt', 'trainings', 'koerper'];
+let histSeg = 'fortschritt';
+export function setHistSeg(v){
+  histSeg = HIST_SEGS.includes(v) ? v : 'fortschritt';
+  segAnwenden();
+}
+function segAnwenden(){
+  const view = document.getElementById('view-history');
+  if(!view) return;
+  view.dataset.seg = histSeg;
+  view.querySelectorAll('.seg-leiste [data-action="history:seg"]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.seg === histSeg)));
+}
+
+/* Stufen-Fortschritt: je Uebung eine Zeile mit der Stufe als Treppe ueber
+   den Zeitraum, der Stufe jetzt und dem Zuwachs. Uebungen mit Zuwachs
+   zuerst. Gezeigt wird, was im Plan steht oder im Zeitraum trainiert wurde
+   und eine bekannte Stufe hat (lv, seit v15). Ein Tipp oeffnet das
+   Uebungsblatt. */
+function renderStufen(){
+  const el = document.getElementById('stufenListe');
+  if(!el) return;
+  const von = histVon(), bis = today();
+  const ids = new Set(getDays().flatMap(d => d.ex));
+  (state.log || []).forEach(l => { if(l && l.d >= von && l.lv) Object.keys(l.lv).forEach(id => ids.add(id)); });
+  const zeilen = [...ids].map(id => {
+    const ex = EX_BY_ID[id];
+    if(!ex) return null;
+    const punkte = stufenVerlauf(state.log, id);
+    const drin = punkte.filter(p => p.d >= von);
+    if(!drin.length) return null;
+    const vorher = punkte.filter(p => p.d < von).pop();
+    const anfang = (vorher || drin[0]).lvl, jetzt = drin[drin.length - 1].lvl;
+    return { ex, punkte, anfang, jetzt, plus: jetzt - anfang };
+  }).filter(Boolean).sort((a, b) => b.plus - a.plus || exName(a.ex).localeCompare(exName(b.ex)));
+  if(!zeilen.length){
+    el.innerHTML = leerHtml(ikon('levelup'), __('levelProgressEmpty'));
+    return;
+  }
+  el.innerHTML = '<ul class="st-liste">' + zeilen.map(z => {
+    const max = z.ex.levels.length - 1;
+    const pfad = treppenPfad(z.punkte, { von, bis, maxLvl: max, hoehe: 28 });
+    return '<li data-cat="' + z.ex.cat + '"><button type="button" class="st-knopf" data-action="exercise:sheet" data-ex="' + z.ex.id + '">' +
+      '<span class="st-name">' + esc(exName(z.ex)) + '</span>' +
+      '<svg class="st-treppe" viewBox="0 0 300 28" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+        '<path d="' + pfad + '" fill="none" stroke="var(--kat,var(--accent))" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>' +
+      '<span class="st-stand" aria-hidden="true">' + (z.jetzt + 1) + '/' + (max + 1) +
+        (z.plus ? ' <b class="' + (z.plus > 0 ? 'plus' : 'minus') + '">' + (z.plus > 0 ? '+' : '−') + Math.abs(z.plus) + '</b>' : '') + '</span>' +
+      '<span class="sr-only">' + esc(z.plus
+        ? __('levelProgressSr', { von: z.anfang + 1, bis: z.jetzt + 1, total: max + 1 })
+        : __('levelProgressSame', { n: z.jetzt + 1, total: max + 1 })) + '</span>' +
+      '</button></li>';
+  }).join('') + '</ul>';
+}
 
 export function renderHistory(){
   /* Week chart */
@@ -194,6 +260,8 @@ export function renderHistory(){
     renderVolSplit(volWeek[weeks[weeks.length - 1]], monat);
   }
 
+  renderStufen();
+  segAnwenden();
   renderIstBilanz();
   renderWeight();
   renderMeasurements();

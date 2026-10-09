@@ -30,7 +30,7 @@ import { filterLibrary, nurMachbarSetzen, renderCatFilter, renderLibrary, savePR
 import { closeSettings, einstellungZuruecknehmen, erinnerungAbsagen, erinnerungPlanen, erinnerungTimer, openSettings, settingsUndoTimeout, updateSetting, verwerfeUeberzaehligeSaetze } from './features/einstellungen.js';
 import { einstiegBeenden, einstiegLaufen } from './features/einstieg.js';
 import { addEx, addPlanDay, changePlan, ensureCustom, generatePlan, installPlanDragAndDrop, moveEx, paarRueckgaengig, paarSchalten, planTempo, removeDay, removeEx, renameDay, renderPlanTab, resetPlan, setWeekPlan } from './features/planeditor.js';
-import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, logUmschalten, logZurueckholen, removeLogEntry, renderHistory, setHistRange } from './features/verlauf.js';
+import { addLogEntry, addMeasurement, addWeight, kalenderVerschieben, logUmschalten, logZurueckholen, removeLogEntry, renderHistory, setHistRange, setHistSeg } from './features/verlauf.js';
 import { addCustomMilestone, erkannteMs, removeCustomMilestone, renderBests, renderMilestones, renderRoadmap, toggleMilestone } from './features/ziele.js';
 import { FOCUSABLE, askChoice, askConfirm, askText, closeDialog, openDialog, openDialogEl } from './ui/dialoge.js';
 import { AKTION_MS, ikon, melde, mitFokus, toast, toastTimer, wenigerBewegung } from './ui/hinweise.js';
@@ -3282,6 +3282,7 @@ export const actions = {
   /* Verlauf */
   'weight:add':         () => addWeight(),
   'measurement:add':    () => addMeasurement(),
+  'history:seg':        d => mitFokus(() => setHistSeg(d.seg)),
   'history:range':      (d, ev, el) => mitFokus(() => setHistRange(el.value)),
   'log:add':            () => addLogEntry(),
   'log:remove':         d => removeLogEntry(zahl(d.i)),

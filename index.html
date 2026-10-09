@@ -171,11 +171,19 @@
   </section>
 
   <!-- ============ VERLAUF ============ -->
-  <section id="view-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
-    <!-- Zeitraum für Diagramme UND Liste. Vorher standen die Diagramme fest
-         auf acht Wochen und die Liste auf 25 Einträgen – nach einem Jahr
-         Training war der Rest unerreichbar. -->
-    <div class="inline-row" style="margin-bottom:12px">
+  <section id="view-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0" data-seg="fortschritt">
+    <!-- Drei Bereiche statt acht Abschnitte untereinander (3460 px auf dem
+         Handy). Alle Panels werden gezeichnet, CSS blendet die der anderen
+         Bereiche aus (#view-history[data-seg]). -->
+    <div class="seg-leiste" role="group" data-i18n-aria-label="histSegAria" aria-label="Bereich des Verlaufs">
+      <button type="button" class="seg" data-action="history:seg" data-seg="fortschritt" aria-pressed="true" data-i18n="histSegProgress">Fortschritt</button>
+      <button type="button" class="seg" data-action="history:seg" data-seg="trainings" aria-pressed="false" data-i18n="histSegWorkouts">Trainings</button>
+      <button type="button" class="seg" data-action="history:seg" data-seg="koerper" aria-pressed="false" data-i18n="histSegBody">Körper</button>
+    </div>
+    <!-- Zeitraum für Diagramme, Stufen UND Liste. Vorher standen die
+         Diagramme fest auf acht Wochen und die Liste auf 25 Einträgen – nach
+         einem Jahr Training war der Rest unerreichbar. -->
+    <div class="inline-row hist-zeitraum" style="margin-bottom:12px">
       <label class="lbl2" for="histRange" data-i18n="histRange">Zeitraum</label>
       <select id="histRange" data-action-change="history:range">
         <option value="8w" data-i18n="histRange8w">8 Wochen</option>
@@ -186,10 +194,28 @@
     </div>
     <!-- Auf breiten Schirmen zweispaltig. Jede Überschrift steht mit ihrer
          Karte in einer .panel-Klammer – als Geschwister würde das Raster sie
-         auseinanderreißen. Die DOM-Reihenfolge ist dieselbe wie vorher, auf
-         dem Handy ändert sich also nichts. -->
+         auseinanderreißen. -->
     <div class="raster raster--verlauf">
-    <div class="panel">
+    <!-- Fortschritt: die Stufe ist bei Calisthenics der Fortschritt, nicht
+         die Summe der Wiederholungen – 8 Knie-Liegestütze zählten dort wie
+         8 volle. -->
+    <div class="panel panel--breit" id="stufenPanel" data-seg="fortschritt">
+    <div class="section-title" data-i18n="levelProgress">Stufen-Fortschritt</div>
+    <div class="card" id="stufenListe"></div>
+    </div>
+
+    <div class="panel" id="istPanel" data-seg="fortschritt" hidden>
+    <div class="section-title" data-i18n="istTitle">Sätze je Muskelgruppe</div>
+    <div class="card" id="istBilanz"></div>
+    </div>
+
+    <div class="panel" data-seg="fortschritt">
+    <div class="section-title" data-i18n="yearReview">Jahresrückblick</div>
+    <div class="card" id="yearReview"></div>
+    </div>
+
+    <!-- Trainings -->
+    <div class="panel" data-seg="trainings">
     <div class="section-title" data-i18n="chartWorkouts">Trainings pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="weekChart"></div>
@@ -197,22 +223,32 @@
     </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" data-seg="trainings">
     <div class="section-title" data-i18n="chartVolume">Wiederholungen pro Woche</div>
     <div class="card">
       <div class="bar-chart" id="volChart"></div>
       <div class="vol-legend" data-i18n="volumeLegend">Gesamtvolumen – sollte über die Wochen leicht steigen, nicht sprunghaft.</div>
       <div id="volSplit"></div>
     </div>
-    <!-- Im selben Panel wie das Volumen: ein eigenes machte die Zahl der
-         Panels vor der Trainingsliste gerade (siehe test/css.test.js). -->
-    <div id="istPanel" hidden>
-    <div class="section-title" data-i18n="istTitle">Sätze je Muskelgruppe</div>
-    <div class="card" id="istBilanz"></div>
-    </div>
     </div>
 
-    <div class="panel">
+    <!-- Die Trainingsliste ist das lange Stück dieses Bereichs. Auf breiten
+         Schirmen belegt sie zwei Zeilen, der Kalender steht daneben. -->
+    <div class="panel panel--lang" data-seg="trainings">
+    <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
+    <div class="muted" id="logSummary"></div>
+    <!-- Ohne das ging eine Einheit ohne Handy nur über eine von Hand
+         gebaute CSV wieder herein. -->
+    <button class="btn secondary btn--standalone" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
+    <div class="card" id="logList"></div>
+    </div>
+
+    <!-- Calendar container (rendered by JS). Ohne Log bleibt er leer und
+         verschwindet dann per :empty auch aus dem Raster. -->
+    <div id="calendarView" class="panel" data-seg="trainings"></div>
+
+    <!-- Körper -->
+    <div class="panel" data-seg="koerper">
     <div class="section-title" data-i18n="bodyWeight">Körpergewicht</div>
     <div class="card">
       <div class="inline-row">
@@ -225,28 +261,7 @@
     </div>
 
     <!-- Measurements container (rendered by JS) -->
-    <div id="measContainer" class="panel"></div>
-
-    <div class="panel">
-    <div class="section-title" data-i18n="yearReview">Jahresrückblick</div>
-    <div class="card" id="yearReview"></div>
-    </div>
-
-    <!-- Die Trainingsliste ist das lange Stück dieses Bereichs. Auf breiten
-         Schirmen belegt sie rechts zwei Zeilen, und Jahresrückblick und
-         Kalender stapeln sich daneben. -->
-    <div class="panel panel--lang">
-    <div class="section-title" data-i18n="workoutLog">Letzte Trainings</div>
-    <div class="muted" id="logSummary"></div>
-    <!-- Ohne das ging eine Einheit ohne Handy nur über eine von Hand
-         gebaute CSV wieder herein. -->
-    <button class="btn secondary btn--standalone" data-action="log:add" data-i18n="addLogEntry">Training nachtragen</button>
-    <div class="card" id="logList"></div>
-    </div>
-
-    <!-- Calendar container (rendered by JS). Ohne Log bleibt er leer und
-         verschwindet dann per :empty auch aus dem Raster. -->
-    <div id="calendarView" class="panel"></div>
+    <div id="measContainer" class="panel" data-seg="koerper"></div>
     </div>
   </section>
 

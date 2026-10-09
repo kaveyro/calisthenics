@@ -4951,3 +4951,59 @@ describe('Uebungsblatt', () => {
   });
 });
 
+
+describe('Verlauf: Stufen vorn, drei Bereiche', () => {
+  const e = (tage, lv, ups = []) => ({ d: isoDaysAgo(tage), day: 'A', sets: 4, ex: Object.keys(lv), lv, reps: {}, ups });
+  async function verlauf(log){
+    localStorage.setItem(SPEICHER, JSON.stringify({ v: 18, onboarded: true, log, workouts: log.length }));
+    const app = await starten();
+    app.actions['tab:show']({ tab: 'history' });
+    await ruhe();
+    return app;
+  }
+  const zeilen = () => [...document.querySelectorAll('#stufenListe .st-knopf')];
+
+  it('beginnt im Bereich Fortschritt mit den Stufen, Uebungen mit Zuwachs zuerst', async () => {
+    await verlauf([e(40, { pushup: 1, squat: 2 }), e(20, { pushup: 2, squat: 2 }), e(5, { pushup: 3, squat: 2 }, ['pushup'])]);
+    expect(document.getElementById('view-history').dataset.seg).toBe('fortschritt');
+    const z = zeilen();
+    expect(z[0].dataset.ex).toBe('pushup');
+    /* 8 Wochen: am Anfang galt Stufe 2 (Index 1), jetzt 5 nach dem Aufstieg. */
+    expect(z[0].querySelector('.st-stand').textContent).toMatch(/^5\/\d+ \+3$/);
+    expect(z[0].querySelector('.sr-only').textContent).toMatch(/^von Stufe 2 auf 5 von \d+$/);
+    expect(z[0].querySelector('svg.st-treppe').getAttribute('aria-hidden')).toBe('true');
+    const knie = z.find(k => k.dataset.ex === 'squat');
+    expect(knie.querySelector('.sr-only').textContent).toMatch(/unverändert/);
+  });
+
+  it('rechnet den Zuwachs ueber den gewaehlten Zeitraum', async () => {
+    const app = await verlauf([e(200, { pushup: 0 }), e(100, { pushup: 2 }), e(10, { pushup: 3 })]);
+    expect(zeilen()[0].querySelector('.st-stand').textContent).toMatch(/\+1$/);
+    app.actions['history:range']({}, null, { value: 'all' });
+    await ruhe();
+    expect(zeilen()[0].querySelector('.st-stand').textContent).toMatch(/\+3$/);
+  });
+
+  it('zeigt ohne Stufendaten einen Leerzustand', async () => {
+    await verlauf([{ d: isoDaysAgo(3), day: 'A', sets: 4, ex: ['pushup'], reps: { 'pushup-0': 8 } }]);
+    expect(document.querySelector('#stufenListe .leer-zustand')).not.toBeNull();
+  });
+
+  it('schaltet die Bereiche um', async () => {
+    await verlauf([e(5, { pushup: 1 })]);
+    document.querySelector('[data-action="history:seg"][data-seg="koerper"]').click();
+    await ruhe();
+    expect(document.getElementById('view-history').dataset.seg).toBe('koerper');
+    expect(document.querySelector('[data-seg="koerper"][aria-pressed]').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-seg="fortschritt"][aria-pressed]').getAttribute('aria-pressed')).toBe('false');
+    /* Alle Panels bleiben gezeichnet; ausgeblendet wird per CSS. */
+    expect(document.querySelectorAll('#logList .log-item').length).toBe(1);
+  });
+
+  it('oeffnet aus einer Zeile das Uebungsblatt', async () => {
+    await verlauf([e(5, { pushup: 1 })]);
+    zeilen()[0].click();
+    await ruhe();
+    expect(document.getElementById('uebungOverlay').dataset.ex).toBe('pushup');
+  });
+});

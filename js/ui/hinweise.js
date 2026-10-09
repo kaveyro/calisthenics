@@ -31,7 +31,7 @@ export function melde(text){
    Eine id haben laengst nicht alle – Bibliothekskoepfe, Meilenstein-Haken und
    die Plan-Schaltflaechen tragen nur ihre data-Attribute. Die sind aber
    stabil und eindeutig, also dienen sie als Kennung. */
-const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta'];
+const FOKUS_DATEN = ['ex', 'day', 'i', 'set', 'key', 'cat', 'id', 'delta', 'seg'];
 function fokusKennung(el){
   if(!el || el === document.body) return null;
   /* CSS.escape fehlt in aelteren Umgebungen (und in jsdom); eine id aus

@@ -170,7 +170,6 @@ describe('Layout auf breiten Schirmen', () => {
      Luecke zwischen den gestapelten Panels. */
   it('laesst den Ueberhang langer Panels in die letzte Zeile fliessen', () => {
     expect(css).toMatch(/\.panel--lang\{grid-row:span 2\}/);
-    expect(css).toMatch(/\.raster--verlauf\{grid-template-rows:auto auto auto 1fr\}/);
     expect(css).toMatch(/\.raster--ziele\{grid-template-rows:auto 1fr\}/);
   });
 
@@ -191,20 +190,19 @@ describe('Layout auf breiten Schirmen', () => {
     expect(html).toContain('class="raster raster--ziele"');
   });
 
-  /* Die Zeilenvorlage des Verlaufs haengt an der Zahl der Panels vor der
-     Trainingsliste. Bei zwei Spalten muss sie UNGERADE sein, sonst begaenne
-     die Liste links in einer neuen Zeile statt rechts neben dem letzten
-     kurzen Panel. Und die Vorlage braucht so viele auto-Zeilen, wie die
-     Panels davor belegen, gefolgt von der flexiblen.
-
-     Hergeleitet statt als feste Zahl: kommt ein Panel dazu, sagt der Test
-     genau, welche Vorlage jetzt stimmen wuerde. */
-  it('haelt die Zeilenvorlage des Verlaufs mit dem Markup deckungsgleich', () => {
+  /* Der Verlauf ist seit Runde 12 in drei Bereiche geteilt. Jedes Panel
+     gehoert genau einem, und fuer jeden Bereich gibt es die Regel, die die
+     anderen ausblendet – ein Panel ohne data-seg stuende in allen dreien. */
+  it('ordnet jedes Panel des Verlaufs einem Bereich zu', () => {
     const verlauf = html.split('class="raster raster--verlauf"')[1].split('</section>')[0];
-    const davor = verlauf.split('panel--lang')[0].match(/class="panel"/g).length;
-    expect(davor % 2).toBe(1);
-    const erwartet = 'auto '.repeat(Math.ceil(davor / 2)) + '1fr';
-    expect(css).toContain('.raster--verlauf{grid-template-rows:' + erwartet + '}');
+    const panels = [...verlauf.matchAll(/<div[^>]*class="panel[^"]*"[^>]*>/g)].map(m => m[0]);
+    expect(panels.length).toBeGreaterThan(6);
+    const segs = panels.map(p => (p.match(/data-seg="(\w+)"/) || [])[1]);
+    expect(segs.every(Boolean), panels.filter((p, i) => !segs[i]).join('\n')).toBe(true);
+    for(const seg of new Set(segs)){
+      expect(html).toContain('data-action="history:seg" data-seg="' + seg + '"');
+      expect(css).toContain('#view-history[data-seg="' + seg + '"] .raster--verlauf > [data-seg]:not([data-seg="' + seg + '"])');
+    }
   });
 
   it('stellt in den Zielen das lange Panel an den Anfang', () => {
