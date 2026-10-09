@@ -307,6 +307,19 @@ describe('Navigation unten', () => {
   it('laesst die Schiene ab 1040px unberuehrt', () => {
     expect(block[1]).not.toMatch(/schiene/);
   });
+
+  it('macht den Kopf ausserhalb des Trainings kompakt', () => {
+    const regel = sel => block[1].includes('body[data-tab]:not([data-tab="train"]) ' + sel);
+    expect(regel(':is(.eyebrow,.phase-line){display:none}')).toBe(true);
+    expect(regel('h1{font-size:var(--text-xl)')).toBe(true);
+  });
+});
+
+describe('Tastaturhinweis', () => {
+  it('blendet die Tastenkuerzel im Footer auf Touch aus', () => {
+    const touch = [...css.matchAll(/@media \(pointer:coarse\)\{([\s\S]*?)\n\}/g)].map(m => m[1]).join('\n');
+    expect(touch).toMatch(/footer small\{display:none\}/);
+  });
 });
 
 describe('Symbolsatz', () => {

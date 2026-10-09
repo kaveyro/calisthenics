@@ -492,6 +492,8 @@ details.acc li{margin-bottom:5px}
   .lvl-adjust{gap:10px}
   .lvl-adjust button{position:relative;width:34px;height:34px;border-radius:9px}
   .lvl-adjust button::after{content:"";position:absolute;inset:-6px}
+  /* Tastenkuerzel helfen auf dem Touchscreen nicht. */
+  footer small{display:none}
 }
 .tips{display:none;margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;font-size:var(--text-md)}
 .tips.open{display:block}
@@ -1056,6 +1058,14 @@ body.pause-aus::after{content:"";position:fixed;inset:0;z-index:60;pointer-event
      Training – in Verlauf, Plan und Zielen stehen die Zahlen ohnehin
      ausführlicher. */
   body[data-tab]:not([data-tab="train"]) .stats{display:none}
+  /* Kompakter Kopf ausserhalb des Trainings: Wortmarke klein, ohne Planname
+     und Phasenzeile. Der Kopf brauchte auf jedem Tab rund 130px, bevor
+     etwas kam; Plan und Phase gehoeren zum Training. Nicht klebend: unten
+     stehen schon Tab- und Abschlussleiste fest. */
+  body[data-tab]:not([data-tab="train"]) header{padding:var(--abstand-3) 0 0}
+  body[data-tab]:not([data-tab="train"]) .head-row{align-items:center}
+  body[data-tab]:not([data-tab="train"]) :is(.eyebrow,.phase-line){display:none}
+  body[data-tab]:not([data-tab="train"]) h1{font-size:var(--text-xl);margin:0}
   .stats{gap:0;margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--schatten-1);padding:8px 0}
   .stat{background:none;border:none;box-shadow:none;border-radius:0;padding:0 2px;text-align:center}
   .stat + .stat{border-left:1px solid var(--line)}
